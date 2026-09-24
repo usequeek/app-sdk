@@ -1292,6 +1292,18 @@ export interface components {
                 } | null;
             }[];
         };
+        /** CollectedRecordResource */
+        CollectedRecordResource: {
+            p_id: number;
+            definition_p_id?: number;
+            type?: string | null;
+            status: string | "new";
+            source: string | null;
+            submitted_at: string;
+            values: string | string[];
+            created_at: string;
+            updated_at: string;
+        };
         /**
          * CollectedRecordSubmitRequest
          * @description The Forms APP submit path (POST records, merchant API, installation key
@@ -1309,7 +1321,10 @@ export interface components {
          */
         CollectedRecordSubmitRequest: {
             definition: string;
-            values: string[];
+            /** @description Record values keyed by field key. Each value’s shape follows the field type on the definition. */
+            values: {
+                [key: string]: unknown;
+            };
         };
         /** CollectionResource */
         CollectionResource: {
@@ -1549,6 +1564,34 @@ export interface components {
             data_class?: components["schemas"]["MetaobjectDataClass"] | null;
             entry_cap_override?: number | null;
             retention_days?: number | null;
+        };
+        /** MetaobjectDefinitionResource */
+        MetaobjectDefinitionResource: {
+            p_id: number;
+            type: string;
+            name: string;
+            description: string;
+            display_field: string;
+            storefront_visible: boolean;
+            has_pages: boolean;
+            /**
+             * @description S2 decides the S1-open public-shape question: the class and its
+             *     knobs are read-only on the definition resource. Writes stay on
+             *     the dashboard-session path (merchant-key routes strip them).
+             */
+            data_class: string | "content";
+            entry_cap_override: number | null;
+            retention_days: number | null;
+            fields: unknown[];
+            entries_count?: number;
+            /**
+             * @description The inbox badge: how many submissions a collected definition
+             *     holds (null for content). Rendered on dashboard paths only, so
+             *     the merchant-key and AI shapes stay byte-identical to S2.
+             */
+            records_count?: number | null;
+            created_at: string;
+            updated_at: string;
         };
         /**
          * MetaobjectRequest
@@ -2538,10 +2581,12 @@ export interface components {
             /**
              * @description Single source of truth (App\Services\Fulfillment\FulfillmentService,
              *     config/fulfillment.php requires_rider) for whether this order can
-             *     even take a rider — pickup/instore/shipping/digital never can. The
-             *     merchant UI gates the Assign Rider action on this, not on a
-             *     frontend-side delivery_method list (RiderOrderService::assignByVendor
-             *     enforces the same flag server-side either way).
+             *     even take a rider — pickup/instore/shipping/digital never can, and
+             *     a platform-fulfilled (third-party) order never takes a QUEEK rider
+             *     at all: the outside platform delivers it. The merchant UI gates the
+             *     Assign Rider action on this, not on a frontend-side
+             *     delivery_method list (RiderOrderService::assignByVendor enforces
+             *     the same decision server-side either way).
              */
             can_assign_rider: string;
             /**
@@ -3210,12 +3255,9 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
-                        /** @constant */
-                        status: "success";
-                        /** @constant */
-                        message: "Collected definitions";
-                        data: string[];
-                        meta: string;
+                        status: string;
+                        message: string;
+                        data: components["schemas"]["MetaobjectDefinitionResource"][];
                     };
                 };
             };
@@ -3281,12 +3323,9 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
-                        /** @constant */
-                        status: "success";
-                        /** @constant */
-                        message: "Collected definition created";
-                        data: string[];
-                        meta: string;
+                        status: string;
+                        message: string;
+                        data: components["schemas"]["MetaobjectDefinitionResource"];
                     };
                 };
             };
@@ -3363,12 +3402,9 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
-                        /** @constant */
-                        status: "success";
-                        /** @constant */
-                        message: "Collected definition updated";
-                        data: string[];
-                        meta: string;
+                        status: string;
+                        message: string;
+                        data: components["schemas"]["MetaobjectDefinitionResource"];
                     };
                 };
             };
@@ -3454,12 +3490,9 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
-                        /** @constant */
-                        status: "success";
-                        /** @constant */
-                        message: "Collected record submitted";
-                        data: string[];
-                        meta: string;
+                        status: string;
+                        message: string;
+                        data: components["schemas"]["CollectedRecordResource"];
                     };
                 };
             };
@@ -5942,28 +5975,11 @@ export interface operations {
                 content: {
                     "application/json": {
                         data: components["schemas"]["VendorOrderResource"] & Record<string, never>;
-                    };
+                    } | string;
                 };
             };
             401: components["responses"]["AuthenticationException"];
             403: components["responses"]["AuthorizationException"];
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        /** @constant */
-                        status: "failed";
-                        error: string;
-                        message: string;
-                        /** @constant */
-                        error_type: "error";
-                        data: null;
-                        title: null;
-                    };
-                };
-            };
             /** @description Idempotency conflict — `idempotency_key_reuse` or `idempotency_key_in_progress`. */
             409: {
                 headers: {

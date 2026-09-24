@@ -88,13 +88,32 @@ describe("installation-bound app writes", () => {
 
   it("lists, creates and patches collected definitions on the installation's types", async () => {
     const calls: Array<{ method?: string; url: string; body?: unknown }> = [];
+    const definition = {
+      p_id: 7,
+      type: "app_forms_3_contact",
+      name: "Contact form",
+      description: "Shop collects replies.",
+      display_field: "name",
+      storefront_visible: false,
+      has_pages: false,
+      data_class: "collected",
+      entry_cap_override: null,
+      retention_days: null,
+      fields: [{ key: "name", name: "Name", type: "single_line_text", required: true }],
+      created_at: "2026-09-24T00:00:00+00:00",
+      updated_at: "2026-09-24T00:00:00+00:00",
+    };
     const fetchImpl = mockFetch((url, init) => {
       const raw = init.body === undefined ? "" : String(init.body);
       calls.push({ method: init.method, url, body: raw === "" ? undefined : JSON.parse(raw) });
-      return ok([]);
+      return ok(
+        new URL(url).pathname.endsWith("/collected-definitions") && init.method === "GET"
+          ? [definition]
+          : definition,
+      );
     });
     const c = client(fetchImpl);
-    await collectedDefinitions.list(c);
+    expect(await collectedDefinitions.list(c)).toEqual([definition]);
     await collectedDefinitions.create(c, {
       type: "app_forms_3_contact",
       name: "Contact form",

@@ -109,26 +109,14 @@ export interface CollectedDefinitionUpdate {
 }
 
 /**
- * A collected definition as the Merchant API returns it
- * (MetaobjectDefinitionResource — Scramble cannot infer the shape, so it
- * is stated here from the resource's toArray at queek_backend@c1fa1c31:
- * p_id int, type, fields[] with the same field vocabulary as create).
+ * A collected definition as the Merchant API returns it: the generated
+ * MetaobjectDefinitionResource (typed since bf7329af) with the create
+ * endpoint's field vocabulary for `fields` (the generated `unknown[]`
+ * carries no field shape).
  */
-export interface CollectedDefinition {
-  p_id: number;
-  type: string;
-  name: string;
-  description: string | null;
-  display_field: string;
-  storefront_visible: boolean;
-  has_pages: boolean;
-  data_class: string;
-  entry_cap_override: number | null;
-  retention_days: number | null;
+export type CollectedDefinition = Omit<Schemas["MetaobjectDefinitionResource"], "fields"> & {
   fields: CollectedField[];
-  created_at: string;
-  updated_at: string;
-}
+};
 
 export const collectedDefinitions = {
   /** GET collected-definitions — only the calling installation's own types. */
@@ -173,8 +161,8 @@ export const collectedDefinitions = {
 /**
  * POST records — one record under the installation's own type.
  *
- * `values` is a `{field_key: value}` object (backend
- * FormsAppCollectedTest sends objects; the writer validates pairs). A
+ * `values` is a `{field_key: value}` object (spec-correct since
+ * bf7329af: object + additionalProperties; the writer validates pairs). A
  * fresh Idempotency-Key is generated per call unless the caller passes
  * one — no two submits ever share a key.
  */

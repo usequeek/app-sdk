@@ -420,30 +420,22 @@
                   "type": "object",
                   "properties": {
                     "status": {
-                      "type": "string",
-                      "const": "success"
+                      "type": "string"
                     },
                     "message": {
-                      "type": "string",
-                      "const": "Collected definitions"
+                      "type": "string"
                     },
                     "data": {
                       "type": "array",
                       "items": {
-                        "type": "string"
-                      },
-                      "minItems": 0,
-                      "maxItems": 0
-                    },
-                    "meta": {
-                      "type": "string"
+                        "$ref": "#/components/schemas/MetaobjectDefinitionResource"
+                      }
                     }
                   },
                   "required": [
                     "status",
                     "message",
-                    "data",
-                    "meta"
+                    "data"
                   ]
                 }
               }
@@ -566,30 +558,19 @@
                   "type": "object",
                   "properties": {
                     "status": {
-                      "type": "string",
-                      "const": "success"
+                      "type": "string"
                     },
                     "message": {
-                      "type": "string",
-                      "const": "Collected definition created"
+                      "type": "string"
                     },
                     "data": {
-                      "type": "array",
-                      "items": {
-                        "type": "string"
-                      },
-                      "minItems": 0,
-                      "maxItems": 0
-                    },
-                    "meta": {
-                      "type": "string"
+                      "$ref": "#/components/schemas/MetaobjectDefinitionResource"
                     }
                   },
                   "required": [
                     "status",
                     "message",
-                    "data",
-                    "meta"
+                    "data"
                   ]
                 }
               }
@@ -732,30 +713,19 @@
                   "type": "object",
                   "properties": {
                     "status": {
-                      "type": "string",
-                      "const": "success"
+                      "type": "string"
                     },
                     "message": {
-                      "type": "string",
-                      "const": "Collected definition updated"
+                      "type": "string"
                     },
                     "data": {
-                      "type": "array",
-                      "items": {
-                        "type": "string"
-                      },
-                      "minItems": 0,
-                      "maxItems": 0
-                    },
-                    "meta": {
-                      "type": "string"
+                      "$ref": "#/components/schemas/MetaobjectDefinitionResource"
                     }
                   },
                   "required": [
                     "status",
                     "message",
-                    "data",
-                    "meta"
+                    "data"
                   ]
                 }
               }
@@ -929,30 +899,19 @@
                   "type": "object",
                   "properties": {
                     "status": {
-                      "type": "string",
-                      "const": "success"
+                      "type": "string"
                     },
                     "message": {
-                      "type": "string",
-                      "const": "Collected record submitted"
+                      "type": "string"
                     },
                     "data": {
-                      "type": "array",
-                      "items": {
-                        "type": "string"
-                      },
-                      "minItems": 0,
-                      "maxItems": 0
-                    },
-                    "meta": {
-                      "type": "string"
+                      "$ref": "#/components/schemas/CollectedRecordResource"
                     }
                   },
                   "required": [
                     "status",
                     "message",
-                    "data",
-                    "meta"
+                    "data"
                   ]
                 }
               }
@@ -6745,25 +6704,32 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "data": {
-                      "allOf": [
-                        {
-                          "$ref": "#/components/schemas/VendorOrderResource"
-                        },
-                        {
-                          "type": "object",
-                          "required": [
-                            "items",
-                            "rider"
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "allOf": [
+                            {
+                              "$ref": "#/components/schemas/VendorOrderResource"
+                            },
+                            {
+                              "type": "object",
+                              "required": [
+                                "items",
+                                "rider"
+                              ]
+                            }
                           ]
                         }
+                      },
+                      "required": [
+                        "data"
                       ]
+                    },
+                    {
+                      "type": "string"
                     }
-                  },
-                  "required": [
-                    "data"
                   ]
                 }
               }
@@ -6774,46 +6740,6 @@
           },
           "403": {
             "$ref": "#/components/responses/AuthorizationException"
-          },
-          "404": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "status": {
-                      "type": "string",
-                      "const": "failed"
-                    },
-                    "error": {
-                      "type": "string"
-                    },
-                    "message": {
-                      "type": "string"
-                    },
-                    "error_type": {
-                      "type": "string",
-                      "const": "error"
-                    },
-                    "data": {
-                      "type": "null"
-                    },
-                    "title": {
-                      "type": "null"
-                    }
-                  },
-                  "required": [
-                    "status",
-                    "error",
-                    "message",
-                    "error_type",
-                    "data",
-                    "title"
-                  ]
-                }
-              }
-            }
           },
           "409": {
             "description": "Idempotency conflict — `idempotency_key_reuse` or `idempotency_key_in_progress`.",
@@ -9937,6 +9863,76 @@
         ],
         "title": "CollectedDefinitionRequest"
       },
+      "CollectedRecordResource": {
+        "type": "object",
+        "properties": {
+          "p_id": {
+            "type": "integer"
+          },
+          "definition_p_id": {
+            "type": "integer"
+          },
+          "type": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "string",
+                "enum": [
+                  "new"
+                ]
+              }
+            ]
+          },
+          "source": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "submitted_at": {
+            "type": "string"
+          },
+          "values": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "minItems": 0,
+                "maxItems": 0
+              }
+            ]
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "p_id",
+          "status",
+          "source",
+          "submitted_at",
+          "values",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "CollectedRecordResource"
+      },
       "CollectedRecordSubmitRequest": {
         "type": "object",
         "description": "The Forms APP submit path (POST records, merchant API, installation key\nonly): one record under one of the calling installation's collected types.\n\nValues run the SAME writer validation entries use — one field vocabulary —\nand the per-definition cap gets the same friendly pre-check the dashboard\ninbox runs, while the writer enforces it in-transaction. The source is\nFORCED app in the controller: the body carries no source, so a caller can\nnever file a person under dashboard/ai/form. The per-installation abuse\nlimiter runs in the controller after validation, so a 422 spends no budget.\n\nOwnership (this installation's types only) is the controller's 403 — the\nrequest resolves, the controller refuses.",
@@ -9946,11 +9942,9 @@
             "maxLength": 64
           },
           "values": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            },
-            "minItems": 1
+            "type": "object",
+            "description": "Record values keyed by field key. Each value’s shape follows the field type on the definition.",
+            "additionalProperties": {}
           }
         },
         "required": [
@@ -10845,6 +10839,94 @@
           "fields"
         ],
         "title": "MetaobjectDefinitionRequest"
+      },
+      "MetaobjectDefinitionResource": {
+        "type": "object",
+        "properties": {
+          "p_id": {
+            "type": "integer"
+          },
+          "type": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "display_field": {
+            "type": "string"
+          },
+          "storefront_visible": {
+            "type": "boolean"
+          },
+          "has_pages": {
+            "type": "boolean"
+          },
+          "data_class": {
+            "description": "S2 decides the S1-open public-shape question: the class and its\nknobs are read-only on the definition resource. Writes stay on\nthe dashboard-session path (merchant-key routes strip them).",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "string",
+                "enum": [
+                  "content"
+                ]
+              }
+            ]
+          },
+          "entry_cap_override": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "retention_days": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "fields": {
+            "type": "array",
+            "items": {}
+          },
+          "entries_count": {
+            "type": "integer"
+          },
+          "records_count": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "The inbox badge: how many submissions a collected definition\nholds (null for content). Rendered on dashboard paths only, so\nthe merchant-key and AI shapes stay byte-identical to S2."
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "p_id",
+          "type",
+          "name",
+          "description",
+          "display_field",
+          "storefront_visible",
+          "has_pages",
+          "data_class",
+          "entry_cap_override",
+          "retention_days",
+          "fields",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "MetaobjectDefinitionResource"
       },
       "MetaobjectRequest": {
         "type": "object",
@@ -14382,7 +14464,7 @@
           },
           "can_assign_rider": {
             "type": "string",
-            "description": "Single source of truth (App\\Services\\Fulfillment\\FulfillmentService,\nconfig/fulfillment.php requires_rider) for whether this order can\neven take a rider — pickup/instore/shipping/digital never can. The\nmerchant UI gates the Assign Rider action on this, not on a\nfrontend-side delivery_method list (RiderOrderService::assignByVendor\nenforces the same flag server-side either way)."
+            "description": "Single source of truth (App\\Services\\Fulfillment\\FulfillmentService,\nconfig/fulfillment.php requires_rider) for whether this order can\neven take a rider — pickup/instore/shipping/digital never can, and\na platform-fulfilled (third-party) order never takes a QUEEK rider\nat all: the outside platform delivers it. The merchant UI gates the\nAssign Rider action on this, not on a frontend-side\ndelivery_method list (RiderOrderService::assignByVendor enforces\nthe same decision server-side either way)."
           },
           "table": {
             "type": "object",
