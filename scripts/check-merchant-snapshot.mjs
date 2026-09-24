@@ -6,6 +6,12 @@
  *
  * A NETWORK failure is a WARNING, not a failure (exit 0), so CI stays
  * green offline: only a real contract diff fails the check.
+ *
+ * Intended ahead-of-production drift is DECLARED, not hidden: when the
+ * snapshot carries an undeployed backend slice (S3a at c1fa1c31),
+ * openapi/merchant.drift.json lists exactly the paths/schemas ahead of
+ * live, and only diff lines OUTSIDE that list fail. A drift entry that no
+ * longer appears warns (the slice deployed — delete the file).
  */
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -87,13 +93,62 @@ try {
   process.exit(0);
 }
 
+/** Declared ahead-of-production drift (absent once its slice deploys). */
+function loadDrift() {
+  try {
+    return JSON.parse(readFileSync(join(root, "openapi", "merchant.drift.json"), "utf8"));
+  } catch {
+    return { source: "none", paths: [], schemas: [] };
+  }
+}
+
 const snapshot = JSON.parse(readFileSync(snapshotPath, "utf8"));
 if (canonical(live) === canonical(snapshot)) {
-  console.log("merchant snapshot matches the live contract.");
+  const drift = loadDrift();
+  if ((drift.paths ?? []).length > 0 || (drift.schemas ?? []).length > 0) {
+    warn(
+      "openapi/merchant.drift.json still declares drift but live matches — its slice deployed; delete the file.",
+    );
+  } else {
+    console.log("merchant snapshot matches the live contract.");
+  }
   process.exit(0);
 }
 
-console.error(`error: ${snapshotPath} differs from ${LIVE_URL}.`);
-for (const line of diffSummary(live, snapshot).slice(0, 20)) console.error(`  ${line}`);
+const drift = loadDrift();
+const driftPaths = new Set(drift.paths ?? []);
+const driftSchemas = new Set(drift.schemas ?? []);
+const seen = new Set();
+const unexpected = [];
+for (const line of diffSummary(live, snapshot)) {
+  const m = /^(path only live|path only snapshot|changed path): (.+)$/.exec(line);
+  const n = /^(schema only live|schema only snapshot|changed schema): (.+)$/.exec(line);
+  if (m && driftPaths.has(m[2])) {
+    seen.add(`path:${m[2]}`);
+    continue;
+  }
+  if (n && driftSchemas.has(n[2])) {
+    seen.add(`schema:${n[2]}`);
+    continue;
+  }
+  unexpected.push(line);
+}
+for (const entry of [...driftPaths]
+  .map((p) => `path:${p}`)
+  .concat([...driftSchemas].map((s) => `schema:${s}`))) {
+  if (!seen.has(entry))
+    warn(
+      `drift entry no longer differs from live: ${entry} — delete openapi/merchant.drift.json once its slice deploys.`,
+    );
+}
+if (unexpected.length === 0) {
+  console.log(
+    `merchant snapshot matches live except declared drift (${drift.source}, see openapi/merchant.drift.json).`,
+  );
+  process.exit(0);
+}
+
+console.error(`error: ${snapshotPath} differs from ${LIVE_URL} outside declared drift.`);
+for (const line of unexpected.slice(0, 20)) console.error(`  ${line}`);
 console.error("Refresh with: pnpm --filter @usequeek/app-sdk gen:merchant");
 process.exit(1);

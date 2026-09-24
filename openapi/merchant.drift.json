@@ -1,0 +1,21 @@
+{
+  "source": "queek_backend@c1fa1c31 (S3a, merged locally, NOT deployed)",
+  "note": "The committed snapshot is ahead of production on purpose: it carries the S3a contract (collected definitions, records submit, app setup/alerts) that apps/forms is built against. The live snapshot check stays green by declaring exactly this drift — any drift NOT listed here still fails CI.",
+  "remove_after": "S3a deploys to production: re-run check:merchant-snapshot, confirm zero diff, delete this file.",
+  "paths": [
+    "/app/alerts",
+    "/app/setup",
+    "/collected-definitions",
+    "/collected-definitions/{definition}",
+    "/records"
+  ],
+  "schemas": [
+    "CollectedDefinitionRequest",
+    "CollectedRecordSubmitRequest",
+    "MetafieldDefinitionRequest",
+    "MetafieldDefinitionResource",
+    "SendAppAlertRequest",
+    "UpdateAppSetupNoticeRequest",
+    "VendorOrderResource"
+  ]
+}

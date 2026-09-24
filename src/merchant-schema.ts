@@ -9,6 +9,122 @@
  */
 
 export interface paths {
+    "/app/setup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Update the installation setup notice
+         * @description Requires scope `merchant-app_setup-update`.
+         *
+         *     Stores the merchant-visible setup values for the calling installation (status plus the items sheet): the app calls this after its install/settings handoff answers 2xx, once its key is active. Full-body PUT — send the whole sheet every time.
+         */
+        put: operations["app.setup_update"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/app/alerts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Send a merchant alert
+         * @description Requires scope `merchant-app_alerts-create`.
+         *
+         *     Pages the merchant through the bell (in-app only) for the calling installation: severity, title, message and an optional dedupe key that collapses repeats. Rate-limited per installation with 429 + Retry-After past the caps.
+         */
+        post: operations["app.alerts_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/collected-definitions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the installation’s collected definitions
+         * @description Requires scope `merchant-collected-definitions-manage`.
+         *
+         *     Lists the collected definitions owned by the calling installation: the form types it created, ordered by type like the dashboard. Another installation’s types and merchant-held types never appear.
+         */
+        get: operations["app.collected_definitions_list"];
+        put?: never;
+        /**
+         * Create a collected definition
+         * @description Requires scope `merchant-collected-definitions-manage`.
+         *
+         *     Creates a collected definition owned by the calling installation. The type must carry the installation’s own app_{slug}_{installation} prefix — anything else 403s. The class is forced collected and the row is stamped with the installation.
+         */
+        post: operations["app.collected_definitions_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/collected-definitions/{definition}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update a collected definition
+         * @description Requires scope `merchant-collected-definitions-manage`.
+         *
+         *     Updates one of the calling installation’s collected definitions, addressed by p_id. The type is immutable; a type another installation or the merchant holds 403s.
+         */
+        patch: operations["app.collected_definitions_update"];
+        trace?: never;
+    };
+    "/records": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Submit a collected record
+         * @description Requires scope `merchant-collected-records-submit`.
+         *
+         *     Submits one record under one of the calling installation’s collected types. Values run the same field validation entries use; the source is forced app. Rate-limited per installation with 429 + Retry-After past the caps, on top of the per-definition storage cap.
+         */
+        post: operations["app.records_submit"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/collections": {
         parameters: {
             query?: never;
@@ -1131,6 +1247,70 @@ export interface components {
             rider_approved: boolean;
             profile_complete: string;
         };
+        /**
+         * CollectedDefinitionRequest
+         * @description The Forms APP definitions path (merchant API, installation key only):
+         *     GET + POST collected-definitions, PATCH collected-definitions/{definition}.
+         *
+         *     ONE request for the three verbs, like RecordRequest on the inbox: the
+         *     definition vocabulary (type shape, reserved roots, field schemas,
+         *     display_field, budget) is the SAME trait the dashboard and the AI facade
+         *     use, so the three surfaces can never disagree about a legal type — with
+         *     one deliberate difference: allowsAppOwnedType(), because installation
+         *     types carry the app_ prefix by construction. The class is never declared here:
+         *     the service forces collected and stamps the calling installation.
+         *
+         *     Definitions are addressed by `p_id`, scoped to the installation's vendor.
+         *     Ownership (this installation's types only) is the controller's 403 — the
+         *     request resolves, the controller refuses.
+         */
+        CollectedDefinitionRequest: {
+            type: string;
+            name: string;
+            description?: string | null;
+            display_field: string;
+            storefront_visible?: boolean | null;
+            /**
+             * @description Does an entry of this type get its own public page at
+             *     `/{type}/{handle}`? See ValidatesMetaobjectDefinitionInput's
+             *     assertTypeNotReservedRoot() for why the type itself is gated
+             *     against the storefront's own path roots.
+             */
+            has_pages?: boolean | null;
+            fields: {
+                key?: string;
+                name?: string;
+                /** @enum {string} */
+                type?: "single_line_text" | "multi_line_text" | "integer" | "decimal" | "boolean" | "date" | "url" | "json" | "media_id" | "list.single_line_text" | "list.multi_line_text" | "list.integer" | "list.decimal" | "list.boolean" | "list.date" | "list.url" | "list.media_id";
+                required?: boolean | null;
+                validations?: {
+                    min?: string | null;
+                    max?: string | null;
+                    regex?: string | null;
+                    choices?: string[] | null;
+                    metaobject_type?: string;
+                } | null;
+            }[];
+        };
+        /**
+         * CollectedRecordSubmitRequest
+         * @description The Forms APP submit path (POST records, merchant API, installation key
+         *     only): one record under one of the calling installation's collected types.
+         *
+         *     Values run the SAME writer validation entries use — one field vocabulary —
+         *     and the per-definition cap gets the same friendly pre-check the dashboard
+         *     inbox runs, while the writer enforces it in-transaction. The source is
+         *     FORCED app in the controller: the body carries no source, so a caller can
+         *     never file a person under dashboard/ai/form. The per-installation abuse
+         *     limiter runs in the controller after validation, so a 422 spends no budget.
+         *
+         *     Ownership (this installation's types only) is the controller's 403 — the
+         *     request resolves, the controller refuses.
+         */
+        CollectedRecordSubmitRequest: {
+            definition: string;
+            values: string[];
+        };
         /** CollectionResource */
         CollectionResource: {
             id: string;
@@ -1290,6 +1470,8 @@ export interface components {
             /** @enum {string} */
             type: "single_line_text" | "multi_line_text" | "integer" | "decimal" | "boolean" | "date" | "url" | "json" | "media_id" | "metaobject_reference" | "list.single_line_text" | "list.multi_line_text" | "list.integer" | "list.decimal" | "list.boolean" | "list.date" | "list.url" | "list.media_id" | "list.metaobject_reference";
             storefront_visible?: boolean | null;
+            pinned?: boolean | null;
+            pinned_position?: number | null;
             name?: string | null;
             description?: string | null;
             validations?: {
@@ -1309,6 +1491,8 @@ export interface components {
             key: string;
             type: string;
             storefront_visible: boolean;
+            pinned: boolean;
+            pinned_position: number | null;
             name: string;
             description: string;
             validations: string;
@@ -1926,6 +2110,26 @@ export interface components {
                 thumbnail: string;
             };
         };
+        /**
+         * SendAppAlertRequest
+         * @description The installation-bound alert write (POST app/alerts, merchant API,
+         *     installation key only): an installed app paging the merchant through the
+         *     bell. The installation comes from the calling key — the body carries no
+         *     target, so installation A can never page for installation B.
+         *
+         *     Titles and messages are bell content by design: plain text, length-capped
+         *     like the manifest listing fields, rendered escaped on every surface. The
+         *     optional dedupe_key lets the app collapse repeats of one problem (one
+         *     failing import batch, one expired credential) inside the TTL.
+         */
+        SendAppAlertRequest: {
+            /** @enum {string} */
+            severity: "info" | "warning" | "error";
+            title: string;
+            message: string;
+            dedupe_key?: string | null;
+            meta?: string[] | null;
+        };
         /** ShippingZoneRequest */
         ShippingZoneRequest: {
             name: string;
@@ -2096,6 +2300,36 @@ export interface components {
             image_variants: string | null;
             products_count: number;
             children: unknown[];
+        };
+        /**
+         * UpdateAppSetupNoticeRequest
+         * @description The installation-bound setup write (PUT app/setup, merchant API,
+         *     installation key only). ONE write path for the merchant-visible values an
+         *     app gives its installer: the install/settings handoff 2xx body stays
+         *     ignored, and the app calls here after it answers 2xx, once its key is
+         *     active.
+         *
+         *     Full-body PUT (the resource's one update verb): status + the whole items
+         *     sheet every time, so a retry replays instead of merging. Lengths come from
+         *     config/apps.php app_setup with the same defaults beside them; values that
+         *     look like URLs must be https (a token-bearing http URL would train the
+         *     merchant to paste secrets into cleartext).
+         */
+        UpdateAppSetupNoticeRequest: {
+            /**
+             * @description needs_action is the absence state the backend derives when no
+             *     notice is stored — an app may only declare incomplete/complete.
+             * @enum {string}
+             */
+            status: "incomplete" | "complete";
+            items: {
+                key: string;
+                label: string;
+                value: string;
+                sensitive: boolean;
+                copyable: boolean;
+                instructions?: string | null;
+            }[];
         };
         /**
          * UpdateProductImageRequest
@@ -2284,6 +2518,12 @@ export interface components {
             platform: string;
             custom_channel: string | null;
             custom_channel_label: string;
+            /**
+             * @description The outside platform's own reference (Chowdeck/Glovo order id),
+             *     null for every order that is not an import — lets the POS show
+             *     the reference the customer was charged under.
+             */
+            external_ref: string;
             order_date: string | null;
             order_no: string;
             status_label: string;
@@ -2433,6 +2673,16 @@ export interface components {
                 shipped_at: string | null;
                 estimated_delivery_at: string | null;
                 delivered_at: string | null;
+            };
+            /**
+             * @description Server-driven card + detail contract (config/order_display.php).
+             *     List rows carry version + badges + card_fields; the detail
+             *     (response_mode=view) adds fields + sections. Every read through
+             *     this resource — list, detail, update — gets the shape matching
+             *     its mode; count-only and select-only reads never touch it.
+             */
+            display: {
+                [key: string]: unknown;
             };
         };
         /** VendorProfileResource */
@@ -2777,6 +3027,495 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    "app.setup_update": {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a test store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @example {{merchantKey}}
+                 */
+                "X-Client-Key": string;
+                /** @description Your own correlation id (8–128 chars, `^[A-Za-z0-9_.:-]+$`). Echoed back on the response and on every log line of the request; one is generated when you omit it. */
+                "X-Request-Id"?: string;
+                /** @description Retry-safe write key. The same key with the same body replays the stored response for 24h with `Idempotent-Replayed: true`; with a different body it is `409 idempotency_key_reuse`; while the first call is still running it is `409 idempotency_key_in_progress`. */
+                "Idempotency-Key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateAppSetupNoticeRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @constant */
+                        status: "success";
+                        /** @constant */
+                        message: "Setup notice saved.";
+                        data: string[];
+                        meta: string;
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            403: components["responses"]["AuthorizationException"];
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @constant */
+                        status: "failed";
+                        /** @constant */
+                        error: "This app installation was not found on this store";
+                        /** @constant */
+                        message: "This app installation was not found on this store";
+                        /** @constant */
+                        error_type: "error";
+                        data: null;
+                        title: null;
+                    };
+                };
+            };
+            /** @description Idempotency conflict — `idempotency_key_reuse` or `idempotency_key_in_progress`. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            422: components["responses"]["ValidationException"];
+            /** @description Error. Switch on `error.code` — one of the documented codes; `validation_failed` carries per-field detail in `error.errors`. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+        };
+    };
+    "app.alerts_create": {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a test store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @example {{merchantKey}}
+                 */
+                "X-Client-Key": string;
+                /** @description Your own correlation id (8–128 chars, `^[A-Za-z0-9_.:-]+$`). Echoed back on the response and on every log line of the request; one is generated when you omit it. */
+                "X-Request-Id"?: string;
+                /** @description Retry-safe write key. The same key with the same body replays the stored response for 24h with `Idempotent-Replayed: true`; with a different body it is `409 idempotency_key_reuse`; while the first call is still running it is `409 idempotency_key_in_progress`. */
+                "Idempotency-Key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SendAppAlertRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @constant */
+                        status: "success";
+                        /** @enum {string} */
+                        message: "Alert already sent." | "Alert sent.";
+                        data: string[];
+                        meta: string;
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            403: components["responses"]["AuthorizationException"];
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @constant */
+                        status: "failed";
+                        /** @constant */
+                        error: "This app installation was not found on this store";
+                        /** @constant */
+                        message: "This app installation was not found on this store";
+                        /** @constant */
+                        error_type: "error";
+                        data: null;
+                        title: null;
+                    };
+                };
+            };
+            /** @description Idempotency conflict — `idempotency_key_reuse` or `idempotency_key_in_progress`. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            422: components["responses"]["ValidationException"];
+            /** @description Error. Switch on `error.code` — one of the documented codes; `validation_failed` carries per-field detail in `error.errors`. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+        };
+    };
+    "app.collected_definitions_list": {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a test store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @example {{merchantKey}}
+                 */
+                "X-Client-Key": string;
+                /** @description Your own correlation id (8–128 chars, `^[A-Za-z0-9_.:-]+$`). Echoed back on the response and on every log line of the request; one is generated when you omit it. */
+                "X-Request-Id"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @constant */
+                        status: "success";
+                        /** @constant */
+                        message: "Collected definitions";
+                        data: string[];
+                        meta: string;
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            403: components["responses"]["AuthorizationException"];
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @constant */
+                        status: "failed";
+                        /** @constant */
+                        error: "This app installation was not found on this store";
+                        /** @constant */
+                        message: "This app installation was not found on this store";
+                        /** @constant */
+                        error_type: "error";
+                        data: null;
+                        title: null;
+                    };
+                };
+            };
+            422: components["responses"]["ValidationException"];
+            /** @description Error. Switch on `error.code` — one of the documented codes; `validation_failed` carries per-field detail in `error.errors`. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+        };
+    };
+    "app.collected_definitions_create": {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a test store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @example {{merchantKey}}
+                 */
+                "X-Client-Key": string;
+                /** @description Your own correlation id (8–128 chars, `^[A-Za-z0-9_.:-]+$`). Echoed back on the response and on every log line of the request; one is generated when you omit it. */
+                "X-Request-Id"?: string;
+                /** @description Retry-safe write key. The same key with the same body replays the stored response for 24h with `Idempotent-Replayed: true`; with a different body it is `409 idempotency_key_reuse`; while the first call is still running it is `409 idempotency_key_in_progress`. */
+                "Idempotency-Key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CollectedDefinitionRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @constant */
+                        status: "success";
+                        /** @constant */
+                        message: "Collected definition created";
+                        data: string[];
+                        meta: string;
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            403: components["responses"]["AuthorizationException"];
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @constant */
+                        status: "failed";
+                        /** @constant */
+                        error: "This app installation was not found on this store";
+                        /** @constant */
+                        message: "This app installation was not found on this store";
+                        /** @constant */
+                        error_type: "error";
+                        data: null;
+                        title: null;
+                    };
+                };
+            };
+            /** @description Idempotency conflict — `idempotency_key_reuse` or `idempotency_key_in_progress`. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            422: components["responses"]["ValidationException"];
+            /** @description Error. Switch on `error.code` — one of the documented codes; `validation_failed` carries per-field detail in `error.errors`. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+        };
+    };
+    "app.collected_definitions_update": {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a test store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @example {{merchantKey}}
+                 */
+                "X-Client-Key": string;
+                /** @description Your own correlation id (8–128 chars, `^[A-Za-z0-9_.:-]+$`). Echoed back on the response and on every log line of the request; one is generated when you omit it. */
+                "X-Request-Id"?: string;
+                /** @description Retry-safe write key. The same key with the same body replays the stored response for 24h with `Idempotent-Replayed: true`; with a different body it is `409 idempotency_key_reuse`; while the first call is still running it is `409 idempotency_key_in_progress`. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                definition: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CollectedDefinitionRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @constant */
+                        status: "success";
+                        /** @constant */
+                        message: "Collected definition updated";
+                        data: string[];
+                        meta: string;
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            403: components["responses"]["AuthorizationException"];
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @constant */
+                        status: "failed";
+                        /** @constant */
+                        error: "Collected definition not found";
+                        /** @constant */
+                        message: "Collected definition not found";
+                        /** @constant */
+                        error_type: "error";
+                        data: null;
+                        title: null;
+                    } | {
+                        /** @constant */
+                        status: "failed";
+                        /** @constant */
+                        error: "This app installation was not found on this store";
+                        /** @constant */
+                        message: "This app installation was not found on this store";
+                        /** @constant */
+                        error_type: "error";
+                        data: null;
+                        title: null;
+                    };
+                };
+            };
+            /** @description Idempotency conflict — `idempotency_key_reuse` or `idempotency_key_in_progress`. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            422: components["responses"]["ValidationException"];
+            /** @description Error. Switch on `error.code` — one of the documented codes; `validation_failed` carries per-field detail in `error.errors`. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+        };
+    };
+    "app.records_submit": {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a test store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @example {{merchantKey}}
+                 */
+                "X-Client-Key": string;
+                /** @description Your own correlation id (8–128 chars, `^[A-Za-z0-9_.:-]+$`). Echoed back on the response and on every log line of the request; one is generated when you omit it. */
+                "X-Request-Id"?: string;
+                /** @description Retry-safe write key. The same key with the same body replays the stored response for 24h with `Idempotent-Replayed: true`; with a different body it is `409 idempotency_key_reuse`; while the first call is still running it is `409 idempotency_key_in_progress`. */
+                "Idempotency-Key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CollectedRecordSubmitRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @constant */
+                        status: "success";
+                        /** @constant */
+                        message: "Collected record submitted";
+                        data: string[];
+                        meta: string;
+                    };
+                };
+            };
+            401: components["responses"]["AuthenticationException"];
+            403: components["responses"]["AuthorizationException"];
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @constant */
+                        status: "failed";
+                        /** @constant */
+                        error: "Collected definition not found";
+                        /** @constant */
+                        message: "Collected definition not found";
+                        /** @constant */
+                        error_type: "error";
+                        data: null;
+                        title: null;
+                    } | {
+                        /** @constant */
+                        status: "failed";
+                        /** @constant */
+                        error: "This app installation was not found on this store";
+                        /** @constant */
+                        message: "This app installation was not found on this store";
+                        /** @constant */
+                        error_type: "error";
+                        data: null;
+                        title: null;
+                    };
+                };
+            };
+            /** @description Idempotency conflict — `idempotency_key_reuse` or `idempotency_key_in_progress`. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            422: components["responses"]["ValidationException"];
+            /** @description Error. Switch on `error.code` — one of the documented codes; `validation_failed` carries per-field detail in `error.errors`. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+        };
+    };
     "collections.list": {
         parameters: {
             query?: {

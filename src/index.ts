@@ -30,6 +30,24 @@ export {
   type StoreProfile,
 } from "./client.js";
 export {
+  type AlertBody,
+  type AlertSeverity,
+  type CollectedDefinition,
+  type CollectedDefinitionCreate,
+  type CollectedDefinitionUpdate,
+  type CollectedField,
+  collectedDefinitions,
+  createRecord,
+  type MerchantAlert,
+  type SetupNotice,
+  type SetupNoticeBody,
+  type SetupNoticeItem,
+  type SetupNoticeStatus,
+  type SuccessEnvelope,
+  sendAlert,
+  setSetupNotice,
+} from "./collected.js";
+export {
   decryptSecret,
   encryptSecret,
   parseStoreKey,

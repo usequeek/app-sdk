@@ -53,6 +53,9 @@
     },
     {
       "name": "Content"
+    },
+    {
+      "name": "Apps"
     }
   ],
   "security": [
@@ -61,6 +64,1013 @@
     }
   ],
   "paths": {
+    "/app/setup": {
+      "put": {
+        "operationId": "app.setup_update",
+        "description": "Requires scope `merchant-app_setup-update`.\n\nStores the merchant-visible setup values for the calling installation (status plus the items sheet): the app calls this after its install/settings handoff answers 2xx, once its key is active. Full-body PUT — send the whole sheet every time.",
+        "summary": "Update the installation setup notice",
+        "tags": [
+          "Apps"
+        ],
+        "parameters": [
+          {
+            "name": "X-Client-Key",
+            "in": "header",
+            "required": true,
+            "description": "A private API key (`sk_live_…`, `sk_test_…` on a test store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "{{merchantKey}}"
+          },
+          {
+            "name": "X-Request-Id",
+            "in": "header",
+            "description": "Your own correlation id (8–128 chars, `^[A-Za-z0-9_.:-]+$`). Echoed back on the response and on every log line of the request; one is generated when you omit it.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "Retry-safe write key. The same key with the same body replays the stored response for 24h with `Idempotent-Replayed: true`; with a different body it is `409 idempotency_key_reuse`; while the first call is still running it is `409 idempotency_key_in_progress`.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateAppSetupNoticeRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "const": "success"
+                    },
+                    "message": {
+                      "type": "string",
+                      "const": "Setup notice saved."
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "minItems": 0,
+                      "maxItems": 0
+                    },
+                    "meta": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "status",
+                    "message",
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/AuthenticationException"
+          },
+          "403": {
+            "$ref": "#/components/responses/AuthorizationException"
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "const": "failed"
+                    },
+                    "error": {
+                      "type": "string",
+                      "const": "This app installation was not found on this store"
+                    },
+                    "message": {
+                      "type": "string",
+                      "const": "This app installation was not found on this store"
+                    },
+                    "error_type": {
+                      "type": "string",
+                      "const": "error"
+                    },
+                    "data": {
+                      "type": "null"
+                    },
+                    "title": {
+                      "type": "null"
+                    }
+                  },
+                  "required": [
+                    "status",
+                    "error",
+                    "message",
+                    "error_type",
+                    "data",
+                    "title"
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Idempotency conflict — `idempotency_key_reuse` or `idempotency_key_in_progress`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueekError"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationException"
+          },
+          "default": {
+            "description": "Error. Switch on `error.code` — one of the documented codes; `validation_failed` carries per-field detail in `error.errors`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueekError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/app/alerts": {
+      "post": {
+        "operationId": "app.alerts_create",
+        "description": "Requires scope `merchant-app_alerts-create`.\n\nPages the merchant through the bell (in-app only) for the calling installation: severity, title, message and an optional dedupe key that collapses repeats. Rate-limited per installation with 429 + Retry-After past the caps.",
+        "summary": "Send a merchant alert",
+        "tags": [
+          "Apps"
+        ],
+        "parameters": [
+          {
+            "name": "X-Client-Key",
+            "in": "header",
+            "required": true,
+            "description": "A private API key (`sk_live_…`, `sk_test_…` on a test store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "{{merchantKey}}"
+          },
+          {
+            "name": "X-Request-Id",
+            "in": "header",
+            "description": "Your own correlation id (8–128 chars, `^[A-Za-z0-9_.:-]+$`). Echoed back on the response and on every log line of the request; one is generated when you omit it.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "Retry-safe write key. The same key with the same body replays the stored response for 24h with `Idempotent-Replayed: true`; with a different body it is `409 idempotency_key_reuse`; while the first call is still running it is `409 idempotency_key_in_progress`.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SendAppAlertRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "const": "success"
+                    },
+                    "message": {
+                      "type": "string",
+                      "enum": [
+                        "Alert already sent.",
+                        "Alert sent."
+                      ]
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "minItems": 0,
+                      "maxItems": 0
+                    },
+                    "meta": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "status",
+                    "message",
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/AuthenticationException"
+          },
+          "403": {
+            "$ref": "#/components/responses/AuthorizationException"
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "const": "failed"
+                    },
+                    "error": {
+                      "type": "string",
+                      "const": "This app installation was not found on this store"
+                    },
+                    "message": {
+                      "type": "string",
+                      "const": "This app installation was not found on this store"
+                    },
+                    "error_type": {
+                      "type": "string",
+                      "const": "error"
+                    },
+                    "data": {
+                      "type": "null"
+                    },
+                    "title": {
+                      "type": "null"
+                    }
+                  },
+                  "required": [
+                    "status",
+                    "error",
+                    "message",
+                    "error_type",
+                    "data",
+                    "title"
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Idempotency conflict — `idempotency_key_reuse` or `idempotency_key_in_progress`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueekError"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationException"
+          },
+          "default": {
+            "description": "Error. Switch on `error.code` — one of the documented codes; `validation_failed` carries per-field detail in `error.errors`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueekError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/collected-definitions": {
+      "get": {
+        "operationId": "app.collected_definitions_list",
+        "description": "Requires scope `merchant-collected-definitions-manage`.\n\nLists the collected definitions owned by the calling installation: the form types it created, ordered by type like the dashboard. Another installation’s types and merchant-held types never appear.",
+        "summary": "List the installation’s collected definitions",
+        "tags": [
+          "Apps"
+        ],
+        "parameters": [
+          {
+            "name": "X-Client-Key",
+            "in": "header",
+            "required": true,
+            "description": "A private API key (`sk_live_…`, `sk_test_…` on a test store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "{{merchantKey}}"
+          },
+          {
+            "name": "X-Request-Id",
+            "in": "header",
+            "description": "Your own correlation id (8–128 chars, `^[A-Za-z0-9_.:-]+$`). Echoed back on the response and on every log line of the request; one is generated when you omit it.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "const": "success"
+                    },
+                    "message": {
+                      "type": "string",
+                      "const": "Collected definitions"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "minItems": 0,
+                      "maxItems": 0
+                    },
+                    "meta": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "status",
+                    "message",
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/AuthenticationException"
+          },
+          "403": {
+            "$ref": "#/components/responses/AuthorizationException"
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "const": "failed"
+                    },
+                    "error": {
+                      "type": "string",
+                      "const": "This app installation was not found on this store"
+                    },
+                    "message": {
+                      "type": "string",
+                      "const": "This app installation was not found on this store"
+                    },
+                    "error_type": {
+                      "type": "string",
+                      "const": "error"
+                    },
+                    "data": {
+                      "type": "null"
+                    },
+                    "title": {
+                      "type": "null"
+                    }
+                  },
+                  "required": [
+                    "status",
+                    "error",
+                    "message",
+                    "error_type",
+                    "data",
+                    "title"
+                  ]
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationException"
+          },
+          "default": {
+            "description": "Error. Switch on `error.code` — one of the documented codes; `validation_failed` carries per-field detail in `error.errors`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueekError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "app.collected_definitions_create",
+        "description": "Requires scope `merchant-collected-definitions-manage`.\n\nCreates a collected definition owned by the calling installation. The type must carry the installation’s own app_{slug}_{installation} prefix — anything else 403s. The class is forced collected and the row is stamped with the installation.",
+        "summary": "Create a collected definition",
+        "tags": [
+          "Apps"
+        ],
+        "parameters": [
+          {
+            "name": "X-Client-Key",
+            "in": "header",
+            "required": true,
+            "description": "A private API key (`sk_live_…`, `sk_test_…` on a test store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "{{merchantKey}}"
+          },
+          {
+            "name": "X-Request-Id",
+            "in": "header",
+            "description": "Your own correlation id (8–128 chars, `^[A-Za-z0-9_.:-]+$`). Echoed back on the response and on every log line of the request; one is generated when you omit it.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "Retry-safe write key. The same key with the same body replays the stored response for 24h with `Idempotent-Replayed: true`; with a different body it is `409 idempotency_key_reuse`; while the first call is still running it is `409 idempotency_key_in_progress`.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CollectedDefinitionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "const": "success"
+                    },
+                    "message": {
+                      "type": "string",
+                      "const": "Collected definition created"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "minItems": 0,
+                      "maxItems": 0
+                    },
+                    "meta": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "status",
+                    "message",
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/AuthenticationException"
+          },
+          "403": {
+            "$ref": "#/components/responses/AuthorizationException"
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "const": "failed"
+                    },
+                    "error": {
+                      "type": "string",
+                      "const": "This app installation was not found on this store"
+                    },
+                    "message": {
+                      "type": "string",
+                      "const": "This app installation was not found on this store"
+                    },
+                    "error_type": {
+                      "type": "string",
+                      "const": "error"
+                    },
+                    "data": {
+                      "type": "null"
+                    },
+                    "title": {
+                      "type": "null"
+                    }
+                  },
+                  "required": [
+                    "status",
+                    "error",
+                    "message",
+                    "error_type",
+                    "data",
+                    "title"
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Idempotency conflict — `idempotency_key_reuse` or `idempotency_key_in_progress`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueekError"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationException"
+          },
+          "default": {
+            "description": "Error. Switch on `error.code` — one of the documented codes; `validation_failed` carries per-field detail in `error.errors`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueekError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/collected-definitions/{definition}": {
+      "patch": {
+        "operationId": "app.collected_definitions_update",
+        "description": "Requires scope `merchant-collected-definitions-manage`.\n\nUpdates one of the calling installation’s collected definitions, addressed by p_id. The type is immutable; a type another installation or the merchant holds 403s.",
+        "summary": "Update a collected definition",
+        "tags": [
+          "Apps"
+        ],
+        "parameters": [
+          {
+            "name": "definition",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Client-Key",
+            "in": "header",
+            "required": true,
+            "description": "A private API key (`sk_live_…`, `sk_test_…` on a test store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "{{merchantKey}}"
+          },
+          {
+            "name": "X-Request-Id",
+            "in": "header",
+            "description": "Your own correlation id (8–128 chars, `^[A-Za-z0-9_.:-]+$`). Echoed back on the response and on every log line of the request; one is generated when you omit it.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "Retry-safe write key. The same key with the same body replays the stored response for 24h with `Idempotent-Replayed: true`; with a different body it is `409 idempotency_key_reuse`; while the first call is still running it is `409 idempotency_key_in_progress`.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CollectedDefinitionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "const": "success"
+                    },
+                    "message": {
+                      "type": "string",
+                      "const": "Collected definition updated"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "minItems": 0,
+                      "maxItems": 0
+                    },
+                    "meta": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "status",
+                    "message",
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/AuthenticationException"
+          },
+          "403": {
+            "$ref": "#/components/responses/AuthorizationException"
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "const": "failed"
+                        },
+                        "error": {
+                          "type": "string",
+                          "const": "Collected definition not found"
+                        },
+                        "message": {
+                          "type": "string",
+                          "const": "Collected definition not found"
+                        },
+                        "error_type": {
+                          "type": "string",
+                          "const": "error"
+                        },
+                        "data": {
+                          "type": "null"
+                        },
+                        "title": {
+                          "type": "null"
+                        }
+                      },
+                      "required": [
+                        "status",
+                        "error",
+                        "message",
+                        "error_type",
+                        "data",
+                        "title"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "const": "failed"
+                        },
+                        "error": {
+                          "type": "string",
+                          "const": "This app installation was not found on this store"
+                        },
+                        "message": {
+                          "type": "string",
+                          "const": "This app installation was not found on this store"
+                        },
+                        "error_type": {
+                          "type": "string",
+                          "const": "error"
+                        },
+                        "data": {
+                          "type": "null"
+                        },
+                        "title": {
+                          "type": "null"
+                        }
+                      },
+                      "required": [
+                        "status",
+                        "error",
+                        "message",
+                        "error_type",
+                        "data",
+                        "title"
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Idempotency conflict — `idempotency_key_reuse` or `idempotency_key_in_progress`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueekError"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationException"
+          },
+          "default": {
+            "description": "Error. Switch on `error.code` — one of the documented codes; `validation_failed` carries per-field detail in `error.errors`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueekError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/records": {
+      "post": {
+        "operationId": "app.records_submit",
+        "description": "Requires scope `merchant-collected-records-submit`.\n\nSubmits one record under one of the calling installation’s collected types. Values run the same field validation entries use; the source is forced app. Rate-limited per installation with 429 + Retry-After past the caps, on top of the per-definition storage cap.",
+        "summary": "Submit a collected record",
+        "tags": [
+          "Apps"
+        ],
+        "parameters": [
+          {
+            "name": "X-Client-Key",
+            "in": "header",
+            "required": true,
+            "description": "A private API key (`sk_live_…`, `sk_test_…` on a test store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "{{merchantKey}}"
+          },
+          {
+            "name": "X-Request-Id",
+            "in": "header",
+            "description": "Your own correlation id (8–128 chars, `^[A-Za-z0-9_.:-]+$`). Echoed back on the response and on every log line of the request; one is generated when you omit it.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "Retry-safe write key. The same key with the same body replays the stored response for 24h with `Idempotent-Replayed: true`; with a different body it is `409 idempotency_key_reuse`; while the first call is still running it is `409 idempotency_key_in_progress`.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CollectedRecordSubmitRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "const": "success"
+                    },
+                    "message": {
+                      "type": "string",
+                      "const": "Collected record submitted"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "minItems": 0,
+                      "maxItems": 0
+                    },
+                    "meta": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "status",
+                    "message",
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/AuthenticationException"
+          },
+          "403": {
+            "$ref": "#/components/responses/AuthorizationException"
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "const": "failed"
+                        },
+                        "error": {
+                          "type": "string",
+                          "const": "Collected definition not found"
+                        },
+                        "message": {
+                          "type": "string",
+                          "const": "Collected definition not found"
+                        },
+                        "error_type": {
+                          "type": "string",
+                          "const": "error"
+                        },
+                        "data": {
+                          "type": "null"
+                        },
+                        "title": {
+                          "type": "null"
+                        }
+                      },
+                      "required": [
+                        "status",
+                        "error",
+                        "message",
+                        "error_type",
+                        "data",
+                        "title"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "const": "failed"
+                        },
+                        "error": {
+                          "type": "string",
+                          "const": "This app installation was not found on this store"
+                        },
+                        "message": {
+                          "type": "string",
+                          "const": "This app installation was not found on this store"
+                        },
+                        "error_type": {
+                          "type": "string",
+                          "const": "error"
+                        },
+                        "data": {
+                          "type": "null"
+                        },
+                        "title": {
+                          "type": "null"
+                        }
+                      },
+                      "required": [
+                        "status",
+                        "error",
+                        "message",
+                        "error_type",
+                        "data",
+                        "title"
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Idempotency conflict — `idempotency_key_reuse` or `idempotency_key_in_progress`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueekError"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationException"
+          },
+          "default": {
+            "description": "Error. Switch on `error.code` — one of the documented codes; `validation_failed` carries per-field detail in `error.errors`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueekError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/collections": {
       "get": {
         "operationId": "collections.list",
@@ -8794,6 +9804,161 @@
         ],
         "title": "ClientAuthUserResource"
       },
+      "CollectedDefinitionRequest": {
+        "type": "object",
+        "description": "The Forms APP definitions path (merchant API, installation key only):\nGET + POST collected-definitions, PATCH collected-definitions/{definition}.\n\nONE request for the three verbs, like RecordRequest on the inbox: the\ndefinition vocabulary (type shape, reserved roots, field schemas,\ndisplay_field, budget) is the SAME trait the dashboard and the AI facade\nuse, so the three surfaces can never disagree about a legal type — with\none deliberate difference: allowsAppOwnedType(), because installation\ntypes carry the app_ prefix by construction. The class is never declared here:\nthe service forces collected and stamps the calling installation.\n\nDefinitions are addressed by `p_id`, scoped to the installation's vendor.\nOwnership (this installation's types only) is the controller's 403 — the\nrequest resolves, the controller refuses.",
+        "properties": {
+          "type": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]{1,63}$",
+            "maxLength": 64
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 1000
+          },
+          "display_field": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "storefront_visible": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "has_pages": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Does an entry of this type get its own public page at\n`/{type}/{handle}`? See ValidatesMetaobjectDefinitionInput's\nassertTypeNotReservedRoot() for why the type itself is gated\nagainst the storefront's own path roots."
+          },
+          "fields": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "key": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9_]*$",
+                  "maxLength": 64
+                },
+                "name": {
+                  "type": "string",
+                  "maxLength": 120
+                },
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "single_line_text",
+                    "multi_line_text",
+                    "integer",
+                    "decimal",
+                    "boolean",
+                    "date",
+                    "url",
+                    "json",
+                    "media_id",
+                    "list.single_line_text",
+                    "list.multi_line_text",
+                    "list.integer",
+                    "list.decimal",
+                    "list.boolean",
+                    "list.date",
+                    "list.url",
+                    "list.media_id"
+                  ]
+                },
+                "required": {
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                },
+                "validations": {
+                  "type": [
+                    "object",
+                    "null"
+                  ],
+                  "properties": {
+                    "min": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "max": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "regex": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "maxLength": 255
+                    },
+                    "choices": {
+                      "type": [
+                        "array",
+                        "null"
+                      ],
+                      "items": {
+                        "type": "string"
+                      },
+                      "maxItems": 100
+                    },
+                    "metaobject_type": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            },
+            "minItems": 1,
+            "maxItems": 20
+          }
+        },
+        "required": [
+          "type",
+          "name",
+          "display_field",
+          "fields"
+        ],
+        "title": "CollectedDefinitionRequest"
+      },
+      "CollectedRecordSubmitRequest": {
+        "type": "object",
+        "description": "The Forms APP submit path (POST records, merchant API, installation key\nonly): one record under one of the calling installation's collected types.\n\nValues run the SAME writer validation entries use — one field vocabulary —\nand the per-definition cap gets the same friendly pre-check the dashboard\ninbox runs, while the writer enforces it in-transaction. The source is\nFORCED app in the controller: the body carries no source, so a caller can\nnever file a person under dashboard/ai/form. The per-installation abuse\nlimiter runs in the controller after validation, so a 422 spends no budget.\n\nOwnership (this installation's types only) is the controller's 403 — the\nrequest resolves, the controller refuses.",
+        "properties": {
+          "definition": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "values": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1
+          }
+        },
+        "required": [
+          "definition",
+          "values"
+        ],
+        "title": "CollectedRecordSubmitRequest"
+      },
       "CollectionResource": {
         "type": "object",
         "properties": {
@@ -9369,6 +10534,19 @@
               "null"
             ]
           },
+          "pinned": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "pinned_position": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
           "name": {
             "type": [
               "string",
@@ -9457,6 +10635,15 @@
           "storefront_visible": {
             "type": "boolean"
           },
+          "pinned": {
+            "type": "boolean"
+          },
+          "pinned_position": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
           "name": {
             "type": "string"
           },
@@ -9481,6 +10668,8 @@
           "key",
           "type",
           "storefront_visible",
+          "pinned",
+          "pinned_position",
           "name",
           "description",
           "validations",
@@ -11651,6 +12840,52 @@
         ],
         "title": "ReviewsBlockItemResource"
       },
+      "SendAppAlertRequest": {
+        "type": "object",
+        "description": "The installation-bound alert write (POST app/alerts, merchant API,\ninstallation key only): an installed app paging the merchant through the\nbell. The installation comes from the calling key — the body carries no\ntarget, so installation A can never page for installation B.\n\nTitles and messages are bell content by design: plain text, length-capped\nlike the manifest listing fields, rendered escaped on every surface. The\noptional dedupe_key lets the app collapse repeats of one problem (one\nfailing import batch, one expired credential) inside the TTL.",
+        "properties": {
+          "severity": {
+            "type": "string",
+            "enum": [
+              "info",
+              "warning",
+              "error"
+            ]
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "message": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "dedupe_key": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 120
+          },
+          "meta": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string",
+              "maxLength": 500
+            },
+            "maxItems": 10
+          }
+        },
+        "required": [
+          "severity",
+          "title",
+          "message"
+        ],
+        "title": "SendAppAlertRequest"
+      },
       "ShippingZoneRequest": {
         "type": "object",
         "properties": {
@@ -12397,6 +13632,67 @@
         ],
         "title": "TaxonomyCategoryResource"
       },
+      "UpdateAppSetupNoticeRequest": {
+        "type": "object",
+        "description": "The installation-bound setup write (PUT app/setup, merchant API,\ninstallation key only). ONE write path for the merchant-visible values an\napp gives its installer: the install/settings handoff 2xx body stays\nignored, and the app calls here after it answers 2xx, once its key is\nactive.\n\nFull-body PUT (the resource's one update verb): status + the whole items\nsheet every time, so a retry replays instead of merging. Lengths come from\nconfig/apps.php app_setup with the same defaults beside them; values that\nlook like URLs must be https (a token-bearing http URL would train the\nmerchant to paste secrets into cleartext).",
+        "properties": {
+          "status": {
+            "type": "string",
+            "description": "needs_action is the absence state the backend derives when no\nnotice is stored — an app may only declare incomplete/complete.",
+            "enum": [
+              "incomplete",
+              "complete"
+            ]
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "key": {
+                  "type": "string",
+                  "maxLength": 80
+                },
+                "label": {
+                  "type": "string",
+                  "maxLength": 120
+                },
+                "value": {
+                  "type": "string",
+                  "maxLength": 2000
+                },
+                "sensitive": {
+                  "type": "boolean"
+                },
+                "copyable": {
+                  "type": "boolean"
+                },
+                "instructions": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "maxLength": 500
+                }
+              },
+              "required": [
+                "key",
+                "label",
+                "value",
+                "sensitive",
+                "copyable"
+              ]
+            },
+            "minItems": 1,
+            "maxItems": 20
+          }
+        },
+        "required": [
+          "status",
+          "items"
+        ],
+        "title": "UpdateAppSetupNoticeRequest"
+      },
       "UpdateProductImageRequest": {
         "type": "object",
         "description": "Make an image already on the product its primary image. To clear the primary\nimage, DELETE it instead.",
@@ -13041,6 +14337,10 @@
           "custom_channel_label": {
             "type": "string"
           },
+          "external_ref": {
+            "type": "string",
+            "description": "The outside platform's own reference (Chowdeck/Glovo order id),\nnull for every order that is not an import — lets the POS show\nthe reference the customer was charged under."
+          },
           "order_date": {
             "type": [
               "string",
@@ -13551,6 +14851,11 @@
               "estimated_delivery_at",
               "delivered_at"
             ]
+          },
+          "display": {
+            "type": "object",
+            "description": "Server-driven card + detail contract (config/order_display.php).\nList rows carry version + badges + card_fields; the detail\n(response_mode=view) adds fields + sections. Every read through\nthis resource — list, detail, update — gets the shape matching\nits mode; count-only and select-only reads never touch it.",
+            "additionalProperties": {}
           }
         },
         "required": [
@@ -13564,6 +14869,7 @@
           "platform",
           "custom_channel",
           "custom_channel_label",
+          "external_ref",
           "order_date",
           "order_no",
           "status_label",
@@ -13606,7 +14912,8 @@
           "order_payment_permission",
           "order_distance",
           "rider_rating",
-          "order_payment_overview"
+          "order_payment_overview",
+          "display"
         ],
         "title": "VendorOrderResource"
       },
