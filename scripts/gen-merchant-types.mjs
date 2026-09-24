@@ -6,13 +6,16 @@ import { spawnSync } from "node:child_process";
  * Usage:
  *   pnpm gen:merchant [url-or-path]
  *
- * Defaults to the live public contract
- * (https://api.usequeek.com/docs/merchant.json). Before the merchant-naming
- * slice deploys, live is STALE (old /api/v1/biz paths) — generate from a
- * local backend instead:
+ * Source precedence (A3b, 2026-09-24): the backend's merchant-scoped spec at
+ * the reviewed commit, exported WITHOUT a server via Scramble —
  *
- *   php artisan serve --port=18923   # in queek_backend
- *   pnpm gen:merchant http://127.0.0.1:18923/docs/merchant.json
+ *   php artisan scramble:export --api=merchant --path=/tmp/merchant.json  # in queek_backend
+ *   pnpm gen:merchant /tmp/merchant.json
+ *
+ * — NOT production (production is behind until the A3b backend deploys, so
+ * the live https://api.usequeek.com/docs/merchant.json is STALE for the
+ * import v2 contract). After the backend deploy, re-run against production
+ * and diff: the snapshot MUST be re-checked, then this comment updated.
  *
  * Inputs:  openapi/merchant.json (committed snapshot, the reviewed contract)
  * Outputs: src/merchant-schema.ts (committed generated types)
@@ -37,13 +40,19 @@ if (/^https?:\/\//.test(source)) {
 }
 
 // Fail loudly on HTML error pages, not on JSON — a login wall must never
-// silently become the committed contract.
+// silently become the committed contract. The check pins the merchant-scoped
+// export (Scramble `--api=merchant` strips the /api/v1/merchant prefix, so
+// paths are scope-relative): the import op the SDK depends on must exist.
 const spec = JSON.parse(specText);
-if (spec.openapi !== "3.1.0" || typeof spec.paths !== "object" || !spec.paths["/store"]) {
+if (spec.openapi !== "3.1.0" || typeof spec.paths !== "object" || !spec.paths["/orders/import"]) {
   throw new Error(
-    "Spec sanity check failed: expected OpenAPI 3.1.0 with a /store path (is merchant-naming deployed at this URL?).",
+    "Spec sanity check failed: expected OpenAPI 3.1.0 with an /orders/import path (export with `php artisan scramble:export --api=merchant`).",
   );
 }
+// A local Scramble export points `servers` at localhost — the reviewed
+// contract is the Merchant API at its public base, so normalize that one
+// field (paths and schemas are untouched).
+spec.servers = [{ url: "https://api.usequeek.com/api/v1/merchant", description: "Current" }];
 writeFileSync(snapshotPath, `${JSON.stringify(spec, null, 2)}\n`);
 console.log(`snapshot: ${snapshotPath} (${Object.keys(spec.paths).length} paths)`);
 

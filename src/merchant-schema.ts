@@ -576,7 +576,7 @@ export interface paths {
          * Import an order from a sales channel
          * @description Requires scope `merchant-orders-import`.
          *
-         *     Records an order the outside platform (Chowdeck, Glovo) already charged for: items resolve in this store by product/variant id, totals are stored as charged with no commission, and a re-sent webhook returns the same order instead of a second one.
+         *     Records an order the outside platform (Chowdeck, Glovo) already charged for: each item names its `product` (p_id, UUID or slug of this store) and, for a variant, its `variant` (p_id or UUID of a variant belonging to that product) — the old single `ref` is refused; totals are stored as charged with no commission, and a re-sent webhook returns the same order instead of a second one.
          */
         post: operations["orders.import"];
         delete?: never;
@@ -1232,8 +1232,11 @@ export interface components {
          *
          *     The payload is the outside platform's receipt, recorded as charged: item
          *     unit prices, fees, discount and total are integers in the codebase's money
-         *     unit (minor units, e.g. kobo). Product refs (p_id, UUID or slug) are
-         *     resolved IN the key's store by the import service — a ref from another
+         *     unit (minor units, e.g. kobo). Each item names its `product` (p_id, UUID or
+         *     slug, resolved IN the key's store) and, for a variant, its `variant` (p_id
+         *     or UUID of one of THAT product's variants) — products.p_id and
+         *     product_variants.p_id are separate sequences, so one ambiguous `ref` could
+         *     resolve to the wrong row and is refused outright. A product from another
          *     store fails the import with a named 422, never a cross-store sale.
          *
          *     Data minimisation: the customer travels as name + phone only. No customer
@@ -1250,7 +1253,14 @@ export interface components {
                 phone: string;
             };
             items: {
-                ref: string;
+                /**
+                 * @description The old single `ref` resolved variant-first, then product, across
+                 *     two separate p_id sequences — one integer could name two rows.
+                 *     Refused outright (never aliased): the caller must say which.
+                 */
+                ref?: string;
+                product: string;
+                variant?: string | null;
                 quantity: number;
                 unit_price: number;
             }[];
@@ -1322,6 +1332,12 @@ export interface components {
             updated_at: string;
         };
         /**
+         * MetaobjectDataClass
+         * @description What KIND of data a metaobject definition holds. `content` is merchant content (designers, size charts): entries may be storefront-visible and carry their own pages. `collected` is data gathered FROM people (form submissions, applications): entries are never storefront-readable and never revalidate the storefront. The booleans (`storefront_visible`, `has_pages`) stay the permanent source of truth — a collected definition is simply forced storefront-off at all three write layers (FormRequest, MetaobjectDefinitionService, model guard).
+         * @enum {string}
+         */
+        MetaobjectDataClass: "content" | "collected";
+        /**
          * MetaobjectDefinitionRequest
          * @description Create/update a metaobject definition on the REST developer surface.
          *
@@ -1362,6 +1378,9 @@ export interface components {
                     metaobject_type?: string;
                 } | null;
             }[];
+            data_class?: components["schemas"]["MetaobjectDataClass"] | null;
+            entry_cap_override?: number | null;
+            retention_days?: number | null;
         };
         /**
          * MetaobjectRequest
@@ -1424,8 +1443,23 @@ export interface components {
             fulfillment_status: "fulfilled" | "unfulfilled";
             cancelled: boolean;
             cancel_reason: string | null;
+            /**
+             * @description `channel` is the inbox (messaging) channel, typed against
+             *     MessagingChannel — never the sales channel. An importing app
+             *     recognises its own orders one key further down.
+             */
             channel: string;
             platform: string | null;
+            /**
+             * @description Import recognition: the sales channel that imported the order
+             *     (chowdeck, glovo — null for every other order) and the outside
+             *     platform's own reference (null unless imported). Together with
+             *     `platform` (third_party) an app matches orders events to its
+             *     own records with no link table. Additive: both keys are null
+             *     for every order that is not an import.
+             */
+            custom_channel: string | null;
+            external_ref: string;
             delivery_method: string;
             currency: string;
             subtotal: string;
