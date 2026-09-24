@@ -1,0 +1,36 @@
+{
+  "name": "@queek/app-sdk",
+  "version": "0.1.0",
+  "description": "SDK for Queek installable apps: webhook signature verification, install handlers, typed Merchant API client, webhook dispatch, encrypted installation store.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "openapi/merchant.json"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run",
+    "gen:merchant": "node scripts/gen-merchant-types.mjs"
+  },
+  "dependencies": {
+    "hono": "4.13.9"
+  },
+  "devDependencies": {
+    "@types/node": "22.12.0",
+    "openapi-typescript": "7.13.0",
+    "typescript": "5.9.3",
+    "vitest": "3.2.4"
+  },
+  "engines": {
+    "node": "22"
+  }
+}

@@ -1,0 +1,191 @@
+import { Hono } from "hono";
+import {
+  MAX_TIMESTAMP_SKEW_SECONDS,
+  verifyQueekSignature,
+  WEBHOOK_ID_HEADER,
+  WEBHOOK_SIGNATURE_HEADER,
+  WEBHOOK_TIMESTAMP_HEADER,
+} from "./signatures.js";
+import type { InstallationRecord, InstallationStore } from "./store.js";
+
+/**
+ * Receiver for Queek topic deliveries (`DeliverWebhookJob` in
+ * queek_backend, one signed POST per installation endpoint).
+ *
+ * Delivery envelope: `{ id, topic, api_version: "v1", created_at, data }`
+ * with `X-Queek-Topic` echoing `topic`. Verification uses the
+ * PER-INSTALLATION endpoint secret handed over once inside the install
+ * payload (`data.webhook_secret`) — never the app signing secret.
+ *
+ * Secret lookup: topic payloads are resource renders with no guaranteed
+ * installation/vendor id, so the default resolver identifies the
+ * installation by trying each stored installation secret against the
+ * signature (the signature itself names the sender; HMACs are microseconds,
+ * installations per app are few). Apps that carry their own routing hint
+ * may pass `resolveSecret` instead.
+ *
+ * Dedupe: Queek retries a delivery for ~4h until it sees 2xx, so every
+ * `webhook-id` is processed AT MOST once — a repeat answers 200 WITHOUT
+ * re-running the handler. Unknown topics answer 200 too (a topic the app
+ * no longer handles must not wedge Queek's retry queue); only auth and
+ * malformed bodies are non-2xx.
+ */
+
+export const QUEEK_TOPIC_HEADER = "X-Queek-Topic";
+
+export interface QueekWebhookEnvelope<TData = unknown> {
+  id: string;
+  topic: string;
+  api_version: "v1";
+  created_at: string;
+  data: TData;
+}
+
+export interface WebhookHandlerContext {
+  installation: InstallationRecord;
+  topic: string;
+  eventId: string;
+}
+
+export type WebhookHandlerFn<TData = unknown> = (
+  envelope: QueekWebhookEnvelope<TData>,
+  context: WebhookHandlerContext,
+) => Promise<void>;
+
+export interface SecretResolution {
+  installationId: string;
+  secret: string;
+}
+
+export interface WebhookHandlerOptions {
+  store: InstallationStore;
+  /** `topic → handler`, e.g. `{ "orders/updated": onOrderUpdated }`. */
+  handlers: Record<string, WebhookHandlerFn>;
+  /** Override the default try-each-secret resolution. */
+  resolveSecret?: (
+    envelope: QueekWebhookEnvelope | null,
+    rawBody: string,
+    headers: { id: string; timestamp: string; signatureHeader: string },
+  ) => Promise<SecretResolution | null>;
+  nowSeconds?: number;
+  maxSkewSeconds?: number;
+}
+
+async function defaultResolveSecret(
+  store: InstallationStore,
+  rawBody: string,
+  headers: { id: string; timestamp: string; signatureHeader: string },
+  envelope: QueekWebhookEnvelope | null,
+): Promise<SecretResolution | null> {
+  // Fast path: handoff-shaped payloads that name their installation.
+  const data = envelope?.data as Record<string, unknown> | null | undefined;
+  const named =
+    data !== null && typeof data === "object"
+      ? ((data.installation as Record<string, unknown> | undefined)?.id as string | undefined)
+      : undefined;
+  if (typeof named === "string" && named !== "") {
+    const found = await store.getInstallation(named);
+    const secret = found?.webhookSecret;
+    if (
+      found &&
+      secret &&
+      verifyQueekSignature({ ...headers, body: rawBody, secret }, { skipFreshnessCheck: true })
+    ) {
+      return { installationId: found.installationId, secret };
+    }
+    return null;
+  }
+  // General path: the signature identifies the sender.
+  const candidates = await store.listWebhookSecrets();
+  for (const candidate of candidates) {
+    if (
+      verifyQueekSignature(
+        { ...headers, body: rawBody, secret: candidate.secret },
+        { skipFreshnessCheck: true },
+      )
+    ) {
+      return candidate;
+    }
+  }
+  return null;
+}
+
+export function createWebhookHandler(options: WebhookHandlerOptions): Hono {
+  const app = new Hono();
+  const maxSkew = options.maxSkewSeconds ?? MAX_TIMESTAMP_SKEW_SECONDS;
+
+  app.post("/", async (c) => {
+    const rawBody = await c.req.text();
+    const id = c.req.header(WEBHOOK_ID_HEADER);
+    const timestamp = c.req.header(WEBHOOK_TIMESTAMP_HEADER);
+    const signatureHeader = c.req.header(WEBHOOK_SIGNATURE_HEADER);
+    if (!id || !timestamp || !signatureHeader) {
+      return c.json({ ok: false, error: "missing signature headers" }, 401);
+    }
+
+    let envelope: QueekWebhookEnvelope | null = null;
+    try {
+      const parsed = JSON.parse(rawBody) as unknown;
+      if (typeof parsed === "object" && parsed !== null) envelope = parsed as QueekWebhookEnvelope;
+    } catch {
+      return c.json({ ok: false, error: "invalid_json" }, 400);
+    }
+    if (!envelope || typeof envelope.topic !== "string") {
+      return c.json({ ok: false, error: "invalid_envelope" }, 400);
+    }
+
+    const headers = { id, timestamp, signatureHeader };
+    const resolution = options.resolveSecret
+      ? await options.resolveSecret(envelope, rawBody, headers)
+      : await defaultResolveSecret(options.store, rawBody, headers, envelope);
+    if (!resolution) {
+      return c.json({ ok: false, error: "unknown_installation" }, 401);
+    }
+
+    // Freshness is enforced HERE, once, against the resolved secret — the
+    // lookup above deliberately skips it so a stale delivery cannot be
+    // misattributed before it is rejected.
+    const now = options.nowSeconds ?? Math.floor(Date.now() / 1000);
+    const ts = Number(timestamp);
+    if (!Number.isFinite(ts) || Math.abs(now - ts) > maxSkew) {
+      return c.json({ ok: false, error: "stale timestamp" }, 401);
+    }
+    // Freshness was enforced above; this re-checks the MAC only, so a
+    // custom resolver cannot claim an installation without its secret.
+    if (
+      !verifyQueekSignature(
+        { ...headers, body: rawBody, secret: resolution.secret },
+        { skipFreshnessCheck: true },
+      )
+    ) {
+      return c.json({ ok: false, error: "signature mismatch" }, 401);
+    }
+
+    if (await options.store.hasSeenWebhookId(id)) {
+      return c.json({ ok: true, deduped: true });
+    }
+
+    const topic = c.req.header(QUEEK_TOPIC_HEADER) ?? envelope.topic;
+    const handler = options.handlers[topic];
+    if (!handler) {
+      // No handler for this topic is NOT a failure: answering non-2xx would
+      // retry for hours something the app will never handle.
+      await options.store.markWebhookSeen(id);
+      return c.json({ ok: true, unhandled: true });
+    }
+
+    const installation = await options.store.getInstallation(resolution.installationId);
+    if (!installation) {
+      return c.json({ ok: false, error: "unknown_installation" }, 401);
+    }
+    try {
+      await handler(envelope, { installation, topic, eventId: id });
+    } catch {
+      return c.json({ ok: false, error: "handler_failed" }, 500);
+    }
+    await options.store.markWebhookSeen(id);
+    return c.json({ ok: true });
+  });
+
+  return app;
+}
