@@ -5,7 +5,7 @@ import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
  * and webhook_secret). One random 96-bit IV per value; the stored string is
  * `v1.<base64 iv>.<base64 ciphertext+tag>`.
  *
- * The 32-byte data key comes from the environment (`QUEEK_STORE_KEY`, base64
+ * The 32-byte data key comes from the environment (`APP_ENCRYPTION_KEY`, base64
  * or hex of 32 bytes) and is parsed by `parseStoreKey()`. The key itself is
  * NEVER logged — only its 8-char fingerprint (first bytes, hex) may appear in
  * logs to prove which key a ciphertext belongs to.
@@ -16,7 +16,9 @@ const IV_BYTES = 12;
 
 export function parseStoreKey(raw: string | undefined): Buffer {
   if (!raw || raw.trim() === "") {
-    throw new Error("Missing store encryption key: set QUEEK_STORE_KEY to base64 or hex of 32 random bytes.");
+    throw new Error(
+      "Missing store encryption key: set APP_ENCRYPTION_KEY to base64 or hex of 32 random bytes.",
+    );
   }
   const value = raw.trim();
   const candidates: Buffer[] = [];
@@ -39,7 +41,7 @@ export function parseStoreKey(raw: string | undefined): Buffer {
   candidates.push(Buffer.from(value, "utf8"));
   const key = candidates.find((candidate) => candidate.length === 32);
   if (!key) {
-    throw new Error("Invalid QUEEK_STORE_KEY: must decode to exactly 32 bytes (base64 or hex).");
+    throw new Error("Invalid APP_ENCRYPTION_KEY: must decode to exactly 32 bytes (base64 or hex).");
   }
   return key;
 }

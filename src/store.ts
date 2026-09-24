@@ -8,7 +8,7 @@ import { decryptSecret, encryptSecret, parseStoreKey } from "./crypto.js";
  * orders.integrator_metadata) — never here.
  *
  * `api_key`, `webhook_secret` AND the whole `settings` blob are encrypted
- * at rest (AES-256-GCM via node:crypto, key from `QUEEK_STORE_KEY`):
+ * at rest (AES-256-GCM via node:crypto, key from `APP_ENCRYPTION_KEY`):
  * manifests may declare `secret` settings (API keys, webhook secrets) and
  * the backend encrypts those too, so the SDK must not be weaker. NOTHING
  * secret is ever logged: only ids and the store p_id may appear in logs.
@@ -68,7 +68,7 @@ export interface InstallationStore {
 export interface SqliteStoreOptions {
   /** Path to the sqlite file. Use `:memory:` for tests. */
   path: string;
-  /** Raw `QUEEK_STORE_KEY` value (base64 or hex of 32 bytes). */
+  /** Raw `APP_ENCRYPTION_KEY` value (base64 or hex of 32 bytes). */
   storeKey: string;
 }
 

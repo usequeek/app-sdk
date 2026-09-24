@@ -22,7 +22,7 @@ import { Hono } from "hono";
 
 const store = new SqliteInstallationStore({
   path: "./data/installations.db",
-  storeKey: process.env.QUEEK_STORE_KEY!,
+  storeKey: process.env.APP_ENCRYPTION_KEY!,
 });
 
 const app = new Hono();
@@ -49,7 +49,7 @@ export default app;
 - **install handlers** (`install-handlers.ts`): `createInstallHandlers({ appSecret, store, onInstall?, onUninstall?, onSettings? })` — serves the signed install/uninstall/settings handoff. Defaults persist the installation (encrypted) in the store.
 - **client** (`client.ts`): `createQueekClient({ apiBase, apiKey })` — typed fetch client over the Merchant API (`X-Client-Key`), with `Idempotency-Key` on writes, typed `QueekApiError`s, and 429 retry helpers. Types come from `openapi/merchant.json`, the committed snapshot of the live contract.
 - **webhooks** (`webhooks.ts`): `createWebhookHandler({ store, handlers })` — verifies each delivery against the installation's endpoint secret, dedupes on `webhook-id`, and dispatches `topic → handler` at most once.
-- **store** (`store.ts`): `SqliteInstallationStore` — installations encrypted at rest (AES-GCM via `QUEEK_STORE_KEY`), plus the seen-webhook-id claim table behind dedupe.
+- **store** (`store.ts`): `SqliteInstallationStore` — installations encrypted at rest (AES-GCM via `APP_ENCRYPTION_KEY`), plus the seen-webhook-id claim table behind dedupe. Set once when the app is deployed; installs never change env: each install adds a row to the app's database, with that store's API key encrypted using this key.
 
 ## Local development
 

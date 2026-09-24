@@ -42,7 +42,7 @@ describe("at-rest encryption (AES-256-GCM via node:crypto)", () => {
   });
 
   it("rejects empty and short keys", () => {
-    expect(() => parseStoreKey(undefined)).toThrow(/QUEEK_STORE_KEY/);
+    expect(() => parseStoreKey(undefined)).toThrow(/APP_ENCRYPTION_KEY/);
     expect(() => parseStoreKey("too-short")).toThrow(/32 bytes/);
   });
 
