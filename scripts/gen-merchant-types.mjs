@@ -65,7 +65,7 @@ if (gen.status !== 0) throw new Error("openapi-typescript failed.");
 const provenance =
   `/**\n` +
   ` * GENERATED from openapi/merchant.json — do not edit by hand.\n` +
-  ` * Refresh with: pnpm --filter @queek/app-sdk gen:merchant [url-or-path]\n` +
+  ` * Refresh with: pnpm --filter @usequeek/app-sdk gen:merchant [url-or-path]\n` +
   ` * See scripts/gen-merchant-types.mjs for source precedence.\n` +
   ` */\n`;
 writeFileSync(schemaPath, provenance + readFileSync(schemaPath, "utf8"));

@@ -1,5 +1,5 @@
 /**
- * `@queek/app-sdk` — the shared kit every Queek app is built from.
+ * `@usequeek/app-sdk` — the shared kit every Queek app is built from.
  *
  * Queek speaks Standard Webhooks (`webhook-id`, `webhook-timestamp`,
  * `webhook-signature` over `{id}.{timestamp}.{raw body}`, keyed by the

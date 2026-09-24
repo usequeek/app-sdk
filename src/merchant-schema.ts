@@ -1,6 +1,6 @@
 /**
  * GENERATED from openapi/merchant.json — do not edit by hand.
- * Refresh with: pnpm --filter @queek/app-sdk gen:merchant [url-or-path]
+ * Refresh with: pnpm --filter @usequeek/app-sdk gen:merchant [url-or-path]
  * See scripts/gen-merchant-types.mjs for source precedence.
  */
 /**

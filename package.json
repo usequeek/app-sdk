@@ -1,7 +1,17 @@
 {
-  "name": "@queek/app-sdk",
+  "name": "@usequeek/app-sdk",
   "version": "0.1.0",
+  "private": false,
+  "license": "MIT",
   "description": "SDK for Queek installable apps: webhook signature verification, install handlers, typed Merchant API client, webhook dispatch, encrypted installation store.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/usequeek/queek-apps.git",
+    "directory": "packages/app-sdk"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -13,24 +23,30 @@
   },
   "files": [
     "dist",
-    "openapi/merchant.json"
+    "openapi/merchant.json",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run",
-    "gen:merchant": "node scripts/gen-merchant-types.mjs"
+    "gen:merchant": "node scripts/gen-merchant-types.mjs",
+    "check:merchant-snapshot": "node scripts/check-merchant-snapshot.mjs",
+    "check:publish": "node scripts/check-publish.mjs"
   },
-  "dependencies": {
-    "hono": "4.13.9"
+  "peerDependencies": {
+    "hono": "^4"
   },
   "devDependencies": {
     "@types/node": "22.20.4",
+    "hono": "4.13.9",
     "openapi-typescript": "7.13.0",
     "typescript": "5.9.3",
     "vitest": "3.2.4"
   },
   "engines": {
-    "node": "22"
+    "node": ">=22.14"
   }
 }
