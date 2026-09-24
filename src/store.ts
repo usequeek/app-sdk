@@ -7,9 +7,11 @@ import { decryptSecret, encryptSecret, parseStoreKey } from "./crypto.js";
  * Business data lives in Queek (product metafields,
  * orders.integrator_metadata) — never here.
  *
- * `api_key` and `webhook_secret` are encrypted at rest (AES-256-GCM via
- * node:crypto, key from `QUEEK_STORE_KEY`) and are NEVER logged: only ids
- * and the store p_id may appear in logs.
+ * `api_key`, `webhook_secret` AND the whole `settings` blob are encrypted
+ * at rest (AES-256-GCM via node:crypto, key from `QUEEK_STORE_KEY`):
+ * manifests may declare `secret` settings (API keys, webhook secrets) and
+ * the backend encrypts those too, so the SDK must not be weaker. NOTHING
+ * secret is ever logged: only ids and the store p_id may appear in logs.
  */
 
 export interface InstallationRecord {
@@ -153,7 +155,7 @@ export class SqliteInstallationStore implements InstallationStore {
         record.apiBase,
         encryptSecret(record.apiKey, this.key),
         JSON.stringify(record.scopes),
-        JSON.stringify(record.settings),
+        encryptSecret(JSON.stringify(record.settings), this.key),
         record.webhookSecret === null ? null : encryptSecret(record.webhookSecret, this.key),
         record.webhookUrl,
         JSON.stringify(record.webhookTopics),
@@ -176,7 +178,7 @@ export class SqliteInstallationStore implements InstallationStore {
       apiBase: column(row.api_base),
       apiKey: decryptSecret(column(row.api_key_enc), this.key),
       scopes: JSON.parse(column(row.scopes_json)) as string[],
-      settings: JSON.parse(column(row.settings_json)) as Record<string, unknown>,
+      settings: JSON.parse(decryptSecret(column(row.settings_json), this.key)) as Record<string, unknown>,
       webhookSecret:
         row.webhook_secret_enc === null ? null : decryptSecret(column(row.webhook_secret_enc), this.key),
       webhookUrl: (row.webhook_url as string | null) ?? null,

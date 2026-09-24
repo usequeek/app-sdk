@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   apiHostsFromEnv,
   createQueekClient,
+  devApiHostsFromEnv,
   InvalidApiBaseError,
   QueekApiError,
   resolveApiBase,
@@ -146,6 +147,7 @@ describe("queek client", () => {
 describe("api_base validation (https + allowlist, before any fetch)", () => {
   afterEach(() => {
     delete process.env.QUEEK_API_HOSTS;
+    delete process.env.QUEEK_DEV_API_HOSTS;
   });
 
   it.each([
@@ -190,6 +192,29 @@ describe("api_base validation (https + allowlist, before any fetch)", () => {
     expect(() => apiHostsFromEnv()).toThrow(/bare hostname/);
     process.env.QUEEK_API_HOSTS = "";
     expect(apiHostsFromEnv()).toEqual([]);
+  });
+
+  it("pins the port on the default host (443, no smuggled ports)", () => {
+    expect(() => resolveApiBase("https://api.usequeek.com:8443/api/v1/merchant")).toThrow(/no port/);
+    // Dev/test hosts may carry a port.
+    process.env.QUEEK_API_HOSTS = "backend.test";
+    expect(resolveApiBase("https://backend.test:8443")).toBe("https://backend.test:8443/api/v1/merchant");
+  });
+
+  it("QUEEK_DEV_API_HOSTS works outside production and is refused in it", () => {
+    const savedNodeEnv = process.env.NODE_ENV;
+    try {
+      process.env.NODE_ENV = "test";
+      process.env.QUEEK_DEV_API_HOSTS = "tunnel.ngrok.io";
+      expect(devApiHostsFromEnv()).toEqual(["tunnel.ngrok.io"]);
+      expect(resolveApiBase("https://tunnel.ngrok.io")).toBe("https://tunnel.ngrok.io/api/v1/merchant");
+      process.env.NODE_ENV = "production";
+      expect(() => devApiHostsFromEnv()).toThrow(/refused in production/);
+      expect(() => resolveApiBase("https://tunnel.ngrok.io")).toThrow(/refused in production/);
+    } finally {
+      if (savedNodeEnv === undefined) delete process.env.NODE_ENV;
+      else process.env.NODE_ENV = savedNodeEnv;
+    }
   });
 
   it("admits explicit allowedApiHosts without env", () => {

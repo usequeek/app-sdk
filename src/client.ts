@@ -61,8 +61,21 @@ export class InvalidApiBaseError extends Error {
 }
 
 const ENV_HOSTS_VAR = "QUEEK_API_HOSTS";
+const ENV_DEV_HOSTS_VAR = "QUEEK_DEV_API_HOSTS";
 const HOSTNAME_RE =
   /^(?=.{1,253}$)[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)*$/i;
+
+function parseHostList(raw: string, varName: string): string[] {
+  return raw.split(",").map((entry) => {
+    const host = entry.trim().toLowerCase();
+    if (!HOSTNAME_RE.test(host)) {
+      throw new InvalidApiBaseError(
+        `Invalid ${varName} entry ${JSON.stringify(entry)}: must be a bare hostname (no scheme, port or path).`,
+      );
+    }
+    return host;
+  });
+}
 
 /**
  * Extra allowed `apiBase` hosts for test/local backends, from
@@ -72,22 +85,33 @@ const HOSTNAME_RE =
 export function apiHostsFromEnv(env: NodeJS.ProcessEnv = process.env): string[] {
   const raw = env[ENV_HOSTS_VAR];
   if (raw === undefined || raw.trim() === "") return [];
-  return raw.split(",").map((entry) => {
-    const host = entry.trim().toLowerCase();
-    if (!HOSTNAME_RE.test(host)) {
-      throw new InvalidApiBaseError(
-        `Invalid ${ENV_HOSTS_VAR} entry ${JSON.stringify(entry)}: must be a bare hostname (no scheme, port or path).`,
-      );
-    }
-    return host;
-  });
+  return parseHostList(raw, ENV_HOSTS_VAR);
+}
+
+/**
+ * DEV-ONLY extra allowed hosts (e.g. an HTTPS tunnel to a local backend),
+ * from `QUEEK_DEV_API_HOSTS`. REFUSED when NODE_ENV=production: a dev
+ * tunnel host must never be allowlisted in production, even by accident.
+ * Throws at client construction, before any fetch.
+ */
+export function devApiHostsFromEnv(env: NodeJS.ProcessEnv = process.env): string[] {
+  const raw = env[ENV_DEV_HOSTS_VAR];
+  if (raw === undefined || raw.trim() === "") return [];
+  if ((env.NODE_ENV ?? "") === "production") {
+    throw new InvalidApiBaseError(
+      `${ENV_DEV_HOSTS_VAR} is set but NODE_ENV=production: dev tunnel hosts are refused in production.`,
+    );
+  }
+  return parseHostList(raw, ENV_DEV_HOSTS_VAR);
 }
 
 /**
  * Validate the handoff `apiBase` and normalize it to the full merchant base.
  * Throws `InvalidApiBaseError` on: unparseable URL, non-https scheme,
- * embedded credentials, or a host outside
- * `DEFAULT_API_HOSTS + allowedApiHosts + QUEEK_API_HOSTS`.
+ * embedded credentials, an explicit port on a DEFAULT host (production
+ * hosts are 443 — ports ride only on dev/test hosts), or a host outside
+ * `DEFAULT_API_HOSTS + allowedApiHosts + QUEEK_API_HOSTS +
+ * QUEEK_DEV_API_HOSTS`.
  */
 export function resolveApiBase(raw: string, allowedApiHosts: string[] = []): string {
   let url: URL;
@@ -103,10 +127,16 @@ export function resolveApiBase(raw: string, allowedApiHosts: string[] = []): str
     throw new InvalidApiBaseError("Invalid api_base: embedded credentials are never allowed.");
   }
   const host = url.hostname.toLowerCase();
+  if (DEFAULT_API_HOSTS.includes(host) && url.port !== "") {
+    throw new InvalidApiBaseError(
+      `Invalid api_base ${JSON.stringify(raw)}: the production host takes no port (443).`,
+    );
+  }
   const allowlist = new Set([
     ...DEFAULT_API_HOSTS,
     ...allowedApiHosts.map((h) => h.toLowerCase()),
     ...apiHostsFromEnv(),
+    ...devApiHostsFromEnv(),
   ]);
   if (!allowlist.has(host)) {
     throw new InvalidApiBaseError(

@@ -9,10 +9,12 @@
  * installation credential as `X-Client-Key`.
  */
 
+export { backgroundTaskCount, type DetachOptions, detach } from "./background.js";
 export {
   apiHostsFromEnv,
   createQueekClient,
   DEFAULT_API_HOSTS,
+  devApiHostsFromEnv,
   InvalidApiBaseError,
   MERCHANT_API_PATH,
   type MerchantPaths,

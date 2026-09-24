@@ -19,7 +19,7 @@ function record(): InstallationRecord {
     apiBase: "https://api.usequeek.com/api/v1/merchant",
     apiKey: "sk_test_supersecret_key_material",
     scopes: ["merchant-orders-read"],
-    settings: { greeting: "hello" },
+    settings: { greeting: "hello", chowdeck_api_key: "sk_chowdeck_merchant_secret_value" },
     webhookSecret: "whsec_super_secret_webhook_material",
     webhookUrl: "https://hello.apps.usequeek.com/webhooks",
     webhookTopics: ["orders/updated"],
@@ -84,7 +84,7 @@ describe("SqliteInstallationStore", () => {
       installationPid: "inst_abc123",
       apiKey: "sk_test_supersecret_key_material",
       webhookSecret: "whsec_super_secret_webhook_material",
-      settings: { greeting: "hello" },
+      settings: { greeting: "hello", chowdeck_api_key: "sk_chowdeck_merchant_secret_value" },
     });
     expect(store.getInstallation("missing")).toBeNull();
     store.deleteInstallation("11111111-1111-1111-1111-111111111111");
@@ -92,7 +92,7 @@ describe("SqliteInstallationStore", () => {
     store.close();
   });
 
-  it("never persists plaintext secrets: the db file holds ciphertext only", () => {
+  it("never persists plaintext secrets: the db file holds ciphertext only (settings blob included)", () => {
     const file = join(tmpdir(), `queek-store-test-${Date.now()}.db`);
     files.push(file);
     const store = new SqliteInstallationStore({ path: file, storeKey: KEY_B64 });
@@ -102,17 +102,26 @@ describe("SqliteInstallationStore", () => {
     const raw = readFileSync(file);
     expect(raw.includes(Buffer.from("sk_test_supersecret_key_material"))).toBe(false);
     expect(raw.includes(Buffer.from("whsec_super_secret_webhook_material"))).toBe(false);
+    expect(raw.includes(Buffer.from("sk_chowdeck_merchant_secret_value"))).toBe(false);
 
     const db = new DatabaseSync(file);
-    const row = db.prepare(`SELECT api_key_enc, webhook_secret_enc FROM installations`).get() as {
+    const row = db
+      .prepare(`SELECT api_key_enc, webhook_secret_enc, settings_json FROM installations`)
+      .get() as {
       api_key_enc: string;
       webhook_secret_enc: string;
+      settings_json: string;
     };
     db.close();
     expect(row.api_key_enc.startsWith("v1.")).toBe(true);
     expect(row.webhook_secret_enc.startsWith("v1.")).toBe(true);
+    expect(row.settings_json.startsWith("v1.")).toBe(true);
     // …and the ciphertext still decrypts with the right key.
     expect(decryptSecret(row.api_key_enc, parseStoreKey(KEY_B64))).toBe("sk_test_supersecret_key_material");
+    expect(
+      (JSON.parse(decryptSecret(row.settings_json, parseStoreKey(KEY_B64))) as Record<string, unknown>)
+        .chowdeck_api_key,
+    ).toBe("sk_chowdeck_merchant_secret_value");
   });
 
   it("listWebhookSecrets exposes secrets without api keys", () => {
