@@ -52,6 +52,15 @@ export interface InstallationStore {
   hasSeenWebhookId(webhookId: string): Promise<boolean> | boolean;
   /** Record a processed webhook-id (entries expire after 24h). */
   markWebhookSeen(webhookId: string): Promise<void> | void;
+  /**
+   * Atomically claim a webhook-id: records it and returns true only if no
+   * unexpired claim exists. Handlers claim BEFORE running the callback so
+   * two concurrent same-id deliveries cannot both execute; on callback
+   * failure they `releaseWebhookId` so a Queek retry can still land.
+   */
+  claimWebhookId(webhookId: string): Promise<boolean> | boolean;
+  /** Release a claim (callback failed; a retry may re-run). */
+  releaseWebhookId(webhookId: string): Promise<void> | void;
 }
 
 export interface SqliteStoreOptions {
@@ -73,10 +82,11 @@ const SEEN_TTL_SECONDS = 24 * 60 * 60;
  * the slim alpine app images. `node:sqlite` is dependency-free with an
  * identical synchronous shape.
  *
- * The tradeoff is real: on Node 22 `node:sqlite` is experimental and needs
- * `NODE_OPTIONS=--experimental-sqlite` (set in every start/test command in
- * this repo). Revisit when the apps run on a Node line where it is stable
- * and unflagged — the swap is contained here, behind `InstallationStore`.
+ * `node:sqlite` needs no flag since Node 22.13.0 (pinned runtime 22.23.3;
+ * an ExperimentalWarning on stderr remains — Stability 1.1). Devs on an
+ * older 22 minor set `NODE_OPTIONS=--experimental-sqlite` in their shell.
+ * Revisit when the apps run on a Node line where it is fully stable — the
+ * swap is contained here, behind `InstallationStore`.
  */
 export class SqliteInstallationStore implements InstallationStore {
   private readonly db: DatabaseSync;
@@ -193,9 +203,7 @@ export class SqliteInstallationStore implements InstallationStore {
   }
 
   hasSeenWebhookId(webhookId: string): boolean {
-    this.db
-      .prepare(`DELETE FROM seen_webhook_ids WHERE seen_at < ?`)
-      .run(Date.now() - SEEN_TTL_SECONDS * 1000);
+    this.pruneSeenIds();
     return (
       this.db.prepare(`SELECT 1 AS one FROM seen_webhook_ids WHERE webhook_id = ?`).get(webhookId) !==
       undefined
@@ -206,6 +214,24 @@ export class SqliteInstallationStore implements InstallationStore {
     this.db
       .prepare(`INSERT OR IGNORE INTO seen_webhook_ids (webhook_id, seen_at) VALUES (?, ?)`)
       .run(webhookId, Date.now());
+  }
+
+  claimWebhookId(webhookId: string): boolean {
+    this.pruneSeenIds();
+    const result = this.db
+      .prepare(`INSERT OR IGNORE INTO seen_webhook_ids (webhook_id, seen_at) VALUES (?, ?)`)
+      .run(webhookId, Date.now()) as unknown as { changes: number | bigint };
+    return Number(result.changes) === 1;
+  }
+
+  releaseWebhookId(webhookId: string): void {
+    this.db.prepare(`DELETE FROM seen_webhook_ids WHERE webhook_id = ?`).run(webhookId);
+  }
+
+  private pruneSeenIds(): void {
+    this.db
+      .prepare(`DELETE FROM seen_webhook_ids WHERE seen_at < ?`)
+      .run(Date.now() - SEEN_TTL_SECONDS * 1000);
   }
 
   close(): void {

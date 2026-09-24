@@ -135,4 +135,17 @@ describe("SqliteInstallationStore", () => {
     expect(store.hasSeenWebhookId("evt-1")).toBe(true);
     store.close();
   });
+
+  it("claims ids atomically: first wins, release re-arms", () => {
+    const store = new SqliteInstallationStore({ path: ":memory:", storeKey: KEY_B64 });
+    expect(store.claimWebhookId("evt-claim")).toBe(true);
+    expect(store.claimWebhookId("evt-claim")).toBe(false);
+    expect(store.hasSeenWebhookId("evt-claim")).toBe(true);
+    store.releaseWebhookId("evt-claim");
+    expect(store.hasSeenWebhookId("evt-claim")).toBe(false);
+    expect(store.claimWebhookId("evt-claim")).toBe(true);
+    // A different id is unaffected.
+    expect(store.claimWebhookId("evt-other")).toBe(true);
+    store.close();
+  });
 });

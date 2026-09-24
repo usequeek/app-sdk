@@ -28,10 +28,12 @@ import type { InstallationRecord, InstallationStore } from "./store.js";
  * is durably stored; anything else makes Queek revoke the just-minted key
  * and mark the install failed (retry = a fresh install).
  *
- * Order per request: verify signature → reject replays (seen webhook-id)
- * → reject stale timestamps → parse the typed payload → run the callback
- * → 2xx. A callback that throws (e.g. the store write failed) answers
- * non-2xx and the id is NOT marked seen, so a Queek retry can still land.
+ * Order per request: verify signature (freshness included) → parse the
+ * typed payload → atomically claim the header `webhook-id` (a claimed id
+ * answers 409: exactly one same-id delivery runs the callback) → run the
+ * callback → 2xx. A callback that throws (e.g. the store write failed)
+ * RELEASES the claim and answers non-2xx, so a Queek retry can still land.
+ * The claim and the check are the SAME header id — never the body id.
  */
 
 export interface InstallCallbacks {
@@ -92,7 +94,7 @@ export function createInstallHandlers(options: InstallHandlerOptions): Hono {
     timestamp: string | undefined,
     signatureHeader: string | undefined,
     rawBody: string,
-  ): Promise<{ ok: true } | { ok: false; status: 401 | 409; reason: string }> {
+  ): Promise<{ ok: true; id: string } | { ok: false; status: 401; reason: string }> {
     if (!id || !timestamp || !signatureHeader) {
       return { ok: false, status: 401, reason: "missing signature headers" };
     }
@@ -107,10 +109,7 @@ export function createInstallHandlers(options: InstallHandlerOptions): Hono {
         reason: checked.reason === "stale_timestamp" ? "stale timestamp" : "signature mismatch",
       };
     }
-    if (await options.store.hasSeenWebhookId(id)) {
-      return { ok: false, status: 409, reason: "duplicate delivery" };
-    }
-    return { ok: true };
+    return { ok: true, id };
   }
 
   function parseEnvelope(rawBody: string): HandoffEnvelopeAny | null {
@@ -146,6 +145,11 @@ export function createInstallHandlers(options: InstallHandlerOptions): Hono {
       return c.json({ ok: false, error: "invalid install payload" }, 400);
     }
 
+    // Atomic claim on the HEADER id (never the body id): exactly one
+    // same-id delivery runs the callback.
+    if (!(await options.store.claimWebhookId(checked.id))) {
+      return c.json({ ok: false, error: "duplicate delivery" }, 409);
+    }
     try {
       if (options.onInstall) {
         await options.onInstall(envelope as InstallEnvelope);
@@ -156,10 +160,10 @@ export function createInstallHandlers(options: InstallHandlerOptions): Hono {
       }
     } catch {
       // Non-2xx on purpose: Queek revokes the key and the merchant retries
-      // as a fresh install. The id stays unmarked so the retry can land.
+      // as a fresh install. The claim is released so the retry can land.
+      await options.store.releaseWebhookId(checked.id);
       return c.json({ ok: false, error: "install_failed" }, 500);
     }
-    await options.store.markWebhookSeen(envelope.id);
     return c.json({ ok: true });
   });
 
@@ -179,6 +183,9 @@ export function createInstallHandlers(options: InstallHandlerOptions): Hono {
       return c.json({ ok: false, error: "unexpected event type" }, 400);
     }
 
+    if (!(await options.store.claimWebhookId(checked.id))) {
+      return c.json({ ok: false, error: "duplicate delivery" }, 409);
+    }
     try {
       if (options.onUninstall) {
         await options.onUninstall(envelope as UninstallEnvelope);
@@ -186,9 +193,9 @@ export function createInstallHandlers(options: InstallHandlerOptions): Hono {
         await options.store.deleteInstallation((envelope as UninstallEnvelope).data.installation.id);
       }
     } catch {
+      await options.store.releaseWebhookId(checked.id);
       return c.json({ ok: false, error: "uninstall_failed" }, 500);
     }
-    await options.store.markWebhookSeen(envelope.id);
     return c.json({ ok: true });
   });
 
@@ -208,13 +215,19 @@ export function createInstallHandlers(options: InstallHandlerOptions): Hono {
       return c.json({ ok: false, error: "unexpected event type" }, 400);
     }
 
+    if (!(await options.store.claimWebhookId(checked.id))) {
+      return c.json({ ok: false, error: "duplicate delivery" }, 409);
+    }
     try {
       if (options.onSettings) {
         await options.onSettings(envelope as SettingsEnvelope);
       } else {
         const data = (envelope as SettingsEnvelope).data;
         const existing = await options.store.getInstallation(data.installation.id);
-        if (!existing) return c.json({ ok: false, error: "unknown_installation" }, 404);
+        if (!existing) {
+          await options.store.releaseWebhookId(checked.id);
+          return c.json({ ok: false, error: "unknown_installation" }, 404);
+        }
         await options.store.saveInstallation({
           ...existing,
           settings: data.settings,
@@ -222,9 +235,9 @@ export function createInstallHandlers(options: InstallHandlerOptions): Hono {
         });
       }
     } catch {
+      await options.store.releaseWebhookId(checked.id);
       return c.json({ ok: false, error: "settings_failed" }, 500);
     }
-    await options.store.markWebhookSeen(envelope.id);
     return c.json({ ok: true });
   });
 

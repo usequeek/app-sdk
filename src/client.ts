@@ -4,9 +4,16 @@ import type { paths } from "./merchant-schema.js";
 /**
  * Typed fetch client over Queek's public Merchant API.
  *
- * - Base URL comes from the install handoff (`api_base`), e.g.
- *   `https://api.usequeek.com/api/v1/merchant` — never hardcoded, so test
+ * - Base URL comes from the install handoff (`api_base`). The backend sends
+ *   the BARE store host (`AppInstallService::installPayload()` passes
+ *   `rtrim(config('app.url'))` verbatim, e.g. `https://api.usequeek.com`);
+ *   the client appends `/api/v1/merchant` when it is absent, so a bare host
+ *   and a full merchant base both work. Never hardcoded otherwise, so test
  *   stores ride their own host.
+ * - `apiBase` is validated at construction — https only, no credentials,
+ *   host on the allowlist — and throws BEFORE any fetch, so a
+ *   signed-but-stale or attacker-influenced handoff can never point
+ *   `X-Client-Key` at an arbitrary host.
  * - Auth is the installation credential only: `X-Client-Key: sk_…`
  *   (server-side; the key is bound to ONE store, so no vendor id is sent).
  * - Writes (POST/PUT/PATCH/DELETE) carry an `Idempotency-Key` (generated
@@ -18,8 +25,8 @@ import type { paths } from "./merchant-schema.js";
  *   the legacy top-level `error_code`/`message`/`errors` keys — the contract
  *   is additive, so both are read). Switch on `code`, never on `message`.
  * - 429s expose `retryAfterMs` parsed from `Retry-After` (seconds or
- *   HTTP-date). The client does NOT sleep-and-retry writes on its own:
- *   retry with the SAME idempotency key after `retryAfterMs`.
+ *   HTTP-date). Plain `request()` never retries; `requestWithRetry()`
+ *   retries 429s and network errors with the SAME idempotency key.
  *
  * Typed surface: `getStore()` is typed from the generated Merchant API
  * schema (`openapi/merchant.json` → `merchant-schema.ts` via
@@ -37,12 +44,89 @@ export type OperationResponse<P extends keyof paths, M extends keyof paths[P]> =
 
 export type StoreProfile = OperationResponse<"/store", "get">;
 
+/** Path of the public Merchant API below the store host. */
+export const MERCHANT_API_PATH = "/api/v1/merchant";
+
+/** Hosts a handoff `api_base` may point at without extra configuration. */
+export const DEFAULT_API_HOSTS = ["api.usequeek.com"];
+
+/** Thrown at client construction when `apiBase` fails validation — before any fetch. */
+export class InvalidApiBaseError extends Error {
+  readonly code = "invalid_api_base";
+
+  constructor(message: string) {
+    super(message);
+    this.name = "InvalidApiBaseError";
+  }
+}
+
+const ENV_HOSTS_VAR = "QUEEK_API_HOSTS";
+const HOSTNAME_RE =
+  /^(?=.{1,253}$)[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)*$/i;
+
+/**
+ * Extra allowed `apiBase` hosts for test/local backends, from
+ * `QUEEK_API_HOSTS` (comma-separated bare hostnames). Parsed strictly: any
+ * entry that is not a bare hostname throws — nothing is silently skipped.
+ */
+export function apiHostsFromEnv(env: NodeJS.ProcessEnv = process.env): string[] {
+  const raw = env[ENV_HOSTS_VAR];
+  if (raw === undefined || raw.trim() === "") return [];
+  return raw.split(",").map((entry) => {
+    const host = entry.trim().toLowerCase();
+    if (!HOSTNAME_RE.test(host)) {
+      throw new InvalidApiBaseError(
+        `Invalid ${ENV_HOSTS_VAR} entry ${JSON.stringify(entry)}: must be a bare hostname (no scheme, port or path).`,
+      );
+    }
+    return host;
+  });
+}
+
+/**
+ * Validate the handoff `apiBase` and normalize it to the full merchant base.
+ * Throws `InvalidApiBaseError` on: unparseable URL, non-https scheme,
+ * embedded credentials, or a host outside
+ * `DEFAULT_API_HOSTS + allowedApiHosts + QUEEK_API_HOSTS`.
+ */
+export function resolveApiBase(raw: string, allowedApiHosts: string[] = []): string {
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    throw new InvalidApiBaseError(`Invalid api_base ${JSON.stringify(raw)}: not a URL.`);
+  }
+  if (url.protocol !== "https:") {
+    throw new InvalidApiBaseError(`Invalid api_base ${JSON.stringify(raw)}: https only.`);
+  }
+  if (url.username !== "" || url.password !== "") {
+    throw new InvalidApiBaseError("Invalid api_base: embedded credentials are never allowed.");
+  }
+  const host = url.hostname.toLowerCase();
+  const allowlist = new Set([
+    ...DEFAULT_API_HOSTS,
+    ...allowedApiHosts.map((h) => h.toLowerCase()),
+    ...apiHostsFromEnv(),
+  ]);
+  if (!allowlist.has(host)) {
+    throw new InvalidApiBaseError(
+      `Invalid api_base host ${JSON.stringify(host)}: not on the allowlist (add test hosts via ${ENV_HOSTS_VAR}).`,
+    );
+  }
+  const path = url.pathname.replace(/\/+$/, "");
+  const merchantPath = path.endsWith(MERCHANT_API_PATH) ? path : `${path}${MERCHANT_API_PATH}`;
+  return `https://${host}${url.port !== "" ? `:${url.port}` : ""}${merchantPath}`;
+}
+
 export interface QueekClientOptions {
+  /** Handoff `api_base` (bare store host or full merchant base). Validated at construction. */
   apiBase: string;
   apiKey: string;
   fetchImpl?: typeof fetch;
   /** Sent as User-Agent. Defaults to `queek-app/1.0`. */
   userAgent?: string;
+  /** Extra allowed `apiBase` hosts (test/local backends). Production default always applies. */
+  allowedApiHosts?: string[];
 }
 
 export interface RequestOptions {
@@ -151,15 +235,51 @@ function errorFromBody(status: number, body: unknown, headers: Headers): QueekAp
   return new QueekApiError(details);
 }
 
+export interface RetryOptions {
+  /** Total attempts including the first (default 3). Must be >= 1. */
+  maxAttempts?: number;
+  /** Base backoff between attempts in ms (default 250); doubles per attempt. */
+  baseDelayMs?: number;
+  /** Backoff ceiling in ms (default 5000). A 429 `Retry-After` can exceed it. */
+  maxDelayMs?: number;
+  /** Injectable clock for tests. Defaults to a real setTimeout sleep. */
+  sleep?: (ms: number) => Promise<void>;
+}
+
 export interface QueekClient {
   /** `GET /store` — the handed-off key proving itself. Typed from the Merchant API schema. */
   getStore(signal?: AbortSignal): Promise<StoreProfile>;
-  /** Generic typed escape hatch: `request<T>("GET", "/orders", { query })`. */
+  /** Generic typed escape hatch: `request<T>("GET", "/orders", { query })`. Never retries. */
   request<T>(method: string, path: string, options?: RequestOptions): Promise<T>;
+  /**
+   * `request()` with bounded retries on 429s and network errors. The SAME
+   * idempotency key is reused across attempts (generated once when the
+   * caller does not supply one), so a retry can never duplicate a write;
+   * a 429 `Retry-After` is honoured over the backoff schedule.
+   */
+  requestWithRetry<T>(method: string, path: string, options?: RequestOptions & RetryOptions): Promise<T>;
+}
+
+function defaultSleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isRetryable(error: unknown): boolean {
+  return error instanceof QueekApiError && (error.isRateLimited || error.code === "network_error");
+}
+
+function retryDelayMs(
+  error: QueekApiError,
+  attempt: number,
+  baseDelayMs: number,
+  maxDelayMs: number,
+): number {
+  if (error.isRateLimited && error.retryAfterMs !== undefined) return error.retryAfterMs;
+  return Math.min(maxDelayMs, baseDelayMs * 2 ** attempt);
 }
 
 export function createQueekClient(clientOptions: QueekClientOptions): QueekClient {
-  const base = clientOptions.apiBase.replace(/\/+$/, "");
+  const base = resolveApiBase(clientOptions.apiBase, clientOptions.allowedApiHosts ?? []);
   const fetchImpl = clientOptions.fetchImpl ?? fetch;
   const userAgent = clientOptions.userAgent ?? "queek-app/1.0";
 
@@ -205,9 +325,37 @@ export function createQueekClient(clientOptions: QueekClientOptions): QueekClien
     return parsed as T;
   }
 
+  async function requestWithRetry<T>(
+    method: string,
+    path: string,
+    options: RequestOptions & RetryOptions = {},
+  ): Promise<T> {
+    const maxAttempts = Math.max(1, Math.floor(options.maxAttempts ?? 3));
+    const baseDelayMs = options.baseDelayMs ?? 250;
+    const maxDelayMs = options.maxDelayMs ?? 5000;
+    const sleep = options.sleep ?? defaultSleep;
+    // One key for every attempt: Queek replays same-key+same-body writes
+    // instead of duplicating them, so retrying a write is safe.
+    const idempotencyKey =
+      options.idempotencyKey ?? (WRITE_METHODS.has(method.toUpperCase()) ? newIdempotencyKey() : undefined);
+    let lastError: unknown;
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      try {
+        return await request<T>(method, path, { ...options, idempotencyKey });
+      } catch (error) {
+        lastError = error;
+        const retryable = error instanceof QueekApiError && isRetryable(error);
+        if (!retryable || attempt === maxAttempts - 1) throw error;
+        await sleep(retryDelayMs(error as QueekApiError, attempt, baseDelayMs, maxDelayMs));
+      }
+    }
+    throw lastError;
+  }
+
   return {
     getStore: (signal?: AbortSignal) => request<StoreProfile>("GET", "/store", { signal }),
     request,
+    requestWithRetry,
   };
 }
 

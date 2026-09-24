@@ -113,6 +113,24 @@ describe("webhook handler", () => {
     expect(onOrder).not.toHaveBeenCalled();
   });
 
+  it("runs concurrent same-id deliveries exactly once (atomic claim)", async () => {
+    const slow = vi.fn(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    });
+    const app = createWebhookHandler({
+      store,
+      nowSeconds: NOW,
+      handlers: { "orders/updated": slow as WebhookHandlerFn },
+    });
+    const body = deliveryBody("evt-race");
+    const headers = () => ({ ...signedHeaders("evt-race", NOW, body, WEBHOOK_SECRET) });
+    const results = await Promise.all(Array.from({ length: 8 }, () => postRaw(app, "/", body, headers())));
+    const payloads = await Promise.all(results.map((r) => r.json()));
+    expect(slow).toHaveBeenCalledTimes(1);
+    expect(results.every((r) => r.status === 200)).toBe(true);
+    expect(payloads.filter((p) => (p as { deduped?: boolean }).deduped === true)).toHaveLength(7);
+  });
+
   it("answers 500 when the handler throws, so Queek retries", async () => {
     const app = createWebhookHandler({
       store,

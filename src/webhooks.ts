@@ -25,10 +25,13 @@ import type { InstallationRecord, InstallationStore } from "./store.js";
  * may pass `resolveSecret` instead.
  *
  * Dedupe: Queek retries a delivery for ~4h until it sees 2xx, so every
- * `webhook-id` is processed AT MOST once — a repeat answers 200 WITHOUT
- * re-running the handler. Unknown topics answer 200 too (a topic the app
- * no longer handles must not wedge Queek's retry queue); only auth and
- * malformed bodies are non-2xx.
+ * `webhook-id` is processed AT MOST once — the header id is claimed
+ * atomically up front (exactly one concurrent same-id delivery runs the
+ * handler) and a repeat answers 200 WITHOUT re-running it. A throwing
+ * handler releases the claim and answers 500 so the retry can land.
+ * Unknown topics answer 200 too (a topic the app no longer handles must
+ * not wedge Queek's retry queue); only auth and malformed bodies are
+ * non-2xx.
  */
 
 export const QUEEK_TOPIC_HEADER = "X-Queek-Topic";
@@ -161,7 +164,14 @@ export function createWebhookHandler(options: WebhookHandlerOptions): Hono {
       return c.json({ ok: false, error: "signature mismatch" }, 401);
     }
 
-    if (await options.store.hasSeenWebhookId(id)) {
+    const installation = await options.store.getInstallation(resolution.installationId);
+    if (!installation) {
+      return c.json({ ok: false, error: "unknown_installation" }, 401);
+    }
+
+    // Atomic claim on the HEADER id: exactly one concurrent same-id
+    // delivery runs the handler; the rest answer deduped.
+    if (!(await options.store.claimWebhookId(id))) {
       return c.json({ ok: true, deduped: true });
     }
 
@@ -169,21 +179,17 @@ export function createWebhookHandler(options: WebhookHandlerOptions): Hono {
     const handler = options.handlers[topic];
     if (!handler) {
       // No handler for this topic is NOT a failure: answering non-2xx would
-      // retry for hours something the app will never handle.
-      await options.store.markWebhookSeen(id);
+      // retry for hours something the app will never handle. The claim
+      // stands as the seen-record.
       return c.json({ ok: true, unhandled: true });
     }
 
-    const installation = await options.store.getInstallation(resolution.installationId);
-    if (!installation) {
-      return c.json({ ok: false, error: "unknown_installation" }, 401);
-    }
     try {
       await handler(envelope, { installation, topic, eventId: id });
     } catch {
+      await options.store.releaseWebhookId(id);
       return c.json({ ok: false, error: "handler_failed" }, 500);
     }
-    await options.store.markWebhookSeen(id);
     return c.json({ ok: true });
   });
 

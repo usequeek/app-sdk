@@ -10,7 +10,11 @@
  */
 
 export {
+  apiHostsFromEnv,
   createQueekClient,
+  DEFAULT_API_HOSTS,
+  InvalidApiBaseError,
+  MERCHANT_API_PATH,
   type MerchantPaths,
   newIdempotencyKey,
   type OperationResponse,
@@ -19,6 +23,8 @@ export {
   type QueekClientOptions,
   type QueekErrorDetails,
   type RequestOptions,
+  type RetryOptions,
+  resolveApiBase,
   type StoreProfile,
 } from "./client.js";
 export {
@@ -48,6 +54,14 @@ export {
   type InstallCallbacks,
   type InstallHandlerOptions,
 } from "./install-handlers.js";
+export {
+  createLogger,
+  type LogFields,
+  type Logger,
+  type LoggerOptions,
+  type LogLevel,
+  REDACTED,
+} from "./logger.js";
 export {
   MAX_TIMESTAMP_SKEW_SECONDS,
   SECRET_PREFIX,

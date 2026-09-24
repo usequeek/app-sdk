@@ -1,5 +1,11 @@
-import { describe, expect, it, vi } from "vitest";
-import { createQueekClient, QueekApiError } from "../src/client.js";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  apiHostsFromEnv,
+  createQueekClient,
+  InvalidApiBaseError,
+  QueekApiError,
+  resolveApiBase,
+} from "../src/client.js";
 
 const API_BASE = "https://api.usequeek.com/api/v1/merchant";
 const API_KEY = "sk_test_installation_key";
@@ -134,5 +140,135 @@ describe("queek client", () => {
     const apiError = (await client.getStore().catch((error: unknown) => error)) as QueekApiError;
     expect(apiError.code).toBe("network_error");
     expect(apiError.status).toBe(0);
+  });
+});
+
+describe("api_base validation (https + allowlist, before any fetch)", () => {
+  afterEach(() => {
+    delete process.env.QUEEK_API_HOSTS;
+  });
+
+  it.each([
+    "http://api.usequeek.com/api/v1/merchant",
+    "http://api.usequeek.com",
+    "https://evil.example.com/api/v1/merchant",
+    "https://api.usequeek.com.evil.io/api/v1/merchant",
+    "https://api.usequeek.com@evil.io/api/v1/merchant",
+    "https://user:pass@api.usequeek.com/api/v1/merchant",
+    "not-a-url",
+    "",
+  ])("rejects %s without fetching", (apiBase) => {
+    const fetchImpl = mockFetch(() => jsonResponse(200, { data: {} }));
+    expect(() => createQueekClient({ apiBase, apiKey: API_KEY, fetchImpl })).toThrow(InvalidApiBaseError);
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it("accepts the allowed host and normalizes a bare handoff host to the merchant base", async () => {
+    // What the backend really sends: rtrim(config('app.url')) verbatim
+    // (AppInstallService::installPayload, queek_backend) — a bare host.
+    expect(resolveApiBase("https://api.usequeek.com")).toBe("https://api.usequeek.com/api/v1/merchant");
+    expect(resolveApiBase("https://api.usequeek.com/")).toBe("https://api.usequeek.com/api/v1/merchant");
+    expect(resolveApiBase("https://api.usequeek.com/api/v1/merchant")).toBe(
+      "https://api.usequeek.com/api/v1/merchant",
+    );
+    const fetchImpl = mockFetch((url) => {
+      expect(url).toBe("https://api.usequeek.com/api/v1/merchant/store");
+      return jsonResponse(200, { data: { p_id: "store_xyz" } });
+    });
+    const client = createQueekClient({ apiBase: "https://api.usequeek.com", apiKey: API_KEY, fetchImpl });
+    await client.getStore();
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it("admits env-configured test hosts, strictly parsed", () => {
+    process.env.QUEEK_API_HOSTS = "backend.test, staging.example.com";
+    expect(apiHostsFromEnv()).toEqual(["backend.test", "staging.example.com"]);
+    expect(resolveApiBase("https://backend.test")).toBe("https://backend.test/api/v1/merchant");
+    process.env.QUEEK_API_HOSTS = "https://backend.test";
+    expect(() => apiHostsFromEnv()).toThrow(/bare hostname/);
+    process.env.QUEEK_API_HOSTS = "backend.test:8443";
+    expect(() => apiHostsFromEnv()).toThrow(/bare hostname/);
+    process.env.QUEEK_API_HOSTS = "";
+    expect(apiHostsFromEnv()).toEqual([]);
+  });
+
+  it("admits explicit allowedApiHosts without env", () => {
+    const client = createQueekClient({
+      apiBase: "https://apps.test.local",
+      apiKey: API_KEY,
+      allowedApiHosts: ["apps.test.local"],
+      fetchImpl: mockFetch(() => jsonResponse(200, { data: {} })),
+    });
+    expect(client).toBeDefined();
+  });
+});
+
+describe("requestWithRetry (same Idempotency-Key, honours Retry-After)", () => {
+  function keysOf(calls: Array<{ init: RequestInit }>): (string | null)[] {
+    return calls.map((call) => new Headers(call.init.headers).get("Idempotency-Key"));
+  }
+
+  it("retries a 429 once and reuses the key", async () => {
+    const calls: Array<{ init: RequestInit }> = [];
+    const fetchImpl = mockFetch((_url, init) => {
+      calls.push({ init });
+      return calls.length === 1
+        ? jsonResponse(
+            429,
+            { error: { code: "too_many_requests", message: "Slow." } },
+            { "Retry-After": "0" },
+          )
+        : jsonResponse(200, { data: { id: "order-1" } });
+    });
+    const sleeps: number[] = [];
+    const client = createQueekClient({ apiBase: API_BASE, apiKey: API_KEY, fetchImpl });
+    const result = await client.requestWithRetry<{ data: { id: string } }>("POST", "/orders", {
+      body: { a: 1 },
+      sleep: async (ms: number) => {
+        sleeps.push(ms);
+      },
+    });
+    expect(result).toEqual({ data: { id: "order-1" } });
+    expect(calls).toHaveLength(2);
+    const keys = keysOf(calls);
+    expect(keys[0]).toMatch(/^[0-9a-f-]{36}$/);
+    expect(keys[1]).toBe(keys[0]);
+    expect(sleeps).toEqual([0]);
+  });
+
+  it("retries network errors with backoff, then succeeds", async () => {
+    let attempts = 0;
+    const fetchImpl = mockFetch(() => {
+      attempts += 1;
+      if (attempts < 3) throw new TypeError("fetch failed");
+      return jsonResponse(200, { data: {} });
+    });
+    const sleeps: number[] = [];
+    const client = createQueekClient({ apiBase: API_BASE, apiKey: API_KEY, fetchImpl });
+    await client.requestWithRetry("POST", "/orders", {
+      body: {},
+      baseDelayMs: 100,
+      sleep: async (ms: number) => {
+        sleeps.push(ms);
+      },
+    });
+    expect(attempts).toBe(3);
+    expect(sleeps).toEqual([100, 200]);
+  });
+
+  it("does not retry auth failures and stops after maxAttempts", async () => {
+    const forbidden = mockFetch(() => jsonResponse(403, { error: { code: "forbidden", message: "No." } }));
+    const client = createQueekClient({ apiBase: API_BASE, apiKey: API_KEY, fetchImpl: forbidden });
+    await expect(client.requestWithRetry("GET", "/store")).rejects.toMatchObject({ code: "forbidden" });
+    expect(forbidden).toHaveBeenCalledTimes(1);
+
+    const always429 = mockFetch(() =>
+      jsonResponse(429, { error: { code: "too_many_requests", message: "Slow." } }),
+    );
+    const client2 = createQueekClient({ apiBase: API_BASE, apiKey: API_KEY, fetchImpl: always429 });
+    await expect(
+      client2.requestWithRetry("GET", "/store", { maxAttempts: 2, baseDelayMs: 1, sleep: async () => {} }),
+    ).rejects.toMatchObject({ code: "too_many_requests" });
+    expect(always429).toHaveBeenCalledTimes(2);
   });
 });
