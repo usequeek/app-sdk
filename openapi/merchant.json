@@ -5996,7 +5996,7 @@
     "/products": {
       "get": {
         "operationId": "products.list",
-        "description": "Requires scope `merchant-items-read`.\n\nLists the store’s products with the dashboard table’s filtering and pagination.",
+        "description": "Requires scope `merchant-items-read`.\n\nLists the store’s products — the same object products/* webhooks send, with variants, images, the canonical URL and the storefront price. Same filtering and pagination as the dashboard table; sorts limited to public fields.",
         "summary": "List products",
         "tags": [
           "Products"
@@ -6031,6 +6031,15 @@
               "type": [
                 "string",
                 "null"
+              ],
+              "enum": [
+                "created_at",
+                "updated_at",
+                "title",
+                "price",
+                "stock",
+                "published",
+                null
               ]
             }
           },
@@ -6209,6 +6218,9 @@
           "401": {
             "$ref": "#/components/responses/AuthenticationException"
           },
+          "403": {
+            "$ref": "#/components/responses/AuthorizationException"
+          },
           "422": {
             "$ref": "#/components/responses/ValidationException"
           },
@@ -6309,17 +6321,17 @@
         }
       }
     },
-    "/products/{product_id}": {
+    "/products/{product}": {
       "get": {
         "operationId": "products.retrieve",
-        "description": "Requires scope `merchant-items-detail`.\n\nRetrieves one product with its variants and images.",
+        "description": "Requires scope `merchant-items-detail`.\n\nRetrieves one product — the same object products/* webhooks send, with variants, images, the canonical URL and the storefront price. {product} is a p_id, UUID or slug of this store.",
         "summary": "Retrieve a product",
         "tags": [
           "Products"
         ],
         "parameters": [
           {
-            "name": "product_id",
+            "name": "product",
             "in": "path",
             "required": true,
             "schema": {
@@ -6386,6 +6398,9 @@
           "401": {
             "$ref": "#/components/responses/AuthenticationException"
           },
+          "403": {
+            "$ref": "#/components/responses/AuthorizationException"
+          },
           "404": {
             "description": "",
             "content": {
@@ -6442,9 +6457,7 @@
             }
           }
         }
-      }
-    },
-    "/products/{product}": {
+      },
       "put": {
         "operationId": "products.update",
         "description": "Requires scope `merchant-items-update`.\n\nReplaces a product’s fields; title and the core attributes are required.",
@@ -7286,7 +7299,7 @@
     "/products/{product}/variants": {
       "get": {
         "operationId": "variants.list",
-        "description": "Requires scope `merchant-items-detail`.\n\nLists one product’s variants.",
+        "description": "Requires scope `merchant-items-detail`.\n\nLists one product’s variants with the merchant price, the storefront price pair, and the canonical product URL.",
         "summary": "List product variants",
         "tags": [
           "Variants"
@@ -7380,7 +7393,7 @@
       },
       "post": {
         "operationId": "variants.create",
-        "description": "Requires scope `merchant-items-update`.\n\nCreates a variant on a product.",
+        "description": "Requires scope `merchant-items-update`.\n\nCreates a variant on a product; answers the variant with the merchant price, the storefront price pair, and the canonical product URL.",
         "summary": "Create a product variant",
         "tags": [
           "Variants"
@@ -7504,7 +7517,7 @@
     "/products/{product}/variants/{variant}": {
       "patch": {
         "operationId": "variants.update",
-        "description": "Requires scope `merchant-items-update`.\n\nUpdates a variant’s price, stock and attributes.",
+        "description": "Requires scope `merchant-items-update`.\n\nUpdates a variant’s price, stock and attributes; answers the variant with the merchant price, the storefront price pair, and the canonical product URL.",
         "summary": "Update a product variant",
         "tags": [
           "Variants"
@@ -9964,7 +9977,49 @@
           "line_items": {
             "type": "array",
             "items": {
-              "type": "string"
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "product_id": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "product_uid": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "title": {
+                  "type": "string"
+                },
+                "variant_title": {
+                  "type": "string"
+                },
+                "quantity": {
+                  "type": "integer"
+                },
+                "unit_price": {
+                  "type": "string"
+                },
+                "total": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "product_id",
+                "product_uid",
+                "title",
+                "variant_title",
+                "quantity",
+                "unit_price",
+                "total"
+              ]
             }
           },
           "note": {
@@ -10047,6 +10102,58 @@
           "product_id"
         ],
         "title": "PinCollectionProductRequest"
+      },
+      "ProductImageResource": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "is_primary": {
+            "type": "string"
+          },
+          "position": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "alt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "width": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "height": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "variants": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "is_primary",
+          "position",
+          "url",
+          "alt",
+          "width",
+          "height",
+          "variants"
+        ],
+        "title": "ProductImageResource"
       },
       "ProductQuestionResource": {
         "type": "object",
@@ -10657,6 +10764,22 @@
           "price": {
             "type": "string"
           },
+          "storefront_price": {
+            "type": "string"
+          },
+          "storefront_compare_at_price": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The storefront shows a compare-at exactly when the discounted\nprice sits below the (commission-inclusive) list price."
+          },
+          "url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "currency": {
             "type": "string"
           },
@@ -10683,6 +10806,24 @@
           },
           "thumbnail_image": {
             "type": "string"
+          },
+          "primary_image_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "variants": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProductVariantResource"
+            }
+          },
+          "images": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProductImageResource"
+            }
           },
           "metafields": {
             "type": "string",
@@ -10721,6 +10862,9 @@
           "published",
           "in_stock",
           "price",
+          "storefront_price",
+          "storefront_compare_at_price",
+          "url",
           "currency",
           "sku",
           "barcode",
@@ -10729,6 +10873,9 @@
           "has_variants",
           "image",
           "thumbnail_image",
+          "primary_image_url",
+          "variants",
+          "images",
           "metafields",
           "metadata",
           "created_at",
@@ -10846,6 +10993,111 @@
           "edited_at"
         ],
         "title": "ProductReviewResource"
+      },
+      "ProductVariantResource": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "uid": {
+            "type": "string"
+          },
+          "sku": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "option_values": {
+            "type": "string"
+          },
+          "price": {
+            "type": "string"
+          },
+          "storefront_price": {
+            "type": "string"
+          },
+          "storefront_compare_at_price": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "compare_at_price": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "stock": {
+            "type": "integer"
+          },
+          "track_inventory": {
+            "type": "boolean"
+          },
+          "is_active": {
+            "type": "boolean"
+          },
+          "is_backorder": {
+            "type": "boolean"
+          },
+          "backorder_ready_date": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "weight": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "position": {
+            "type": "integer"
+          },
+          "created_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "updated_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "uid",
+          "sku",
+          "title",
+          "option_values",
+          "price",
+          "storefront_price",
+          "storefront_compare_at_price",
+          "url",
+          "compare_at_price",
+          "stock",
+          "track_inventory",
+          "is_active",
+          "is_backorder",
+          "backorder_ready_date",
+          "weight",
+          "position",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "ProductVariantResource"
       },
       "PromotionResource": {
         "type": "object",

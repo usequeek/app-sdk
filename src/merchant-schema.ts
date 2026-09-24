@@ -684,7 +684,7 @@ export interface paths {
          * List products
          * @description Requires scope `merchant-items-read`.
          *
-         *     Lists the store’s products with the dashboard table’s filtering and pagination.
+         *     Lists the store’s products — the same object products/* webhooks send, with variants, images, the canonical URL and the storefront price. Same filtering and pagination as the dashboard table; sorts limited to public fields.
          */
         get: operations["products.list"];
         put?: never;
@@ -701,7 +701,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/products/{product_id}": {
+    "/products/{product}": {
         parameters: {
             query?: never;
             header?: never;
@@ -712,25 +712,9 @@ export interface paths {
          * Retrieve a product
          * @description Requires scope `merchant-items-detail`.
          *
-         *     Retrieves one product with its variants and images.
+         *     Retrieves one product — the same object products/* webhooks send, with variants, images, the canonical URL and the storefront price. {product} is a p_id, UUID or slug of this store.
          */
         get: operations["products.retrieve"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/products/{product}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
         /**
          * Update a product
          * @description Requires scope `merchant-items-update`.
@@ -856,7 +840,7 @@ export interface paths {
          * List product variants
          * @description Requires scope `merchant-items-detail`.
          *
-         *     Lists one product’s variants.
+         *     Lists one product’s variants with the merchant price, the storefront price pair, and the canonical product URL.
          */
         get: operations["variants.list"];
         put?: never;
@@ -864,7 +848,7 @@ export interface paths {
          * Create a product variant
          * @description Requires scope `merchant-items-update`.
          *
-         *     Creates a variant on a product.
+         *     Creates a variant on a product; answers the variant with the merchant price, the storefront price pair, and the canonical product URL.
          */
         post: operations["variants.create"];
         delete?: never;
@@ -896,7 +880,7 @@ export interface paths {
          * Update a product variant
          * @description Requires scope `merchant-items-update`.
          *
-         *     Updates a variant’s price, stock and attributes.
+         *     Updates a variant’s price, stock and attributes; answers the variant with the merchant price, the storefront price pair, and the canonical product URL.
          */
         patch: operations["variants.update"];
         trace?: never;
@@ -1478,7 +1462,16 @@ export interface components {
                 latitude: number | null;
                 longitude: number | null;
             } | null;
-            line_items: string[];
+            line_items: {
+                id: string;
+                product_id: number | null;
+                product_uid: string | null;
+                title: string;
+                variant_title: string;
+                quantity: number;
+                unit_price: string;
+                total: string;
+            }[];
             note: string;
             /**
              * @description The receiver's own fields coming back to them: typed metafields the
@@ -1498,6 +1491,17 @@ export interface components {
             /** Format: uuid */
             product_id: string;
             pinned?: boolean | null;
+        };
+        /** ProductImageResource */
+        ProductImageResource: {
+            id: number | null;
+            is_primary: string;
+            position: string;
+            url: string;
+            alt: string | null;
+            width: number | null;
+            height: number | null;
+            variants: string;
         };
         /** ProductQuestionResource */
         ProductQuestionResource: {
@@ -1644,6 +1648,13 @@ export interface components {
             published: boolean;
             in_stock: boolean;
             price: string;
+            storefront_price: string;
+            /**
+             * @description The storefront shows a compare-at exactly when the discounted
+             *     price sits below the (commission-inclusive) list price.
+             */
+            storefront_compare_at_price: string | null;
+            url: string | null;
             currency: string;
             sku: string;
             barcode: string;
@@ -1652,6 +1663,9 @@ export interface components {
             has_variants: boolean;
             image: string;
             thumbnail_image: string;
+            primary_image_url: string | null;
+            variants: components["schemas"]["ProductVariantResource"][];
+            images: components["schemas"]["ProductImageResource"][];
             /**
              * @description The receiver's own fields coming back to them: typed metafields
              *     the merchant defined, and the opaque metadata an integrator
@@ -1688,6 +1702,28 @@ export interface components {
                 title: string;
                 thumbnail: string;
             };
+        };
+        /** ProductVariantResource */
+        ProductVariantResource: {
+            id: number;
+            uid: string;
+            sku: string;
+            title: string;
+            option_values: string;
+            price: string;
+            storefront_price: string;
+            storefront_compare_at_price: string | null;
+            url: string | null;
+            compare_at_price: string | null;
+            stock: number;
+            track_inventory: boolean;
+            is_active: boolean;
+            is_backorder: boolean;
+            backorder_ready_date: string | null;
+            weight: number | null;
+            position: number;
+            created_at: string | null;
+            updated_at: string | null;
         };
         /** PromotionResource */
         PromotionResource: {
@@ -5296,7 +5332,7 @@ export interface operations {
             query?: {
                 page?: number | null;
                 per_page?: number | null;
-                sort_by?: string | null;
+                sort_by?: "created_at" | "updated_at" | "title" | "price" | "stock" | "published" | null;
                 sort_order?: string | null;
                 search?: string | null;
                 category_id?: string | null;
@@ -5333,6 +5369,7 @@ export interface operations {
                 };
             };
             401: components["responses"]["AuthenticationException"];
+            403: components["responses"]["AuthorizationException"];
             422: components["responses"]["ValidationException"];
             /** @description Error. Switch on `error.code` — one of the documented codes; `validation_failed` carries per-field detail in `error.errors`. */
             default: {
@@ -5411,7 +5448,7 @@ export interface operations {
                 "X-Request-Id"?: string;
             };
             path: {
-                product_id: string;
+                product: string;
             };
             cookie?: never;
         };
@@ -5433,6 +5470,7 @@ export interface operations {
                 };
             };
             401: components["responses"]["AuthenticationException"];
+            403: components["responses"]["AuthorizationException"];
             404: {
                 headers: {
                     [name: string]: unknown;
