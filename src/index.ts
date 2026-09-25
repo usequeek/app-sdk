@@ -9,7 +9,39 @@
  * installation credential as `X-Client-Key`.
  */
 
-export { backgroundTaskCount, type DetachOptions, detach } from "./background.js";
+export {
+  APP_ACCESS_REVOKED_CODE,
+  APP_INSTALLATION_GONE_CODE,
+  APP_JWT_SKEW_SECONDS,
+  APP_JWT_TTL_SECONDS,
+  type AppCredential,
+  AppMintHaltedError,
+  INVALID_CLIENT_CODE,
+  InvalidAppCredentialError,
+  isAppAccessRevoked,
+  isInstallationGone,
+  isInvalidClient,
+  loadAppCredential,
+  MAX_MINT_ATTEMPTS,
+  MINT_BACKOFF_BASE_MS,
+  MINT_BACKOFF_MAX_MS,
+  RETRY_JITTER_MAX_MS,
+  type SignAppJwtOptions,
+  signAppJwt,
+  TOKEN_VALIDITY_SKEW_SECONDS,
+  TOO_MANY_REQUESTS_CODE,
+  UnknownInstallationError,
+} from "./app-auth.js";
+export {
+  backgroundTaskCount,
+  type CatchupFailure,
+  type CatchupInstallation,
+  type CatchupOptions,
+  type CatchupResult,
+  type DetachOptions,
+  detach,
+  runInstallationCatchup,
+} from "./background.js";
 export {
   apiHostsFromEnv,
   createQueekClient,
@@ -24,6 +56,7 @@ export {
   type QueekClient,
   type QueekClientOptions,
   type QueekErrorDetails,
+  queekApiErrorFromResponse,
   type RequestOptions,
   type RetryOptions,
   resolveApiBase,
@@ -73,6 +106,7 @@ export {
   createInstallHandlers,
   type InstallCallbacks,
   type InstallHandlerOptions,
+  saveResyncedInstallation,
 } from "./install-handlers.js";
 export {
   createLogger,
@@ -82,6 +116,12 @@ export {
   type LogLevel,
   REDACTED,
 } from "./logger.js";
+export {
+  type ResyncListItem,
+  type ResyncOptions,
+  type ResyncResult,
+  resyncFromQueek,
+} from "./resync.js";
 export {
   MAX_TIMESTAMP_SKEW_SECONDS,
   SECRET_PREFIX,
@@ -97,12 +137,28 @@ export {
   WEBHOOK_TIMESTAMP_HEADER,
 } from "./signatures.js";
 export {
+  createInstallationStore,
+  INSTALLATION_SCHEMA_VERSION,
   type InstallationRecord,
   type InstallationStore,
+  type InstallationStoreSelector,
+  PostgresInstallationStore,
+  type PostgresStoreOptions,
   SqliteInstallationStore,
   type SqliteStoreOptions,
   type WebhookSecretCandidate,
 } from "./store.js";
+export {
+  APP_API_PATH,
+  AppTokenProvider,
+  type AppTokens,
+  createAppTokenProvider,
+  createInstallationClient,
+  type InstallationClientOptions,
+  mintPath,
+  resolveAppApiBase,
+  type TokenProviderOptions,
+} from "./tokens.js";
 export {
   createWebhookHandler,
   QUEEK_TOPIC_HEADER,

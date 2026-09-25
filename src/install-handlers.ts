@@ -74,7 +74,12 @@ function installationRecordFromInstall(data: InstallData, nowIso: string): Insta
     storePid: data.store.p_id,
     storeName: data.store.name,
     apiBase: data.api_base,
-    apiKey: data.api_key,
+    // No credential crosses the handoff (S1): a fresh row caches no token
+    // (the first call mints one); see `saveResyncedInstallation` for the
+    // existing-row path, which keeps the cached token.
+    token: null,
+    tokenExpiresAt: null,
+    tokenKid: null,
     scopes: data.scopes,
     settings: data.settings,
     webhookSecret: data.webhook_secret,
@@ -82,6 +87,27 @@ function installationRecordFromInstall(data: InstallData, nowIso: string): Insta
     webhookTopics: data.webhook_topics,
     installedAt: nowIso,
     updatedAt: nowIso,
+  };
+}
+
+/**
+ * Merge a re-delivered install envelope (resync) into an existing row:
+ * refresh the ref fields, scopes, settings and webhook secret, but keep
+ * the original `installedAt` and the cached installation token (a secret
+ * rotation does not invalidate minted tokens; `resyncFromQueek` drops
+ * tokens explicitly when it wants fresh ones).
+ */
+export function saveResyncedInstallation(
+  existing: InstallationRecord,
+  data: InstallData,
+  nowIso: string = new Date().toISOString(),
+): InstallationRecord {
+  return {
+    ...installationRecordFromInstall(data, nowIso),
+    installedAt: existing.installedAt,
+    token: existing.token,
+    tokenExpiresAt: existing.tokenExpiresAt,
+    tokenKid: existing.tokenKid,
   };
 }
 
@@ -140,7 +166,8 @@ export function createInstallHandlers(options: InstallHandlerOptions): Hono {
     if (
       !envelope.data ||
       typeof envelope.data !== "object" ||
-      typeof (envelope.data as InstallData).api_key !== "string"
+      typeof (envelope.data as InstallData).installation?.id !== "string" ||
+      typeof (envelope.data as InstallData).api_base !== "string"
     ) {
       return c.json({ ok: false, error: "invalid install payload" }, 400);
     }
@@ -154,8 +181,15 @@ export function createInstallHandlers(options: InstallHandlerOptions): Hono {
       if (options.onInstall) {
         await options.onInstall(envelope as InstallEnvelope);
       } else {
+        // A resync redelivers the install envelope for an EXISTING
+        // installation: merge idempotently (keep `installedAt` + the cached
+        // token) instead of resetting the row.
+        const data = (envelope as InstallEnvelope).data;
+        const existing = await options.store.getInstallation(data.installation.id);
         await options.store.saveInstallation(
-          installationRecordFromInstall((envelope as InstallEnvelope).data, new Date().toISOString()),
+          existing
+            ? saveResyncedInstallation(existing, data, new Date().toISOString())
+            : installationRecordFromInstall(data, new Date().toISOString()),
         );
       }
     } catch {

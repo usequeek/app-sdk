@@ -16,7 +16,9 @@ function record(): InstallationRecord {
     storePid: "store_xyz",
     storeName: "Test Store",
     apiBase: "https://api.usequeek.com/api/v1/merchant",
-    apiKey: "sk_test_key",
+    token: "tok_test_cached",
+    tokenExpiresAt: new Date(Date.now() + 3_600_000).toISOString(),
+    tokenKid: "kid-1",
     scopes: ["merchant-orders-read"],
     settings: {},
     webhookSecret: WEBHOOK_SECRET,
@@ -66,7 +68,7 @@ describe("webhook handler", () => {
     expect(onOrder).toHaveBeenCalledTimes(1);
     const [, context] = onOrder.mock.calls[0] as unknown as [unknown, { installation: InstallationRecord }];
     expect(context.installation.installationId).toBe(INSTALLATION_ID);
-    expect(context.installation.apiKey).toBe("sk_test_key");
+    expect(context.installation.token).toBe("tok_test_cached");
   });
 
   it("dedupes by webhook-id: the repeat answers 200 without re-running the handler", async () => {

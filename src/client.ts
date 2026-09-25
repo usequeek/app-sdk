@@ -230,7 +230,12 @@ export class QueekApiError extends Error {
   }
 }
 
-function errorFromBody(status: number, body: unknown, headers: Headers): QueekApiError {
+/**
+ * Build a `QueekApiError` from a status + parsed body + headers. Shared
+ * with the installation-token mint path (`tokens.ts`), so the merchant and
+ * app-credential endpoints parse errors identically.
+ */
+export function queekApiErrorFromResponse(status: number, body: unknown, headers: Headers): QueekApiError {
   const record = (typeof body === "object" && body !== null ? body : {}) as Record<string, unknown>;
   const envelope = (typeof record.error === "object" && record.error !== null ? record.error : {}) as Record<
     string,
@@ -350,7 +355,7 @@ export function createQueekClient(clientOptions: QueekClientOptions): QueekClien
     const text = await response.text();
     const parsed: unknown = text === "" ? null : tryParseJson(text);
     if (!response.ok) {
-      throw errorFromBody(response.status, parsed, response.headers);
+      throw queekApiErrorFromResponse(response.status, parsed, response.headers);
     }
     return parsed as T;
   }

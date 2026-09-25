@@ -26,7 +26,8 @@ export function installBody(overrides: Record<string, unknown> = {}): string {
         is_test: true,
       },
       api_base: "https://api.usequeek.com/api/v1/merchant",
-      api_key: "sk_test_installation_key",
+      // S1: no store-callable credential crosses the handoff (the app mints
+      // installation tokens with its app key instead).
       scopes: ["merchant-business_profile-read"],
       settings: {},
       webhook_secret: `whsec_${randomBytes(24).toString("base64")}`,

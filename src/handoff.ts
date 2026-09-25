@@ -37,11 +37,16 @@ export interface InstallData {
   store: HandoffStore;
   /** The Merchant API base for this store (e.g. https://api.usequeek.com/api/v1/merchant). */
   api_base: string;
-  /** The installation credential (`sk_…`), handed over ONCE. Store it encrypted, never log it. */
-  api_key: string;
+  /**
+   * No store-callable credential crosses the handoff any more (S1, SDK
+   * 0.2.0): the app mints short-lived installation tokens with its
+   * asymmetric app key (`acquireToken()`) and caches them encrypted in its
+   * own database. The same envelope redelivers `webhook_secret` + the
+   * non-secret settings snapshot on resync.
+   */
   scopes: string[];
   settings: Record<string, unknown>;
-  /** The installation endpoint's `whsec_…` secret, handed over ONCE. */
+  /** The installation endpoint's `whsec_…` secret, handed over ONCE per rotation. */
   webhook_secret: string | null;
   webhook_url: string | null;
   webhook_topics: string[];

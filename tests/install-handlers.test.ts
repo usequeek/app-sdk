@@ -31,7 +31,10 @@ describe("install handler", () => {
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ ok: true });
     const stored = await ctx.store.getInstallation("11111111-1111-1111-1111-111111111111");
-    expect(stored?.apiKey).toBe("sk_test_installation_key");
+    // No credential crosses the handoff: the row caches no token (the
+    // first API call mints one) but holds the secret + settings.
+    expect(stored?.token).toBeNull();
+    expect(stored?.tokenExpiresAt).toBeNull();
     expect(stored?.storePid).toBe("store_xyz");
     expect(stored?.webhookSecret).toContain("whsec_");
   });
@@ -214,5 +217,82 @@ describe("install handler", () => {
     expect((await ctx.store.getInstallation("11111111-1111-1111-1111-111111111111"))?.settings).toEqual({
       color: "red",
     });
+  });
+
+  it("rejects an install payload missing its installation ref or api_base", async () => {
+    for (const data of [
+      { store: {}, api_base: "https://api.usequeek.com" },
+      { installation: { id: "x", p_id: "y" } },
+    ]) {
+      const body = JSON.stringify({
+        id: "evt-bad-payload",
+        type: "app/installed",
+        api_version: "v1",
+        created_at: "2026-09-24T00:00:00+00:00",
+        data,
+      });
+      const response = await postRaw(
+        ctx.app,
+        "/install",
+        body,
+        signedHeaders("evt-bad-payload", NOW, body, APP_SECRET),
+      );
+      expect(response.status).toBe(400);
+    }
+    expect(await ctx.store.getInstallation("x")).toBeNull();
+  });
+});
+
+describe("resync delivery (install envelope for an existing installation)", () => {
+  it("merges idempotently: secret + settings refresh, installedAt and cached token kept", async () => {
+    const store = new SqliteInstallationStore({ path: ":memory:", storeKey: STORE_KEY });
+    const app = createInstallHandlers({ appSecret: APP_SECRET, store, nowSeconds: NOW });
+
+    const install = installBody();
+    expect(
+      (await postRaw(app, "/install", install, signedHeaders("evt-install-1", NOW, install, APP_SECRET)))
+        .status,
+    ).toBe(200);
+    const before = await store.getInstallation("11111111-1111-1111-1111-111111111111");
+    if (!before) throw new Error("expected the install to be stored");
+
+    // A minted token is cached before the resync lands.
+    await store.saveInstallation({
+      ...before,
+      token: "tok_cached_before_resync",
+      tokenExpiresAt: new Date(Date.now() + 3_600_000).toISOString(),
+      tokenKid: "kid-1",
+      updatedAt: new Date().toISOString(),
+    });
+
+    // The resync: same envelope shape, fresh header id, rotated secret.
+    const parsed = JSON.parse(installBody()) as {
+      data: Record<string, unknown>;
+    };
+    const resync = JSON.stringify({
+      id: "evt-resync-7",
+      type: "app/installed",
+      api_version: "v1",
+      created_at: "2026-09-25T00:00:00+00:00",
+      data: {
+        ...(parsed.data as object),
+        webhook_secret: "whsec_rotated_secret_after_resync",
+        settings: { greeting: "rotated" },
+      },
+    });
+    const response = await postRaw(
+      app,
+      "/install",
+      resync,
+      signedHeaders("evt-resync-7", NOW, resync, APP_SECRET),
+    );
+    expect(response.status).toBe(200);
+
+    const after = await store.getInstallation("11111111-1111-1111-1111-111111111111");
+    expect(after?.webhookSecret).toBe("whsec_rotated_secret_after_resync");
+    expect(after?.settings).toEqual({ greeting: "rotated" });
+    expect(after?.installedAt).toBe(before?.installedAt);
+    expect(after?.token).toBe("tok_cached_before_resync");
+    expect(after?.tokenKid).toBe("kid-1");
   });
 });

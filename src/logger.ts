@@ -5,9 +5,9 @@
  *
  * Redacted: any field whose name looks like key/secret/token/password/auth/
  * credential/session, and any string shaped like an `sk_`/`pk_` key, a
- * `whsec_` secret, or a `Bearer …` token — in field values AND in the
- * message. What is left in the logs is ids and p_ids, which is all an
- * operator needs.
+ * `whsec_` secret, a `Bearer …` token, a bare RS256 JWT (`eyJ….….…`), or a
+ * PEM private-key block — in field values AND in the message. What is left
+ * in the logs is ids and p_ids, which is all an operator needs.
  */
 
 export type LogLevel = "debug" | "info" | "warn" | "error";
@@ -23,9 +23,11 @@ export interface LoggerOptions {
 }
 
 const SENSITIVE_KEY_RE = /key|secret|token|passwd|password|auth|credential|session/i;
-// Long opaque values Queek and friends mint: sk_live_/sk_test_, pk_*, whsec_*, Bearer tokens.
+// Long opaque values Queek and friends mint: sk_live_/sk_test_, pk_*, whsec_*, Bearer …
+// — plus the S1 app credential shapes, which must NEVER reach logs: a whole PEM
+// private-key block and a bare RS256 JWT (eyJ….….…, with or without a Bearer prefix).
 const SECRET_VALUE_RE =
-  /\b(sk_(live|test)_[A-Za-z0-9_-]+|pk_(live|test)_[A-Za-z0-9_-]+|whsec_[A-Za-z0-9+/=_-]+|Bearer\s+[A-Za-z0-9._~+/-]+=*)\b/g;
+  /-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z0-9 ]*PRIVATE KEY-----|\b(eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+|sk_(live|test)_[A-Za-z0-9_-]+|pk_(live|test)_[A-Za-z0-9_-]+|whsec_[A-Za-z0-9+/=_-]+|Bearer\s+[A-Za-z0-9._~+/-]+=*)\b/g;
 
 export const REDACTED = "[redacted]";
 

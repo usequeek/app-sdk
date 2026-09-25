@@ -17,7 +17,9 @@ function record(): InstallationRecord {
     storePid: "store_xyz",
     storeName: "Test Store",
     apiBase: "https://api.usequeek.com/api/v1/merchant",
-    apiKey: "sk_test_supersecret_key_material",
+    token: "tok_supersecret_cached_token_material",
+    tokenExpiresAt: new Date(Date.now() + 3_600_000).toISOString(),
+    tokenKid: "kid-1",
     scopes: ["merchant-orders-read"],
     settings: { greeting: "hello", chowdeck_api_key: "sk_chowdeck_merchant_secret_value" },
     webhookSecret: "whsec_super_secret_webhook_material",
@@ -76,16 +78,18 @@ describe("SqliteInstallationStore", () => {
     }
   });
 
-  it("round-trips an installation, including secrets and settings", () => {
+  it("round-trips an installation, including the cached token and settings", () => {
     const store = new SqliteInstallationStore({ path: ":memory:", storeKey: KEY_B64 });
     store.saveInstallation(record());
     const loaded = store.getInstallation("11111111-1111-1111-1111-111111111111");
     expect(loaded).toMatchObject({
       installationPid: "inst_abc123",
-      apiKey: "sk_test_supersecret_key_material",
+      token: "tok_supersecret_cached_token_material",
+      tokenKid: "kid-1",
       webhookSecret: "whsec_super_secret_webhook_material",
       settings: { greeting: "hello", chowdeck_api_key: "sk_chowdeck_merchant_secret_value" },
     });
+    expect(loaded?.tokenExpiresAt).toContain("20");
     expect(store.getInstallation("missing")).toBeNull();
     store.deleteInstallation("11111111-1111-1111-1111-111111111111");
     expect(store.getInstallation("11111111-1111-1111-1111-111111111111")).toBeNull();
@@ -100,31 +104,33 @@ describe("SqliteInstallationStore", () => {
     store.close();
 
     const raw = readFileSync(file);
-    expect(raw.includes(Buffer.from("sk_test_supersecret_key_material"))).toBe(false);
+    expect(raw.includes(Buffer.from("tok_supersecret_cached_token_material"))).toBe(false);
     expect(raw.includes(Buffer.from("whsec_super_secret_webhook_material"))).toBe(false);
     expect(raw.includes(Buffer.from("sk_chowdeck_merchant_secret_value"))).toBe(false);
 
     const db = new DatabaseSync(file);
     const row = db
-      .prepare(`SELECT api_key_enc, webhook_secret_enc, settings_json FROM installations`)
+      .prepare(`SELECT token_enc, webhook_secret_enc, settings_json FROM installations`)
       .get() as {
-      api_key_enc: string;
+      token_enc: string;
       webhook_secret_enc: string;
       settings_json: string;
     };
     db.close();
-    expect(row.api_key_enc.startsWith("v1.")).toBe(true);
+    expect(row.token_enc.startsWith("v1.")).toBe(true);
     expect(row.webhook_secret_enc.startsWith("v1.")).toBe(true);
     expect(row.settings_json.startsWith("v1.")).toBe(true);
     // …and the ciphertext still decrypts with the right key.
-    expect(decryptSecret(row.api_key_enc, parseStoreKey(KEY_B64))).toBe("sk_test_supersecret_key_material");
+    expect(decryptSecret(row.token_enc, parseStoreKey(KEY_B64))).toBe(
+      "tok_supersecret_cached_token_material",
+    );
     expect(
       (JSON.parse(decryptSecret(row.settings_json, parseStoreKey(KEY_B64))) as Record<string, unknown>)
         .chowdeck_api_key,
     ).toBe("sk_chowdeck_merchant_secret_value");
   });
 
-  it("listWebhookSecrets exposes secrets without api keys", () => {
+  it("listWebhookSecrets exposes secrets without tokens", () => {
     const store = new SqliteInstallationStore({ path: ":memory:", storeKey: KEY_B64 });
     store.saveInstallation(record());
     const candidates = store.listWebhookSecrets();
@@ -133,7 +139,72 @@ describe("SqliteInstallationStore", () => {
       installationId: "11111111-1111-1111-1111-111111111111",
       secret: "whsec_super_secret_webhook_material",
     });
-    expect("apiKey" in (candidates[0] as object)).toBe(false);
+    expect("token" in (candidates[0] as object)).toBe(false);
+    store.close();
+  });
+
+  it("lists installations and clears cached tokens (one row, then all)", () => {
+    const store = new SqliteInstallationStore({ path: ":memory:", storeKey: KEY_B64 });
+    expect(store.listInstallations()).toEqual([]);
+    const second = { ...record(), installationId: "22222222-2222-2222-2222-222222222222" };
+    store.saveInstallation(record());
+    store.saveInstallation(second);
+    expect(store.listInstallations().map((row) => row.installationId)).toEqual([
+      "11111111-1111-1111-1111-111111111111",
+      "22222222-2222-2222-2222-222222222222",
+    ]);
+
+    store.clearCachedToken("11111111-1111-1111-1111-111111111111");
+    expect(store.getInstallation("11111111-1111-1111-1111-111111111111")?.token).toBeNull();
+    // The row survives (apiBase, secret, settings intact); only the cache is gone.
+    expect(store.getInstallation("11111111-1111-1111-1111-111111111111")?.webhookSecret).toContain("whsec_");
+    expect(store.getInstallation("22222222-2222-2222-2222-222222222222")?.token).not.toBeNull();
+
+    store.clearAllCachedTokens();
+    expect(store.getInstallation("11111111-1111-1111-1111-111111111111")?.token).toBeNull();
+    expect(store.getInstallation("22222222-2222-2222-2222-222222222222")?.token).toBeNull();
+    expect(store.listInstallations()).toHaveLength(2);
+    store.close();
+  });
+
+  it("migrates a 0.1.x database: drops api_key_enc, keeps the row readable", () => {
+    const file = join(tmpdir(), `queek-store-legacy-${Date.now()}.db`);
+    files.push(file);
+    // A 0.1.x-shaped table, written by hand (mirrors the old CREATE TABLE).
+    const legacy = new DatabaseSync(file);
+    legacy.exec(`
+      CREATE TABLE installations (
+        installation_id TEXT PRIMARY KEY,
+        installation_pid TEXT NOT NULL,
+        vendor_id TEXT NOT NULL,
+        store_pid TEXT,
+        store_name TEXT NOT NULL,
+        api_base TEXT NOT NULL,
+        api_key_enc TEXT NOT NULL,
+        scopes_json TEXT NOT NULL,
+        settings_json TEXT NOT NULL,
+        webhook_secret_enc TEXT,
+        webhook_url TEXT,
+        webhook_topics_json TEXT NOT NULL,
+        installed_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+    `);
+    legacy.close();
+
+    const store = new SqliteInstallationStore({ path: file, storeKey: KEY_B64 });
+    const columns = new DatabaseSync(file).prepare(`PRAGMA table_info(installations)`).all() as Array<{
+      name: string;
+    }>;
+    expect(columns.map((column) => column.name)).not.toContain("api_key_enc");
+    expect(columns.map((column) => column.name)).toEqual(
+      expect.arrayContaining(["token_enc", "token_expires_at", "token_kid"]),
+    );
+    // Fresh rows save + read on the migrated schema.
+    store.saveInstallation(record());
+    expect(store.getInstallation("11111111-1111-1111-1111-111111111111")?.token).toBe(
+      "tok_supersecret_cached_token_material",
+    );
     store.close();
   });
 
