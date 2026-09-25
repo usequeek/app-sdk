@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { createInstallationStore, PostgresInstallationStore, SqliteInstallationStore } from "../src/store.js";
+import {
+  createInstallationStore,
+  createPostgresPool,
+  PostgresInstallationStore,
+  SqliteInstallationStore,
+} from "../src/store.js";
 
 const STORE_KEY = Buffer.alloc(32, 47).toString("base64");
 
@@ -53,5 +58,35 @@ describe("createInstallationStore", () => {
       expect(store).toBeInstanceOf(PostgresInstallationStore);
       closables.push(store as PostgresInstallationStore);
     });
+  });
+
+  it("throws without a connectionString or a shared pool", () => {
+    expect(() => new PostgresInstallationStore({ storeKey: STORE_KEY })).toThrow(
+      /needs a connectionString or a shared pool/,
+    );
+  });
+});
+
+const DATABASE_URL = process.env.DATABASE_URL;
+const describePg = DATABASE_URL ? describe : describe.skip;
+
+describePg("createInstallationStore with a shared pool", () => {
+  it("a provided pool wins and close() never ends it", async () => {
+    const pool = createPostgresPool(DATABASE_URL as string, 2);
+    try {
+      const store = createInstallationStore({ storeKey: STORE_KEY, pool });
+      expect(store).toBeInstanceOf(PostgresInstallationStore);
+      // A unique claim proves the store runs queries on the shared pool
+      // without asserting anything about other suites' rows.
+      const claim = `evt-shared-pool-${Date.now()}-${Math.floor(Math.random() * 1_000_000)}`;
+      expect(await store.claimWebhookId(claim)).toBe(true);
+      await store.close();
+      // Still usable: the store never ends a pool it does not own.
+      expect(await store.hasSeenWebhookId(claim)).toBe(true);
+      await store.releaseWebhookId(claim);
+      await pool.query("SELECT 1");
+    } finally {
+      await pool.end();
+    }
   });
 });

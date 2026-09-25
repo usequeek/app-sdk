@@ -80,6 +80,14 @@ GitHub-style app credentials (slice S1 of `app-credentials-and-databases`, built
   persisted pending marks (v1→v2 migration + restart simulation on both stores),
   production-refuses-SQLite.
 
+## [0.3.0] - 2026-09-25
+
+One shared Postgres pool per app process (the apps' own tables now live beside the SDK's tables in the same per-app database).
+
+### Added
+
+- `store.ts`: `createPostgresPool(connectionString, max)` — builds one `pg` Pool with the idle-client error guard for a process to share between its installation store and its app store. `PostgresInstallationStore` and `createInstallationStore` accept an optional shared `pool` (a provided pool wins over `DATABASE_URL`; `close()` never ends a pool the store does not own). `PostgresStoreOptions.connectionString` is now optional when `pool` is given.
+
 ## [Unreleased]
 
 ### Changed

@@ -402,12 +402,41 @@ function toPendingFlag(value: unknown): boolean {
 export const INSTALLATION_SCHEMA_VERSION = 2;
 
 export interface PostgresStoreOptions {
-  /** Postgres connection string (usually `DATABASE_URL`). */
-  connectionString: string;
+  /**
+   * Postgres connection string (usually `DATABASE_URL`). Required unless
+   * `pool` is given (shared-pool wiring passes the pool instead).
+   */
+  connectionString?: string;
   /** Raw `APP_ENCRYPTION_KEY` value (base64 or hex of 32 bytes). */
   storeKey: string;
   /** Pool ceiling. Fixed at 2: 2 app replicas × 2 ≤ the per-DB connection cap of 5. */
   poolMax?: number;
+  /**
+   * An existing pool to run queries on (one shared `pg` Pool per process
+   * between the SDK store and the app's own store — see
+   * `createPostgresPool`). When given, the store never ends it: `close()`
+   * is a no-op and the pool owner shuts it down. Ignores `poolMax` and
+   * `connectionString`.
+   */
+  pool?: Pool;
+}
+
+/**
+ * Build one shared `pg` Pool for a process (the SDK store and the app's
+ * own store both run on it — total connections per app stay small: one
+ * pool of N per process instead of one pool per store). Attaches the same
+ * idle-client error guard the store constructors use, so a dropped idle
+ * connection never surfaces as an uncaught exception.
+ */
+export function createPostgresPool(connectionString: string, max = 2): Pool {
+  const pool = new Pool({ connectionString, max });
+  pool.on("error", () => {
+    // Idle-client errors have no request to fail: without this listener
+    // they throw as uncaught exceptions. Query errors still reject their
+    // own promises. (Deliberately no logging here: the store owns no
+    // logger, and logging pool internals would risk leaking the DSN.)
+  });
+  return pool;
 }
 
 const SCHEMA_ADVISORY_LOCK = "queek-app-sdk:installations-schema-v1";
@@ -425,18 +454,21 @@ const SCHEMA_ADVISORY_LOCK = "queek-app-sdk:installations-schema-v1";
  */
 export class PostgresInstallationStore implements InstallationStore {
   private readonly pool: Pool;
+  private readonly ownsPool: boolean;
   private readonly key: Buffer;
   private readonly ready: Promise<void>;
 
   constructor(options: PostgresStoreOptions) {
     this.key = parseStoreKey(options.storeKey);
-    this.pool = new Pool({ connectionString: options.connectionString, max: options.poolMax ?? 2 });
-    this.pool.on("error", () => {
-      // Idle-client errors have no request to fail: without this listener
-      // they throw as uncaught exceptions. Query errors still reject their
-      // own promises. (Deliberately no logging here: the store owns no
-      // logger, and logging pool internals would risk leaking the DSN.)
-    });
+    if (options.pool) {
+      this.pool = options.pool;
+      this.ownsPool = false;
+    } else if (options.connectionString) {
+      this.pool = createPostgresPool(options.connectionString, options.poolMax ?? 2);
+      this.ownsPool = true;
+    } else {
+      throw new Error("PostgresInstallationStore needs a connectionString or a shared pool.");
+    }
     this.ready = this.ensureSchema();
     // Methods awaiting `ready` surface a connection failure themselves;
     // this preempts an unhandled rejection when Postgres is unreachable at
@@ -657,9 +689,12 @@ export class PostgresInstallationStore implements InstallationStore {
     ]);
   }
 
-  /** Drain the pool (tests and graceful shutdown). */
+  /**
+   * Drain the pool (tests and graceful shutdown). A no-op when the store
+   * runs on a shared pool it does not own — the pool owner ends it.
+   */
   async close(): Promise<void> {
-    await this.pool.end();
+    if (this.ownsPool) await this.pool.end();
   }
 }
 
@@ -718,14 +753,23 @@ export interface InstallationStoreSelector {
   sqlitePath?: string;
   /** Postgres pool ceiling (default 2). */
   poolMax?: number;
+  /**
+   * A shared pool from `createPostgresPool`. When given, Postgres wins
+   * regardless of `DATABASE_URL` (the pool already carries the DSN).
+   */
+  pool?: Pool;
 }
 
 /**
- * Pick the installation store: `DATABASE_URL` set → Postgres; otherwise
- * SQLite — which production REFUSES (fail fast with a clear message: a
- * live app must never run on a container-local database).
+ * Pick the installation store: `DATABASE_URL` set (or a shared `pool`
+ * given) → Postgres; otherwise SQLite — which production REFUSES (fail
+ * fast with a clear message: a live app must never run on a
+ * container-local database).
  */
 export function createInstallationStore(options: InstallationStoreSelector): InstallationStore {
+  if (options.pool) {
+    return new PostgresInstallationStore({ storeKey: options.storeKey, pool: options.pool });
+  }
   const databaseUrl = (options.databaseUrl ?? process.env.DATABASE_URL ?? "").trim();
   if (databaseUrl !== "") {
     return new PostgresInstallationStore({

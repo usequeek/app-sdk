@@ -146,6 +146,7 @@ export {
 } from "./signatures.js";
 export {
   createInstallationStore,
+  createPostgresPool,
   INSTALLATION_SCHEMA_VERSION,
   type InstallationRecord,
   type InstallationStore,
