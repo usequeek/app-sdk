@@ -120,6 +120,7 @@ describe("runInstallationCatchup", () => {
         token: null,
         tokenExpiresAt: null,
         tokenKid: null,
+        pending: false,
         scopes: [],
         settings: {},
         webhookSecret: null,

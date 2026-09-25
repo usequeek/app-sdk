@@ -53,8 +53,9 @@ import type { InstallationStore } from "./store.js";
  *   halts minting app-wide (loud log, no retry loop); 403 kill-switch
  *   drops ALL cached tokens and halts; 404 `app_installation_gone` purges
  *   the installation; 409 `app_installation_pending` retries later with
- *   backoff — NEVER purges, NEVER halts (the row is marked pending so
- *   resync's purge-absent step keeps it); 429 honors `Retry-After` +
+ *   backoff — NEVER purges, NEVER halts (the persisted pending mark keeps
+ *   the row through restarts and resync's purge-absent step); 429 honors
+ *   `Retry-After` +
  *   jitter with bounded retries; 5xx/network bounded exponential backoff.
  */
 
@@ -126,14 +127,6 @@ export class AppTokenProvider implements AppTokens {
   private readonly random: () => number;
   private readonly inflight = new Map<string, Promise<string>>();
   private halted: AppMintHaltedError | null = null;
-  /**
-   * Installation ids this process observed as server-side pending (409
-   * `app_installation_pending`) and not since confirmed otherwise.
-   * Resync's purge-absent step keeps marked rows — the list covers active
-   * installations only. In-process only: a restart clears it, and the
-   * next 409 re-marks the row.
-   */
-  private readonly pendingInstallations = new Set<string>();
 
   constructor(options: TokenProviderOptions) {
     this.credential = options.credential;
@@ -183,13 +176,14 @@ export class AppTokenProvider implements AppTokens {
     }
     if (this.halted) throw this.halted;
     const minted = await this.mintWithRetry(row.apiBase, installationId, row.installationPid);
-    // A successful mint proves the installation is active again.
-    this.clearInstallationPending(installationId);
+    // A successful mint proves the installation is active again: persist
+    // the fresh token and clear the pending mark in the same write.
     await this.store.saveInstallation({
       ...row,
       token: minted.token,
       tokenExpiresAt: minted.expiresAt,
       tokenKid: minted.kid,
+      pending: false,
       updatedAt: new Date(this.nowMs()).toISOString(),
     });
     return minted.token;
@@ -211,29 +205,30 @@ export class AppTokenProvider implements AppTokens {
   }
 
   /**
-   * Record that Queek answered 409 `app_installation_pending` for this
-   * installation. Resync's purge-absent step keeps marked rows (the list
-   * covers active installations only). Called by the mint path and by
-   * `resyncFromQueek`; idempotent.
+   * Persist the 409 `app_installation_pending` mark for this installation
+   * (store column — survives restarts, B2 review r2). Resync's purge-absent
+   * step keeps marked rows (the list covers active installations only).
+   * Called by the mint path and by `resyncFromQueek`; idempotent, and a
+   * no-op when the row is already gone.
    */
-  markInstallationPending(installationId: string): void {
-    this.pendingInstallations.add(installationId);
+  async markInstallationPending(installationId: string): Promise<void> {
+    await this.store.markInstallationPending(installationId);
   }
 
   /**
-   * Forget a pending mark: the installation answered active again (mint or
-   * resync 202), or its row was purged on 404 `app_installation_gone`.
+   * Clear the persisted pending mark: the installation answered active
+   * again (mint success, resync 202/redelivery).
    */
-  clearInstallationPending(installationId: string): void {
-    this.pendingInstallations.delete(installationId);
+  async clearInstallationPending(installationId: string): Promise<void> {
+    await this.store.clearInstallationPending(installationId);
   }
 
   /**
-   * True when this process observed the installation as pending (409) and
-   * nothing has cleared it since. Consulted by resync's purge-absent step.
+   * True when the row carries the persisted pending mark. Consulted by
+   * resync's purge-absent step; false when the row is missing.
    */
-  isKnownPending(installationId: string): boolean {
-    return this.pendingInstallations.has(installationId);
+  async isKnownPending(installationId: string): Promise<boolean> {
+    return this.store.isKnownPending(installationId);
   }
 
   /**
@@ -287,8 +282,9 @@ export class AppTokenProvider implements AppTokens {
       throw this.halted;
     }
     if (error.status === 404 && isInstallationGone(error.code)) {
+      // The row's deletion drops its pending mark with it — a gone
+      // installation is never "pending".
       await this.store.deleteInstallation(installation.id);
-      this.clearInstallationPending(installation.id);
       this.logger.warn("queek installation gone server-side; purged locally", {
         installation: installation.pid,
       });
@@ -318,13 +314,14 @@ export class AppTokenProvider implements AppTokens {
           await this.handleAppEndpointError(error, { id: installationId, pid: installationPid });
         }
         if (error.status === 409 && isInstallationPending(error.code)) {
-          // Pending installation (rev 8): retry later with backoff —
-          // NEVER purge, NEVER halt. The row is marked so resync's
-          // purge-absent step keeps it (the list covers active rows
-          // only). After the bounded budget the 409 propagates to the
-          // caller, which retries later; the mark stays until a mint
-          // succeeds or the row is purged as gone.
-          this.markInstallationPending(installationId);
+          // Pending installation (rev 8, mark persisted per B2 review
+          // r2): retry later with backoff — NEVER purge, NEVER halt. The
+          // persisted mark keeps the row through restarts and resync's
+          // purge-absent step (the list covers active rows only). After
+          // the bounded budget the 409 propagates to the caller, which
+          // retries later; the mark clears on mint success (same write)
+          // or with the row on 404-gone purge.
+          await this.markInstallationPending(installationId);
           this.logger.warn("queek installation pending; mint retry later with backoff", {
             installation: installationPid,
             code: error.code,

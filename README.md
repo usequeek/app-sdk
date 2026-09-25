@@ -95,8 +95,9 @@ One asymmetric credential per app — no per-installation secrets cross the hand
      (or `resumeMinting()`).
    - `404 app_installation_gone` — purges that installation locally.
    - `409 app_installation_pending` — the installation is not active yet: retry later
-     with backoff, NEVER purge, NEVER halt. The row is marked pending (in-process; a
-     restart clears it and the next 409 re-marks it).
+     with backoff, NEVER purge, NEVER halt. The row carries a persisted pending mark
+     (store column, schema v2 — survives restarts, cleared when the installation is
+     seen active or its mint succeeds).
    - `429 resync_cooldown` (per-installation resync only) — the ≤1/hour rotation
      cooldown: skipped + recorded, never retried. Any OTHER 429 is the per-app bucket
      (`too_many_requests`): `Retry-After` honored with jitter, bounded retries.
@@ -107,9 +108,10 @@ One asymmetric credential per app — no per-installation secrets cross the hand
    is null, never interpreted) → requests a resync per installation (409 pending →
    backoff + bounded retry, then skipped + recorded, never purged; 429 `resync_cooldown`
    → skipped + recorded, never retried; any other 429 → `Retry-After` + jitter, bounded
-   retry) → drops cached tokens → purges local rows absent from Queek's list, EXCEPT rows
-   the app knows are pending (observed 409 via mint or resync — absence never purges a
-   pending row). The fresh `webhook_secret` + non-secret settings arrive over the
+   retry; 404 `app_installation_gone` purges just that row and the run continues) → drops
+   cached tokens → purges local rows absent from Queek's list, EXCEPT rows carrying the
+   persisted pending mark — absence never purges a pending row, even across a restart.
+   The fresh `webhook_secret` + non-secret settings arrive over the
    existing signed install channel — the install handler merges a redelivery for an
    existing installation idempotently (secret + settings refresh, `installedAt` and the
    cached token kept).
@@ -152,6 +154,7 @@ retries (~4 h) are gone; resync cannot backfill them. Full runbook: `docs/deploy
 - **store** (`store.ts`): `SqliteInstallationStore` (local/dev/test) and `PostgresInstallationStore`
   (`pg`, pool max 2, advisory-locked schema + `schema_version` row so two containers boot
   safely) — installations encrypted at rest (AES-GCM via `APP_ENCRYPTION_KEY`), plus the
+  persisted 409-pending mark (`pending` column, schema v2, migrated in place) and the
   seen-webhook-id claim table behind dedupe. Pick with `createInstallationStore()`
   (`DATABASE_URL` set → Postgres, else SQLite — which production REFUSES with a clear
   message). Set once when the app is deployed; installs never change env: each install adds

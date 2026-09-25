@@ -29,6 +29,7 @@ function installationRecord(overrides: Partial<InstallationRecord> = {}): Instal
     token: null,
     tokenExpiresAt: null,
     tokenKid: null,
+    pending: false,
     scopes: [],
     settings: {},
     webhookSecret: null,
@@ -287,7 +288,7 @@ describe("mint 409 app_installation_pending (rev 8: retry later, never purge)", 
     expect(ctx.sleeps).toEqual([250]);
     const row = await ctx.store.getInstallation(INSTALLATION_ID);
     expect(row?.token).toMatch(/^tok_/);
-    expect(ctx.provider.isKnownPending(INSTALLATION_ID)).toBe(false);
+    expect(await ctx.provider.isKnownPending(INSTALLATION_ID)).toBe(false);
     expect(ctx.provider.isHalted()).toBe(false);
   });
 
@@ -311,7 +312,7 @@ describe("mint 409 app_installation_pending (rev 8: retry later, never purge)", 
     // NEVER purge, NEVER halt — the row survives and is marked pending so
     // resync's purge-absent step (active-only list) keeps it.
     expect(await ctx.store.getInstallation(INSTALLATION_ID)).not.toBeNull();
-    expect(ctx.provider.isKnownPending(INSTALLATION_ID)).toBe(true);
+    expect(await ctx.provider.isKnownPending(INSTALLATION_ID)).toBe(true);
     expect(ctx.provider.isHalted()).toBe(false);
   });
 
@@ -325,7 +326,7 @@ describe("mint 409 app_installation_pending (rev 8: retry later, never purge)", 
     expect((failure as QueekApiError).code).toBe("some_future_code");
     expect(mintAttempts(ctx)).toBe(1);
     expect(ctx.sleeps).toEqual([]);
-    expect(ctx.provider.isKnownPending(INSTALLATION_ID)).toBe(false);
+    expect(await ctx.provider.isKnownPending(INSTALLATION_ID)).toBe(false);
     expect(await ctx.store.getInstallation(INSTALLATION_ID)).not.toBeNull();
   });
 });

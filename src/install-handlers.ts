@@ -80,6 +80,10 @@ function installationRecordFromInstall(data: InstallData, nowIso: string): Insta
     token: null,
     tokenExpiresAt: null,
     tokenKid: null,
+    // A handoff (install or resync redelivery) proves Queek holds the
+    // installation: fresh rows start unflagged, and a redelivery for an
+    // existing row clears a stale pending mark (seen active).
+    pending: false,
     scopes: data.scopes,
     settings: data.settings,
     webhookSecret: data.webhook_secret,

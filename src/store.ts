@@ -42,6 +42,16 @@ export interface InstallationRecord {
   tokenExpiresAt: string | null;
   /** `kid` the cached token was minted under, null when none is cached. */
   tokenKid: string | null;
+  /**
+   * True while Queek last answered 409 `app_installation_pending` for this
+   * installation (persisted column, survives restarts — the in-process-only
+   * mark could not). `GET installations` lists active installations only,
+   * so resync's purge-absent step keeps rows flagged here. Cleared when
+   * the installation is seen active (resync 202/redelivery) or its mint
+   * succeeds; the row's deletion (404 `app_installation_gone`) drops the
+   * flag with the row.
+   */
+  pending: boolean;
   scopes: string[];
   settings: Record<string, unknown>;
   /** Plaintext per-installation webhook secret — memory only. */
@@ -71,6 +81,21 @@ export interface InstallationStore {
   clearCachedToken(installationId: string): Promise<void> | void;
   /** Forget EVERY cached token (kill switch) while keeping the rows. */
   clearAllCachedTokens(): Promise<void> | void;
+  /**
+   * Persist the 409 `app_installation_pending` mark: Queek refused this
+   * installation as not-yet-active. The flag survives restarts (plain
+   * column, NOT NULL DEFAULT false) so a restart between the 409 and the
+   * next resync can never purge the in-flight row the active-only list
+   * omits. Idempotent.
+   */
+  markInstallationPending(installationId: string): Promise<void> | void;
+  /**
+   * Clear the pending mark: the installation answered active again
+   * (resync 202/redelivery) or its mint succeeded.
+   */
+  clearInstallationPending(installationId: string): Promise<void> | void;
+  /** True when the row carries the persisted pending mark (false when the row is missing). */
+  isKnownPending(installationId: string): Promise<boolean> | boolean;
   /** Secrets only (no tokens) for webhook sender identification. */
   listWebhookSecrets(): Promise<WebhookSecretCandidate[]> | WebhookSecretCandidate[];
   /** Replay guard: true when this webhook-id was already processed. */
@@ -108,6 +133,7 @@ const INSTALLATIONS_TABLE_SQLITE = `
         token_enc TEXT,
         token_expires_at TEXT,
         token_kid TEXT,
+        pending INTEGER NOT NULL DEFAULT 0,
         scopes_json TEXT NOT NULL,
         settings_json TEXT NOT NULL,
         webhook_secret_enc TEXT,
@@ -160,13 +186,25 @@ export class SqliteInstallationStore implements InstallationStore {
   private migrateFromApiKeySchema(): void {
     const columns = this.db.prepare(`PRAGMA table_info(installations)`).all() as Array<{ name: string }>;
     const names = new Set(columns.map((column) => column.name));
-    if (!names.has("api_key_enc")) return;
-    for (const column of ["token_enc", "token_expires_at", "token_kid"] as const) {
-      if (!names.has(column)) this.db.exec(`ALTER TABLE installations ADD COLUMN ${column} TEXT;`);
+    if (names.has("api_key_enc")) {
+      for (const column of ["token_enc", "token_expires_at", "token_kid"] as const) {
+        if (!names.has(column)) this.db.exec(`ALTER TABLE installations ADD COLUMN ${column} TEXT;`);
+      }
+      // The 0.1.x handoff key is superseded by minted installation tokens:
+      // its ciphertext is dropped, never decrypted or re-encrypted.
+      this.db.exec(`ALTER TABLE installations DROP COLUMN api_key_enc;`);
     }
-    // The 0.1.x handoff key is superseded by minted installation tokens:
-    // its ciphertext is dropped, never decrypted or re-encrypted.
-    this.db.exec(`ALTER TABLE installations DROP COLUMN api_key_enc;`);
+    // Schema v2 (B2 review r2): the persisted 409-pending mark. Existing
+    // rows backfill to 0 (not pending); fresh tables already carry the
+    // column via the CREATE above, so this is a no-op for them.
+    const live = new Set(
+      (this.db.prepare(`PRAGMA table_info(installations)`).all() as Array<{ name: string }>).map(
+        (column) => column.name,
+      ),
+    );
+    if (!live.has("pending")) {
+      this.db.exec(`ALTER TABLE installations ADD COLUMN pending INTEGER NOT NULL DEFAULT 0;`);
+    }
   }
 
   saveInstallation(record: InstallationRecord): void {
@@ -175,11 +213,11 @@ export class SqliteInstallationStore implements InstallationStore {
       .prepare(
         `INSERT INTO installations (
           installation_id, installation_pid, vendor_id, store_pid, store_name,
-          api_base, token_enc, token_expires_at, token_kid,
+          api_base, token_enc, token_expires_at, token_kid, pending,
           scopes_json, settings_json,
           webhook_secret_enc, webhook_url, webhook_topics_json,
           installed_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(installation_id) DO UPDATE SET
           installation_pid = excluded.installation_pid,
           vendor_id = excluded.vendor_id,
@@ -189,6 +227,7 @@ export class SqliteInstallationStore implements InstallationStore {
           token_enc = excluded.token_enc,
           token_expires_at = excluded.token_expires_at,
           token_kid = excluded.token_kid,
+          pending = excluded.pending,
           scopes_json = excluded.scopes_json,
           settings_json = excluded.settings_json,
           webhook_secret_enc = excluded.webhook_secret_enc,
@@ -206,6 +245,7 @@ export class SqliteInstallationStore implements InstallationStore {
         record.token === null ? null : encryptSecret(record.token, this.key),
         record.tokenExpiresAt,
         record.tokenKid,
+        record.pending ? 1 : 0,
         JSON.stringify(record.scopes),
         encryptSecret(JSON.stringify(record.settings), this.key),
         record.webhookSecret === null ? null : encryptSecret(record.webhookSecret, this.key),
@@ -248,6 +288,22 @@ export class SqliteInstallationStore implements InstallationStore {
 
   deleteInstallation(installationId: string): void {
     this.db.prepare(`DELETE FROM installations WHERE installation_id = ?`).run(installationId);
+  }
+
+  markInstallationPending(installationId: string): void {
+    this.db.prepare(`UPDATE installations SET pending = 1 WHERE installation_id = ?`).run(installationId);
+  }
+
+  clearInstallationPending(installationId: string): void {
+    this.db.prepare(`UPDATE installations SET pending = 0 WHERE installation_id = ?`).run(installationId);
+  }
+
+  isKnownPending(installationId: string): boolean {
+    const row = this.db
+      .prepare(`SELECT pending FROM installations WHERE installation_id = ?`)
+      .get(installationId) as { pending: unknown } | undefined;
+    if (!row) return false;
+    return toPendingFlag(row.pending);
   }
 
   listWebhookSecrets(): WebhookSecretCandidate[] {
@@ -310,6 +366,7 @@ function rowToRecord(row: Record<string, string | null>, key: Buffer): Installat
     token: row.token_enc === null ? null : decryptSecret(column(row.token_enc), key),
     tokenExpiresAt: (row.token_expires_at as string | null) ?? null,
     tokenKid: (row.token_kid as string | null) ?? null,
+    pending: toPendingFlag(row.pending),
     scopes: JSON.parse(column(row.scopes_json)) as string[],
     settings: JSON.parse(decryptSecret(column(row.settings_json), key)) as Record<string, unknown>,
     webhookSecret:
@@ -326,8 +383,23 @@ function column(value: unknown): string {
   return value;
 }
 
-/** Current schema revision, stored as exactly one row in `schema_version`. */
-export const INSTALLATION_SCHEMA_VERSION = 1;
+/**
+ * Read the persisted pending flag across drivers: SQLite stores
+ * `INTEGER 0/1`, Postgres `BOOLEAN`. Anything unrecognised (including
+ * NULL on a pre-migration row, which cannot happen — the column is NOT
+ * NULL with a default — but belt-and-braces) reads as not pending.
+ */
+function toPendingFlag(value: unknown): boolean {
+  return value === true || value === 1 || value === "1" || value === "t" || value === "true";
+}
+
+/**
+ * Current schema revision, stored as exactly one row in `schema_version`
+ * (Postgres) and enforced by column-presence migration (SQLite).
+ * v2 adds the persisted 409-pending mark (`pending`, NOT NULL DEFAULT
+ * false on both drivers).
+ */
+export const INSTALLATION_SCHEMA_VERSION = 2;
 
 export interface PostgresStoreOptions {
   /** Postgres connection string (usually `DATABASE_URL`). */
@@ -382,8 +454,6 @@ export class PostgresInstallationStore implements InstallationStore {
             version INTEGER PRIMARY KEY,
             applied_at TIMESTAMPTZ NOT NULL DEFAULT now()
           );
-          INSERT INTO schema_version (version) VALUES (${INSTALLATION_SCHEMA_VERSION})
-          ON CONFLICT DO NOTHING;
           CREATE TABLE IF NOT EXISTS installations (
             installation_id TEXT PRIMARY KEY,
             installation_pid TEXT NOT NULL,
@@ -394,6 +464,7 @@ export class PostgresInstallationStore implements InstallationStore {
             token_enc TEXT,
             token_expires_at TIMESTAMPTZ,
             token_kid TEXT,
+            pending BOOLEAN NOT NULL DEFAULT FALSE,
             scopes_json TEXT NOT NULL,
             settings_json TEXT NOT NULL,
             webhook_secret_enc TEXT,
@@ -406,6 +477,17 @@ export class PostgresInstallationStore implements InstallationStore {
             webhook_id TEXT PRIMARY KEY,
             seen_at BIGINT NOT NULL
           );
+          -- Schema v2 (B2 review r2): the persisted 409-pending mark.
+          -- Fresh tables already carry the column; this migrates v1
+          -- databases in place (existing rows backfill to FALSE).
+          ALTER TABLE installations
+          ADD COLUMN IF NOT EXISTS pending BOOLEAN NOT NULL DEFAULT FALSE;
+          -- The guard row always converges to exactly one row at the
+          -- current version: v1 databases gain the v2 row and lose the v1
+          -- row; fresh databases insert it directly.
+          INSERT INTO schema_version (version) VALUES (${INSTALLATION_SCHEMA_VERSION})
+          ON CONFLICT (version) DO NOTHING;
+          DELETE FROM schema_version WHERE version < ${INSTALLATION_SCHEMA_VERSION};
         `);
       } finally {
         await client.query(`SELECT pg_advisory_unlock(hashtext($1))`, [SCHEMA_ADVISORY_LOCK]);
@@ -421,11 +503,11 @@ export class PostgresInstallationStore implements InstallationStore {
     await this.pool.query(
       `INSERT INTO installations (
          installation_id, installation_pid, vendor_id, store_pid, store_name,
-         api_base, token_enc, token_expires_at, token_kid,
+         api_base, token_enc, token_expires_at, token_kid, pending,
          scopes_json, settings_json,
          webhook_secret_enc, webhook_url, webhook_topics_json,
          installed_at, updated_at
-       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
        ON CONFLICT (installation_id) DO UPDATE SET
          installation_pid = excluded.installation_pid,
          vendor_id = excluded.vendor_id,
@@ -435,6 +517,7 @@ export class PostgresInstallationStore implements InstallationStore {
          token_enc = excluded.token_enc,
          token_expires_at = excluded.token_expires_at,
          token_kid = excluded.token_kid,
+         pending = excluded.pending,
          scopes_json = excluded.scopes_json,
          settings_json = excluded.settings_json,
          webhook_secret_enc = excluded.webhook_secret_enc,
@@ -451,6 +534,7 @@ export class PostgresInstallationStore implements InstallationStore {
         record.token === null ? null : encryptSecret(record.token, this.key),
         record.tokenExpiresAt,
         record.tokenKid,
+        record.pending,
         JSON.stringify(record.scopes),
         encryptSecret(JSON.stringify(record.settings), this.key),
         record.webhookSecret === null ? null : encryptSecret(record.webhookSecret, this.key),
@@ -497,6 +581,30 @@ export class PostgresInstallationStore implements InstallationStore {
   async deleteInstallation(installationId: string): Promise<void> {
     await this.ready;
     await this.pool.query(`DELETE FROM installations WHERE installation_id = $1`, [installationId]);
+  }
+
+  async markInstallationPending(installationId: string): Promise<void> {
+    await this.ready;
+    await this.pool.query(`UPDATE installations SET pending = TRUE WHERE installation_id = $1`, [
+      installationId,
+    ]);
+  }
+
+  async clearInstallationPending(installationId: string): Promise<void> {
+    await this.ready;
+    await this.pool.query(`UPDATE installations SET pending = FALSE WHERE installation_id = $1`, [
+      installationId,
+    ]);
+  }
+
+  async isKnownPending(installationId: string): Promise<boolean> {
+    await this.ready;
+    const result = await this.pool.query(`SELECT pending FROM installations WHERE installation_id = $1`, [
+      installationId,
+    ]);
+    const row = result.rows[0] as { pending: unknown } | undefined;
+    if (!row) return false;
+    return toPendingFlag(row.pending);
   }
 
   async listWebhookSecrets(): Promise<WebhookSecretCandidate[]> {
@@ -579,6 +687,7 @@ function pgRowToRecord(row: Record<string, unknown>, key: Buffer): InstallationR
           ? expires.toISOString()
           : new Date(expires).toISOString(),
     tokenKid: (row.token_kid as string | null) ?? null,
+    pending: toPendingFlag(row.pending),
     scopes: JSON.parse(pgText(row.scopes_json, "scopes_json")) as string[],
     settings: JSON.parse(decryptSecret(pgText(row.settings_json, "settings_json"), key)) as Record<
       string,

@@ -20,6 +20,7 @@ function record(): InstallationRecord {
     token: "tok_supersecret_cached_token_material",
     tokenExpiresAt: new Date(Date.now() + 3_600_000).toISOString(),
     tokenKid: "kid-1",
+    pending: false,
     scopes: ["merchant-orders-read"],
     settings: { greeting: "hello", chowdeck_api_key: "sk_chowdeck_merchant_secret_value" },
     webhookSecret: "whsec_super_secret_webhook_material",
@@ -198,7 +199,7 @@ describe("SqliteInstallationStore", () => {
     }>;
     expect(columns.map((column) => column.name)).not.toContain("api_key_enc");
     expect(columns.map((column) => column.name)).toEqual(
-      expect.arrayContaining(["token_enc", "token_expires_at", "token_kid"]),
+      expect.arrayContaining(["token_enc", "token_expires_at", "token_kid", "pending"]),
     );
     // Fresh rows save + read on the migrated schema.
     store.saveInstallation(record());
@@ -206,6 +207,83 @@ describe("SqliteInstallationStore", () => {
       "tok_supersecret_cached_token_material",
     );
     store.close();
+  });
+
+  it("migrates a v1 database: adds pending, pre-migration rows read as not pending", () => {
+    const file = join(tmpdir(), `queek-store-v1-${Date.now()}.db`);
+    files.push(file);
+    // A v1-shaped table (token cache, but no pending column), with one row
+    // written before the migration ever ran.
+    const key = parseStoreKey(KEY_B64);
+    const legacy = new DatabaseSync(file);
+    legacy.exec(`
+      CREATE TABLE installations (
+        installation_id TEXT PRIMARY KEY,
+        installation_pid TEXT NOT NULL,
+        vendor_id TEXT NOT NULL,
+        store_pid TEXT,
+        store_name TEXT NOT NULL,
+        api_base TEXT NOT NULL,
+        token_enc TEXT,
+        token_expires_at TEXT,
+        token_kid TEXT,
+        scopes_json TEXT NOT NULL,
+        settings_json TEXT NOT NULL,
+        webhook_secret_enc TEXT,
+        webhook_url TEXT,
+        webhook_topics_json TEXT NOT NULL,
+        installed_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      INSERT INTO installations VALUES (
+        '11111111-1111-1111-1111-111111111111', 'inst_abc123',
+        '22222222-2222-2222-2222-222222222222', 'store_xyz', 'Test Store',
+        'https://api.usequeek.com/api/v1/merchant', NULL, NULL, NULL,
+        '[]', '${encryptSecret("{}", key)}', NULL, NULL, '[]',
+        '2026-09-25T00:00:00.000Z', '2026-09-25T00:00:00.000Z'
+      );
+    `);
+    legacy.close();
+
+    const store = new SqliteInstallationStore({ path: file, storeKey: KEY_B64 });
+    const columns = new DatabaseSync(file).prepare(`PRAGMA table_info(installations)`).all() as Array<{
+      name: string;
+    }>;
+    expect(columns.map((column) => column.name)).toContain("pending");
+    // The pre-migration row backfills to not-pending and stays readable.
+    expect(store.getInstallation("11111111-1111-1111-1111-111111111111")?.pending).toBe(false);
+    expect(store.isKnownPending("11111111-1111-1111-1111-111111111111")).toBe(false);
+    store.close();
+  });
+
+  it("persists the pending mark across store instances (restart simulation)", () => {
+    const file = join(tmpdir(), `queek-store-pending-${Date.now()}.db`);
+    files.push(file);
+    const id = "11111111-1111-1111-1111-111111111111";
+
+    const first = new SqliteInstallationStore({ path: file, storeKey: KEY_B64 });
+    first.saveInstallation(record());
+    expect(first.isKnownPending(id)).toBe(false);
+    first.markInstallationPending(id);
+    expect(first.isKnownPending(id)).toBe(true);
+    expect(first.getInstallation(id)?.pending).toBe(true);
+    first.close();
+
+    // A new instance on the same file (the restarted process) reads the mark.
+    const second = new SqliteInstallationStore({ path: file, storeKey: KEY_B64 });
+    expect(second.isKnownPending(id)).toBe(true);
+    expect(second.getInstallation(id)?.pending).toBe(true);
+    second.clearInstallationPending(id);
+    second.close();
+
+    const third = new SqliteInstallationStore({ path: file, storeKey: KEY_B64 });
+    expect(third.isKnownPending(id)).toBe(false);
+    expect(third.getInstallation(id)?.pending).toBe(false);
+    // Missing rows are never pending (and marking them is a no-op).
+    expect(third.isKnownPending("missing")).toBe(false);
+    third.markInstallationPending("missing");
+    expect(third.isKnownPending("missing")).toBe(false);
+    third.close();
   });
 
   it("tracks seen webhook ids for replay protection", () => {

@@ -19,6 +19,7 @@ function record(): InstallationRecord {
     token: "tok_test_cached",
     tokenExpiresAt: new Date(Date.now() + 3_600_000).toISOString(),
     tokenKid: "kid-1",
+    pending: false,
     scopes: ["merchant-orders-read"],
     settings: {},
     webhookSecret: WEBHOOK_SECRET,

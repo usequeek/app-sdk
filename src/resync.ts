@@ -31,9 +31,9 @@ import { type AppTokenProvider, resolveAppApiBase } from "./tokens.js";
  *   post-outage token may be revoked server-side; the next call re-mints).
  * - Local rows ABSENT from the list are purged (covers
  *   uninstall-while-down after the notify retries exhaust) — EXCEPT rows
- *   the app knows are pending (observed 409 via mint or resync): the list
- *   covers active installations only, so absence never purges a pending
- *   row.
+ *   carrying the persisted pending mark (store column, survives restarts):
+ *   the list covers active installations only, so absence never purges a
+ *   pending row.
  * - A 429 on the LIST endpoint is honored (`Retry-After` + jitter) with
  *   bounded retries.
  *
@@ -199,7 +199,7 @@ export async function resyncFromQueek(options: ResyncOptions): Promise<ResyncRes
       const response = await appFetch(resyncPath, { method: "POST" });
       if (response.status === 202) {
         result.resyncRequested.push(item.id);
-        options.tokens.clearInstallationPending(item.id);
+        await options.tokens.clearInstallationPending(item.id);
         break;
       }
       const error = await readAppError(response);
@@ -219,10 +219,11 @@ export async function resyncFromQueek(options: ResyncOptions): Promise<ResyncRes
         continue;
       }
       if (response.status === 409 && isInstallationPending(error.code)) {
-        // Pending installation (rev 8): retry later with backoff — NEVER
-        // purge. An exhausted budget skips (recorded); the row stays
-        // marked pending so the purge-absent step below keeps it.
-        options.tokens.markInstallationPending(item.id);
+        // Pending installation (rev 8, mark persisted per B2 review r2):
+        // retry later with backoff — NEVER purge. An exhausted budget
+        // skips (recorded); the persisted mark survives restarts, so the
+        // purge-absent step below (and after a restart) keeps the row.
+        await options.tokens.markInstallationPending(item.id);
         if (attempt >= MAX_RESYNC_ATTEMPTS - 1) {
           result.pendingSkipped.push(item.id);
           logger.warn("queek resync skipped: installation pending", { installation: item.id });
@@ -258,14 +259,16 @@ export async function resyncFromQueek(options: ResyncOptions): Promise<ResyncRes
     await options.store.clearCachedToken(id);
   }
   // …and purge local rows Queek no longer lists (uninstall-while-down) —
-  // EXCEPT rows the app knows are pending. The list covers ACTIVE
-  // installations only (rev 8), so absence alone never purges a pending
-  // row: it stays for a later run, when it is active (listed + resynced),
-  // gone (404 → purged), or still pending (kept again).
+  // EXCEPT rows carrying the persisted pending mark. The list covers
+  // ACTIVE installations only (rev 8), so absence alone never purges a
+  // pending row — including after a process restart, because the mark
+  // lives in the store column, not in memory. The row stays for a later
+  // run, when it is active (listed + resynced), gone (404 → purged), or
+  // still pending (kept again).
   const local = await options.store.listInstallations();
   for (const row of local) {
     if (!listedIds.has(row.installationId)) {
-      if (options.tokens.isKnownPending(row.installationId)) {
+      if (await options.tokens.isKnownPending(row.installationId)) {
         logger.warn("queek resync kept a pending installation absent from Queek's list", {
           installation: row.installationPid,
         });

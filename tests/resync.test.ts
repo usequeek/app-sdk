@@ -1,3 +1,6 @@
+import { existsSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   APP_INSTALLATION_PENDING_CODE,
@@ -32,6 +35,7 @@ function installationRecord(id: string, overrides: Partial<InstallationRecord> =
     token: null,
     tokenExpiresAt: null,
     tokenKid: null,
+    pending: false,
     scopes: [],
     settings: {},
     webhookSecret: "whsec_old_secret",
@@ -251,7 +255,7 @@ describe("resyncFromQueek", () => {
     expect(result.purged).toEqual([]);
     expect(ctx.sleeps).toEqual([250]);
     // A 202 proves the installation is active again: the pending mark clears.
-    expect(ctx.provider.isKnownPending(ID_A)).toBe(false);
+    expect(await ctx.provider.isKnownPending(ID_A)).toBe(false);
     expect(await ctx.store.getInstallation(ID_A)).not.toBeNull();
   });
 
@@ -274,7 +278,7 @@ describe("resyncFromQueek", () => {
     expect(ctx.sleeps).toEqual([250, 500]);
     // NEVER purged on a 409: the row survives, marked pending.
     expect(await ctx.store.getInstallation(ID_A)).not.toBeNull();
-    expect(ctx.provider.isKnownPending(ID_A)).toBe(true);
+    expect(await ctx.provider.isKnownPending(ID_A)).toBe(true);
   });
 
   it("purge-absent keeps a locally pending row the active-only list omits", async () => {
@@ -290,7 +294,7 @@ describe("resyncFromQueek", () => {
     });
     ctx.store.saveInstallation(installationRecord(ID_B));
     await expect(ctx.provider.acquireToken(ID_B)).rejects.toBeInstanceOf(QueekApiError);
-    expect(ctx.provider.isKnownPending(ID_B)).toBe(true);
+    expect(await ctx.provider.isKnownPending(ID_B)).toBe(true);
 
     // The list covers active installations only: ID_B is absent, but it
     // must NOT be purged — the app knows it is pending.
@@ -303,10 +307,98 @@ describe("resyncFromQueek", () => {
   it("purge-absent still purges rows that are NOT known pending", async () => {
     const ctx = context({ listItems: [] });
     ctx.store.saveInstallation(installationRecord(ID_B));
-    expect(ctx.provider.isKnownPending(ID_B)).toBe(false);
+    expect(await ctx.provider.isKnownPending(ID_B)).toBe(false);
     const result = await resyncFromQueek(resyncArgs(ctx));
     expect(result.purged).toEqual([ID_B]);
     expect(await ctx.store.getInstallation(ID_B)).toBeNull();
+  });
+
+  it("404 gone on one resync purges just that installation; the run continues", async () => {
+    // The backend re-checks status on resync (B2 review r2): an
+    // uninstall landing between authorize and resync 404s here, and the
+    // SDK purges that row without aborting the rest of the run.
+    const ctx = context({
+      listItems: [{ id: ID_A }, { id: ID_B }],
+      resyncQueue: [{ status: 404, code: "app_installation_gone", message: "Gone." }],
+    });
+    ctx.store.saveInstallation(installationRecord(ID_A));
+    ctx.store.saveInstallation(installationRecord(ID_B));
+    const result = await resyncFromQueek(resyncArgs(ctx));
+    expect(result.resyncRequested).toEqual([ID_B]);
+    expect(result.purged).toEqual([ID_A]);
+    expect(await ctx.store.getInstallation(ID_A)).toBeNull();
+    expect(await ctx.store.getInstallation(ID_B)).not.toBeNull();
+  });
+
+  it("restart between a mint 409 and resync: the persisted mark keeps the row (file-backed)", async () => {
+    const files: string[] = [];
+    try {
+      const file = join(tmpdir(), `queek-resync-pending-${Date.now()}.db`);
+      files.push(file);
+      const storeKey = STORE_KEY;
+
+      const store1 = new SqliteInstallationStore({ path: file, storeKey });
+      const fake = fakeQueekAppApi({
+        keypair: KEYPAIR,
+        listItems: [],
+        mintQueue: [
+          { status: 409, code: APP_INSTALLATION_PENDING_CODE, message: "Pending." },
+          { status: 409, code: APP_INSTALLATION_PENDING_CODE, message: "Pending." },
+          { status: 409, code: APP_INSTALLATION_PENDING_CODE, message: "Pending." },
+        ],
+      });
+      const lines: string[] = [];
+      const logger = createLogger({ service: "test", sink: (line) => lines.push(line) });
+      const credential = loadAppCredential({
+        appSlug: KEYPAIR.slug,
+        keyId: KEYPAIR.kid,
+        privateKeyPem: KEYPAIR.privateKeyPem,
+      });
+      store1.saveInstallation(installationRecord(ID_B));
+      const first = new AppTokenProvider({
+        credential,
+        store: store1,
+        fetchImpl: fake.fetchImpl,
+        logger,
+        sleep: async () => undefined,
+        random: () => 0,
+      });
+      await expect(first.acquireToken(ID_B)).rejects.toBeInstanceOf(QueekApiError);
+      store1.close();
+
+      // Restart: brand-new instances on the same file. The active-only
+      // list omits the in-flight install, but the persisted mark keeps
+      // it out of the purge.
+      const store2 = new SqliteInstallationStore({ path: file, storeKey });
+      const second = new AppTokenProvider({
+        credential,
+        store: store2,
+        fetchImpl: fake.fetchImpl,
+        logger,
+        sleep: async () => undefined,
+        random: () => 0,
+      });
+      expect(await second.isKnownPending(ID_B)).toBe(true);
+      const result = await resyncFromQueek({
+        apiBase: API_BASE,
+        tokens: second,
+        store: store2,
+        fetchImpl: fake.fetchImpl,
+        logger,
+        sleep: async () => undefined,
+        random: () => 0,
+      });
+      expect(result.listed).toEqual([]);
+      expect(result.purged).toEqual([]);
+      expect(await store2.getInstallation(ID_B)).not.toBeNull();
+      store2.close();
+    } finally {
+      for (const file of files.splice(0)) {
+        for (const suffix of ["", "-journal", "-wal", "-shm"]) {
+          if (existsSync(`${file}${suffix}`)) rmSync(`${file}${suffix}`);
+        }
+      }
+    }
   });
 
   it("purges on 404 app_installation_gone during resync", async () => {

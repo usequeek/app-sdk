@@ -14,8 +14,11 @@ GitHub-style app credentials (slice S1 of `app-credentials-and-databases`, built
   (`token_enc` + `token_expires_at` + `token_kid`); opening a 0.1.x SQLite database migrates it
   (legacy key ciphertext is discarded — minted tokens replace it).
 - `InstallationRecord` carries the cached token (`token`/`tokenExpiresAt`/`tokenKid`, memory-only
-  plaintext); `InstallationStore` gains `listInstallations()`, `clearCachedToken()`,
-  `clearAllCachedTokens()`.
+  plaintext) plus the persisted 409-pending mark (`pending`); `InstallationStore` gains
+  `listInstallations()`, `clearCachedToken()`, `clearAllCachedTokens()`,
+  `markInstallationPending()` / `clearInstallationPending()` / `isKnownPending()`.
+  Opening a v1 database migrates it (schema v2: `pending` column, backfilled false;
+  Postgres `schema_version` guard converges to exactly one row at version 2).
 - The default install handler merges a redelivered install envelope for an existing installation
   idempotently (resync path): secret + settings refresh, `installedAt` and the cached token kept.
 - The logger additionally redacts bare RS256 JWTs and PEM private-key blocks.
@@ -43,9 +46,14 @@ GitHub-style app credentials (slice S1 of `app-credentials-and-databases`, built
   burn a mint per call: they propagate to the caller untouched (rev 7 review). `AppTokens` gains
   `revokeAppAccess()` for the merchant-observed kill switch.
 - Mint/resync 409 `app_installation_pending` (rev 8 review): retry later with backoff
-  (bounded), NEVER purge, NEVER halt. The installation is marked pending
-  (`markInstallationPending` / `isKnownPending` / `clearInstallationPending` on
-  `AppTokenProvider`, in-process); a 409 with any other code propagates untouched.
+  (bounded), NEVER purge, NEVER halt. The installation carries a persisted pending mark
+  (B2 review r2: `pending` column on the installation row, schema v2 — survives restarts;
+  `markInstallationPending` / `isKnownPending` / `clearInstallationPending` on both the
+  stores and `AppTokenProvider`, which delegates); a 409 with any other code propagates
+  untouched.
+- Resync 404 `app_installation_gone` purges just that installation and the run continues
+  (backend re-checks status on resync per B2 review r2 — an uninstall landing between
+  authorize and resync 404s here); the row's deletion drops its pending mark with it.
 - Resync 429s are distinguished by code (rev 8): 429 `resync_cooldown` is the ≤1/hour
   rotation cooldown (skipped + recorded in `cooldownSkipped`, never retried); any other 429
   is the per-app bucket (`too_many_requests`: `Retry-After` + jitter, bounded retries,
@@ -68,7 +76,9 @@ GitHub-style app credentials (slice S1 of `app-credentials-and-databases`, built
 - Vitest suites against a local fake Queek server (JWT-verifying mint, opaque-cursor list, resync,
   merchant refusals): cache-hit/expiry/single-flight/two-container minting, every contract error,
   wipe → resync → connectivity, cooldown skip vs throttle retry, pending mint/resync retry + skip,
-  purge-absent (including pending-kept), production-refuses-SQLite.
+  purge-absent (including pending-kept), resync-404 purges one installation without aborting,
+  persisted pending marks (v1→v2 migration + restart simulation on both stores),
+  production-refuses-SQLite.
 
 ## [Unreleased]
 
