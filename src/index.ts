@@ -10,6 +10,8 @@
  */
 
 export {
+  API_KEY_EXPIRED_CODE,
+  API_KEY_REVOKED_CODE,
   APP_INSTALLATION_GONE_CODE,
   APP_JWT_SKEW_SECONDS,
   APP_JWT_TTL_SECONDS,
@@ -17,10 +19,12 @@ export {
   type AppCredential,
   AppMintHaltedError,
   INVALID_CLIENT_CODE,
+  INVALID_CLIENT_KEY_CODE,
   InvalidAppCredentialError,
   isAppTokenRevoked,
   isInstallationGone,
   isInvalidClient,
+  isTokenRefusal,
   loadAppCredential,
   MAX_MINT_ATTEMPTS,
   MINT_BACKOFF_BASE_MS,

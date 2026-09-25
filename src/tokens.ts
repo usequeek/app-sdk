@@ -5,6 +5,7 @@ import {
   INVALID_CLIENT_CODE,
   isAppTokenRevoked,
   isInstallationGone,
+  isTokenRefusal,
   MAX_MINT_ATTEMPTS,
   MINT_BACKOFF_BASE_MS,
   MINT_BACKOFF_MAX_MS,
@@ -35,11 +36,13 @@ import type { InstallationStore } from "./store.js";
  *   minutes away) → else sign an app JWT → `POST access_tokens` → persist
  *   (encrypted, expires_at, kid) → return. Every Queek API call in the
  *   installation client goes through it.
- * - A merchant-API 401/403 on the token → drop it, re-mint once, retry
- *   once; a second refusal propagates. (If the re-mint itself hits
- *   `invalid_client` / kill-switch / gone, the mint path below applies
- *   those rules — the end state is identical to handling them on the
- *   merchant refusal directly.)
+ * - A merchant-API token refusal → drop it, re-mint once, retry once; a
+ *   second refusal propagates. Token refusal = any 401, or a 403 with
+ *   `api_key_revoked` / `api_key_expired` / `invalid_client_key` (rev 7).
+ *   A merchant 403 `app_token_revoked` is the app-wide kill switch (drop
+ *   all + halt, no mint); any other merchant 403 (scope, plan, mode)
+ *   propagates untouched. (If the re-mint itself hits `invalid_client` /
+ *   kill-switch / gone, the mint path below applies those rules.)
  * - Concurrent callers in one process share ONE in-flight mint per
  *   installation (single-flight). Across containers two mints are harmless
  *   by design: Queek keeps coexisting tokens valid (K=2 slots) and the
@@ -59,6 +62,11 @@ export const APP_API_PATH = "/api/v1/apps";
 export interface AppTokens {
   acquireToken(installationId: string): Promise<string>;
   dropCachedToken(installationId: string): Promise<void>;
+  /**
+   * Kill-switch path: forget EVERY cached token for the app and halt
+   * minting (loud log inside). Called on a merchant 403 `app_token_revoked`.
+   */
+  revokeAppAccess(): Promise<void>;
 }
 
 export interface TokenProviderOptions {
@@ -189,6 +197,23 @@ export class AppTokenProvider implements AppTokens {
     await this.store.clearAllCachedTokens();
   }
 
+  /**
+   * Kill-switch path from any surface (mint 403, merchant 403, ops):
+   * forget EVERY cached token for the app and halt minting, loudly.
+   * Clears on process restart or `resumeMinting()`.
+   */
+  async revokeAppAccess(): Promise<void> {
+    await this.store.clearAllCachedTokens();
+    this.halted = new AppMintHaltedError(
+      APP_TOKEN_REVOKED_CODE,
+      "Queek revoked this app's access (kill switch or disabled app). " +
+        "All cached tokens dropped. Re-enable the app, then restart (or resumeMinting).",
+    );
+    this.logger.error("queek app minting halted: access revoked (kill switch / disabled)", {
+      code: APP_TOKEN_REVOKED_CODE,
+    });
+  }
+
   /** Sign a fresh app JWT (exposed for the app-API calls in `resync.ts`). */
   signJwt(nowSeconds?: number): string {
     return signAppJwt({ credential: this.credential, nowSeconds });
@@ -219,15 +244,7 @@ export class AppTokenProvider implements AppTokens {
       throw this.halted;
     }
     if (error.status === 403 && isAppTokenRevoked(error.code)) {
-      await this.store.clearAllCachedTokens();
-      this.halted = new AppMintHaltedError(
-        APP_TOKEN_REVOKED_CODE,
-        "Queek revoked this app's access (kill switch or disabled app). " +
-          "All cached tokens dropped. Re-enable the app, then restart (or resumeMinting).",
-      );
-      this.logger.error("queek app minting halted: access revoked (kill switch / disabled)", {
-        code: error.code,
-      });
+      await this.revokeAppAccess();
       throw this.halted;
     }
     if (error.status === 404 && isInstallationGone(error.code)) {
@@ -347,10 +364,13 @@ export interface InstallationClientOptions {
  * A `QueekClient` whose every call goes through `acquireToken()`: the
  * installation token is resolved per request (usually a cache hit — the
  * store IS the cache, one shared row per installation), sent as
- * `X-Client-Key`, and on a merchant-API 401/403 it is dropped, re-minted
- * once, and the call retried once; a second refusal propagates to the
- * caller. 429/network retries (`requestWithRetry`) reuse one idempotency
- * key exactly like the static client.
+ * `X-Client-Key`, and on a merchant-API token refusal (any 401, or 403
+ * `api_key_revoked` / `api_key_expired` / `invalid_client_key`) it is
+ * dropped, re-minted once, and the call retried once; a second refusal
+ * propagates to the caller. A merchant 403 `app_token_revoked` drops all
+ * cached tokens and halts minting; any other 403 propagates without a
+ * mint. 429/network retries (`requestWithRetry`) reuse one idempotency key
+ * exactly like the static client.
  */
 export function createInstallationClient(options: InstallationClientOptions): QueekClient {
   // Validated here, once, before any fetch — same rules as the static client.
@@ -382,10 +402,19 @@ export function createInstallationClient(options: InstallationClientOptions): Qu
     try {
       return await (await clientForToken(token)).request<T>(method, path, requestOptions);
     } catch (error) {
-      if (!(error instanceof QueekApiError) || (error.status !== 401 && error.status !== 403)) {
+      if (!(error instanceof QueekApiError)) throw error;
+      // Kill switch / disabled app, observed on the merchant path: drop
+      // every cached token and halt minting, then propagate this refusal
+      // (no mint — the app is revoked, not the token).
+      if (error.status === 403 && isAppTokenRevoked(error.code)) {
+        await options.tokens.revokeAppAccess();
         throw error;
       }
-      // Refused token: drop it, re-mint once, retry once. The re-mint runs
+      // Token refusals ONLY (rev 7): any 401, or a 403 carrying a
+      // revoked/expired-key code. Every other 403 (scope, plan, mode)
+      // propagates to the caller without burning a mint.
+      if (!isTokenRefusal(error.status, error.code)) throw error;
+      // Dead token: drop it, re-mint once, retry once. The re-mint runs
       // the full contract error mapping (halt/purge on
       // invalid_client/kill-switch/gone); a second merchant refusal
       // propagates to the caller.

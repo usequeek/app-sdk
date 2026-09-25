@@ -81,8 +81,11 @@ One asymmetric credential per app — no per-installation secrets cross the hand
    `kid` (one shared cache row per installation — restarts never burst). Concurrent callers
    in one process share one in-flight mint; two containers minting at once is harmless by
    design (Queek keeps coexisting tokens valid; a residual race self-heals via re-mint).
-   A merchant-API 401/403 on the token drops it, re-mints once, and retries once; a second
-   refusal propagates to the caller.
+   Merchant refusal table (rev 7): any 401, or 403 `api_key_revoked` / `api_key_expired` /
+   `invalid_client_key` → drop the token, re-mint once, retry once (a second refusal
+   propagates); 403 `app_token_revoked` → drop ALL cached tokens and halt minting (kill
+   switch / disabled app, no mint); every other 403 (scope, plan, mode) propagates to the
+   caller without a mint.
 
 4. **Failures follow the wire contract exactly** (`app-auth.ts` holds each code in one
    constant, confirmed against the backend build):
@@ -126,7 +129,7 @@ retries (~4 h) are gone; resync cannot backfill them. Full runbook: `docs/deploy
 - **tokens** (`tokens.ts`): `createAppTokenProvider({ credential, store, … })` —
   `acquireToken` (cache → sign → mint → persist), single-flight per installation, the exact
   contract error mapping; `createInstallationClient({ installationId, apiBase, tokens })` —
-  the `QueekClient` every app call uses (re-mint once + retry once on 401/403).
+  the `QueekClient` every app call uses (re-mint once + retry once on token refusals only).
 - **resync** (`resync.ts`): `resyncFromQueek({ apiBase, tokens, store })` — list (paginated)
   → resync each (429 = cooldown skip) → drop tokens → purge absent. Connectivity scope only.
 - **verify** (`signatures.ts`): `verifyQueekSignature` — Standard Webhooks verification (`webhook-id`, `webhook-timestamp`, `webhook-signature` over `{id}.{timestamp}.{body}`, keyed by the decoded `whsec_…` bytes), with timestamp-skew enforcement.

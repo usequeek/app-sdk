@@ -48,6 +48,32 @@ export function isInstallationGone(code: string | undefined): boolean {
   return code === APP_INSTALLATION_GONE_CODE;
 }
 
+/**
+ * Merchant-API token-refusal codes (rev 7): a token in one of these states
+ * is dead — drop it, re-mint once, retry once. `api_key_revoked` covers the
+ * uninstalled store, the removed kid, and the replaced K-slot; the re-mint
+ * then answers 404 `app_installation_gone` (purge) or 401 `invalid_client`
+ * (halt) where applicable. Every OTHER merchant 403 (scope, plan, mode)
+ * propagates to the caller without a mint.
+ */
+export const API_KEY_REVOKED_CODE = "api_key_revoked";
+export const API_KEY_EXPIRED_CODE = "api_key_expired";
+export const INVALID_CLIENT_KEY_CODE = "invalid_client_key";
+
+/**
+ * True when a merchant-API refusal means the presented token is dead: any
+ * 401, or a 403 with a revoked/expired-key code. `app_token_revoked` is
+ * deliberately NOT here — that is the app-wide kill switch (drop all +
+ * halt), not a single dead token.
+ */
+export function isTokenRefusal(status: number, code: string | undefined): boolean {
+  if (status === 401) return true;
+  return (
+    status === 403 &&
+    (code === API_KEY_REVOKED_CODE || code === API_KEY_EXPIRED_CODE || code === INVALID_CLIENT_KEY_CODE)
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Timing bounds (all in the open, all injectable in tests).
 // ---------------------------------------------------------------------------

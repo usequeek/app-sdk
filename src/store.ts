@@ -64,7 +64,7 @@ export interface InstallationStore {
   /** Every stored installation, ordered by id — resync and cron iterate this. */
   listInstallations(): Promise<InstallationRecord[]> | InstallationRecord[];
   /**
-   * Forget one installation's cached token (expiry, 401/403 re-mint,
+   * Forget one installation's cached token (expiry, token-refusal re-mint,
    * resync) while keeping the installation row: the next `acquireToken`
    * mints fresh.
    */

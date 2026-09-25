@@ -31,8 +31,16 @@ GitHub-style app credentials (slice S1 of `app-credentials-and-databases`, built
 - `tokens.ts`: `createAppTokenProvider` (`acquireToken` with 5-minute validity skew, in-process
   single-flight per installation, exact contract error mapping: `invalid_client` halts, kill-switch
   403 drops all tokens and halts, `app_installation_gone` purges, 429 + jitter, bounded 5xx
-  backoff) and `createInstallationClient` (every call through `acquireToken`; merchant 401/403 →
-  drop, re-mint once, retry once).
+  backoff) and `createInstallationClient` (every call through `acquireToken`; merchant re-mint
+  only on token refusals — any 401 or 403 `api_key_revoked`/`api_key_expired`/`invalid_client_key`
+  → drop, re-mint once, retry once; merchant 403 `app_token_revoked` → drop all + halt; every
+  other 403 propagates without a mint).
+
+### Fixed
+
+- Merchant 403s that are NOT token refusals (e.g. `insufficient_scope`, plan, mode) no longer
+  burn a mint per call: they propagate to the caller untouched (rev 7 review). `AppTokens` gains
+  `revokeAppAccess()` for the merchant-observed kill switch.
 - `resync.ts`: `resyncFromQueek` (paginated list → per-installation resync with 429-cooldown skip
   → drop cached tokens → purge absent installations; connectivity scope only).
 - `store.ts`: `PostgresInstallationStore` (`pg`, pool max 2, advisory-locked schema +

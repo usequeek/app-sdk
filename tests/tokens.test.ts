@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  API_KEY_REVOKED_CODE,
   APP_TOKEN_REVOKED_CODE,
   AppMintHaltedError,
   INVALID_CLIENT_CODE,
@@ -327,6 +328,106 @@ describe("installation client (every call through acquireToken)", () => {
     expect((failure as QueekApiError).status).toBe(401);
     expect(mintAttempts(ctx)).toBe(2);
     expect(ctx.fake.merchantCalls).toHaveLength(2);
+  });
+});
+
+describe("installation client merchant refusals (rev 7: re-mint only on token refusals)", () => {
+  function clientFor(ctx: Setup) {
+    return createInstallationClient({
+      installationId: INSTALLATION_ID,
+      apiBase: API_BASE,
+      tokens: ctx.provider,
+      fetchImpl: ctx.fake.fetchImpl,
+    });
+  }
+
+  it("403 insufficient_scope: propagates WITHOUT a mint call", async () => {
+    const ctx = setup({
+      merchantQueue: [{ status: 403, code: "insufficient_scope", message: "No scope." }],
+    });
+    // Cached-valid, so the call needs no mint up front — a scope refusal
+    // must not burn one either.
+    seed(ctx, { token: "tok_cached_valid", tokenExpiresAt: new Date(Date.now() + 3_600_000).toISOString() });
+    const failure = await clientFor(ctx)
+      .getStore()
+      .catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(QueekApiError);
+    expect((failure as QueekApiError).code).toBe("insufficient_scope");
+    expect(mintAttempts(ctx)).toBe(0);
+    expect(ctx.fake.merchantCalls).toHaveLength(1);
+    expect((await ctx.store.getInstallation(INSTALLATION_ID))?.token).toBe("tok_cached_valid");
+  });
+
+  it("403 api_key_revoked: drops the token, re-mints once, retries with the fresh token", async () => {
+    const ctx = setup({
+      merchantQueue: [{ status: 403, code: API_KEY_REVOKED_CODE, message: "Revoked." }],
+    });
+    seed(ctx, { token: "tok_dead", tokenExpiresAt: new Date(Date.now() + 3_600_000).toISOString() });
+    await expect(clientFor(ctx).getStore()).resolves.toMatchObject({ data: { p_id: "store_xyz" } });
+    expect(mintAttempts(ctx)).toBe(1);
+    expect(ctx.fake.merchantCalls).toHaveLength(2);
+    const [first, second] = ctx.fake.merchantCalls;
+    expect(first?.clientKey).toBe("tok_dead");
+    expect(second?.clientKey).toBe(ctx.fake.mintCalls[0]?.token);
+  });
+
+  it("403 api_key_revoked then mint 404: the installation is purged", async () => {
+    const ctx = setup({
+      merchantQueue: [{ status: 403, code: API_KEY_REVOKED_CODE, message: "Revoked." }],
+      mintQueue: [{ status: 404, code: "app_installation_gone", message: "Gone." }],
+    });
+    seed(ctx, { token: "tok_dead", tokenExpiresAt: new Date(Date.now() + 3_600_000).toISOString() });
+    const failure = await clientFor(ctx)
+      .getStore()
+      .catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(QueekApiError);
+    expect((failure as QueekApiError).code).toBe("app_installation_gone");
+    expect(await ctx.store.getInstallation(INSTALLATION_ID)).toBeNull();
+  });
+
+  it("403 app_token_revoked on merchant: drops ALL cached tokens and halts, no mint", async () => {
+    const ctx = setup({
+      merchantQueue: [{ status: 403, code: APP_TOKEN_REVOKED_CODE, message: "Epoch revoked." }],
+    });
+    const otherId = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb";
+    const fresh = new Date(Date.now() + 3_600_000).toISOString();
+    seed(ctx, { token: "tok_a", tokenExpiresAt: fresh });
+    seed(ctx, {
+      installationId: otherId,
+      installationPid: "inst_other",
+      token: "tok_b",
+      tokenExpiresAt: fresh,
+    });
+    const failure = await clientFor(ctx)
+      .getStore()
+      .catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(QueekApiError);
+    expect((failure as QueekApiError).code).toBe(APP_TOKEN_REVOKED_CODE);
+    // No mint round-trip: halt is immediate on the merchant signal.
+    expect(mintAttempts(ctx)).toBe(0);
+    expect((await ctx.store.getInstallation(INSTALLATION_ID))?.token).toBeNull();
+    expect((await ctx.store.getInstallation(otherId))?.token).toBeNull();
+    expect(ctx.provider.isHalted()).toBe(true);
+    for (const line of ctx.lines) expect(jwtShaped(line)).toBe(false);
+  });
+
+  it("kid-removal flow: merchant 403 api_key_revoked, re-mint under the current kid succeeds", async () => {
+    const ctx = setup({
+      merchantQueue: [{ status: 403, code: API_KEY_REVOKED_CODE, message: "Kid removed." }],
+    });
+    // The cached token was minted under a kid Queek has since removed.
+    seed(ctx, {
+      token: "tok_old_kid",
+      tokenExpiresAt: new Date(Date.now() + 3_600_000).toISOString(),
+      tokenKid: "kid-removed",
+    });
+    await expect(clientFor(ctx).getStore()).resolves.toMatchObject({ data: { p_id: "store_xyz" } });
+    expect(mintAttempts(ctx)).toBe(1);
+    // The re-mint rode the app's CURRENT kid (header verified by the fake).
+    expect(ctx.fake.mintCalls[0]?.kid).toBe("test-kid-1");
+    const row = await ctx.store.getInstallation(INSTALLATION_ID);
+    expect(row?.token).toBe(ctx.fake.mintCalls[0]?.token);
+    expect(row?.tokenKid).toBe("test-kid-1");
   });
 });
 
