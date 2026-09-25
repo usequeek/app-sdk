@@ -409,7 +409,11 @@ export interface PostgresStoreOptions {
   connectionString?: string;
   /** Raw `APP_ENCRYPTION_KEY` value (base64 or hex of 32 bytes). */
   storeKey: string;
-  /** Pool ceiling. Fixed at 2: 2 app replicas × 2 ≤ the per-DB connection cap of 5. */
+  /**
+   * Pool ceiling when the store owns its pool (default 2). Apps that share one
+   * pool per process (`createPostgresPool`) size it there: each app role has
+   * CONNECTION LIMIT 10, so replicas × pool max must stay under it.
+   */
   poolMax?: number;
   /**
    * An existing pool to run queries on (one shared `pg` Pool per process
