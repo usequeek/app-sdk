@@ -1,9 +1,9 @@
 import {
-  APP_ACCESS_REVOKED_CODE,
+  APP_TOKEN_REVOKED_CODE,
   type AppCredential,
   AppMintHaltedError,
   INVALID_CLIENT_CODE,
-  isAppAccessRevoked,
+  isAppTokenRevoked,
   isInstallationGone,
   MAX_MINT_ATTEMPTS,
   MINT_BACKOFF_BASE_MS,
@@ -218,10 +218,10 @@ export class AppTokenProvider implements AppTokens {
       });
       throw this.halted;
     }
-    if (error.status === 403 && isAppAccessRevoked(error.code)) {
+    if (error.status === 403 && isAppTokenRevoked(error.code)) {
       await this.store.clearAllCachedTokens();
       this.halted = new AppMintHaltedError(
-        APP_ACCESS_REVOKED_CODE,
+        APP_TOKEN_REVOKED_CODE,
         "Queek revoked this app's access (kill switch or disabled app). " +
           "All cached tokens dropped. Re-enable the app, then restart (or resumeMinting).",
       );

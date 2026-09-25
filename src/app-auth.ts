@@ -22,19 +22,20 @@ import { createPrivateKey, createSign } from "node:crypto";
 /** 401 on an app-credential call: bad/expired JWT or unknown kid. Fatal for the app. */
 export const INVALID_CLIENT_CODE = "invalid_client";
 /**
- * 403 on an app-credential call: the app is disabled or its token epoch
- * was revoked by the kill switch. PROVISIONAL NAME — B1 confirms the exact
- * code; it is matched in exactly one place (`isAppAccessRevoked`).
+ * 403 on an app-credential call: the app is disabled or its token epoch was
+ * bumped by `app:revoke-tokens` (kill switch). Confirmed against B1
+ * (`ApiError::APP_TOKEN_REVOKED`, returned in both cases); matched in
+ * exactly one place (`isAppTokenRevoked`).
  */
-export const APP_ACCESS_REVOKED_CODE = "app_access_revoked";
+export const APP_TOKEN_REVOKED_CODE = "app_token_revoked";
 /** 404 on an installation-scoped app call: purge that installation locally. */
 export const APP_INSTALLATION_GONE_CODE = "app_installation_gone";
 /** 429 everywhere: honor `Retry-After`, jittered. */
 export const TOO_MANY_REQUESTS_CODE = "too_many_requests";
 
 /** True when a Queek error code is the kill-switch/disabled refusal. */
-export function isAppAccessRevoked(code: string | undefined): boolean {
-  return code === APP_ACCESS_REVOKED_CODE;
+export function isAppTokenRevoked(code: string | undefined): boolean {
+  return code === APP_TOKEN_REVOKED_CODE;
 }
 
 /** True when a Queek error code is the fatal app-credential refusal. */
@@ -90,7 +91,7 @@ export class InvalidAppCredentialError extends Error {
  */
 export class AppMintHaltedError extends Error {
   readonly code = "app_mint_halted";
-  readonly reason: typeof INVALID_CLIENT_CODE | typeof APP_ACCESS_REVOKED_CODE;
+  readonly reason: typeof INVALID_CLIENT_CODE | typeof APP_TOKEN_REVOKED_CODE;
 
   constructor(reason: AppMintHaltedError["reason"], detail: string) {
     super(`Minting halted (${reason}): ${detail}`);

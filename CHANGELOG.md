@@ -26,7 +26,8 @@ GitHub-style app credentials (slice S1 of `app-credentials-and-databases`, built
 - `app-auth.ts`: `loadAppCredential` (`APP_SLUG`/`APP_KEY_ID`/`APP_PRIVATE_KEY`, RSA PEM validated
   at boot), `signAppJwt` (RS256 via `node:crypto` only, `iat` now − 60 s, `exp` window 540 s,
   `kid` header), and the wire-contract error codes in exactly one place (`INVALID_CLIENT_CODE`,
-  `APP_ACCESS_REVOKED_CODE`, `APP_INSTALLATION_GONE_CODE`).
+  `APP_TOKEN_REVOKED_CODE` (confirmed: `ApiError::APP_TOKEN_REVOKED`, also returned when the app is
+  disabled), `APP_INSTALLATION_GONE_CODE`).
 - `tokens.ts`: `createAppTokenProvider` (`acquireToken` with 5-minute validity skew, in-process
   single-flight per installation, exact contract error mapping: `invalid_client` halts, kill-switch
   403 drops all tokens and halts, `app_installation_gone` purges, 429 + jitter, bounded 5xx

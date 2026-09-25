@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  APP_ACCESS_REVOKED_CODE,
+  APP_TOKEN_REVOKED_CODE,
   AppMintHaltedError,
   INVALID_CLIENT_CODE,
   loadAppCredential,
@@ -202,7 +202,7 @@ describe("mint error mapping (wire contract)", () => {
 
   it("kill-switch 403 drops ALL cached tokens and stops minting", async () => {
     const ctx = setup({
-      mintQueue: [{ status: 403, code: APP_ACCESS_REVOKED_CODE, message: "App disabled." }],
+      mintQueue: [{ status: 403, code: APP_TOKEN_REVOKED_CODE, message: "App disabled." }],
     });
     const otherId = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb";
     seed(ctx, { token: "tok_keep_a", tokenExpiresAt: new Date(Date.now() + 3_600_000).toISOString() });
@@ -218,7 +218,7 @@ describe("mint error mapping (wire contract)", () => {
       .acquireToken("cccccccc-cccc-cccc-cccc-cccccccccccc")
       .catch((error: unknown) => error);
     expect(failure).toBeInstanceOf(AppMintHaltedError);
-    expect((failure as AppMintHaltedError).reason).toBe(APP_ACCESS_REVOKED_CODE);
+    expect((failure as AppMintHaltedError).reason).toBe(APP_TOKEN_REVOKED_CODE);
 
     // Every cached token dropped; rows survive.
     expect((await ctx.store.getInstallation(INSTALLATION_ID))?.token).toBeNull();

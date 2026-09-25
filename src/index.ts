@@ -10,15 +10,15 @@
  */
 
 export {
-  APP_ACCESS_REVOKED_CODE,
   APP_INSTALLATION_GONE_CODE,
   APP_JWT_SKEW_SECONDS,
   APP_JWT_TTL_SECONDS,
+  APP_TOKEN_REVOKED_CODE,
   type AppCredential,
   AppMintHaltedError,
   INVALID_CLIENT_CODE,
   InvalidAppCredentialError,
-  isAppAccessRevoked,
+  isAppTokenRevoked,
   isInstallationGone,
   isInvalidClient,
   loadAppCredential,

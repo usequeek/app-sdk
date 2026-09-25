@@ -87,7 +87,7 @@ One asymmetric credential per app — no per-installation secrets cross the hand
 4. **Failures follow the wire contract exactly** (`app-auth.ts` holds each code in one
    constant, confirmed against the backend build):
    - `401 invalid_client` — fatal for the app: loud log, minting stops, no retry loop.
-   - `403 app_access_revoked` (kill switch / disabled app) — drops ALL cached tokens, stops
+   - `403 app_token_revoked` (kill switch / disabled app) — drops ALL cached tokens, stops
      minting, loud log. Minting resumes after the app is re-enabled + process restart
      (or `resumeMinting()`).
    - `404 app_installation_gone` — purges that installation locally.
@@ -122,7 +122,7 @@ retries (~4 h) are gone; resync cannot backfill them. Full runbook: `docs/deploy
 - **app-auth** (`app-auth.ts`): `loadAppCredential` (`APP_SLUG`/`APP_KEY_ID`/`APP_PRIVATE_KEY`,
   PEM validated at boot), `signAppJwt` (RS256, `iat` now − 60 s, `exp` window 540 s ≤ 600 s,
   `kid` header), the wire-contract error codes in one place (`INVALID_CLIENT_CODE`,
-  `APP_ACCESS_REVOKED_CODE`, `APP_INSTALLATION_GONE_CODE`), `AppMintHaltedError`.
+  `APP_TOKEN_REVOKED_CODE`, `APP_INSTALLATION_GONE_CODE`), `AppMintHaltedError`.
 - **tokens** (`tokens.ts`): `createAppTokenProvider({ credential, store, … })` —
   `acquireToken` (cache → sign → mint → persist), single-flight per installation, the exact
   contract error mapping; `createInstallationClient({ installationId, apiBase, tokens })` —
