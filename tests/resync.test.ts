@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { AppMintHaltedError, loadAppCredential } from "../src/app-auth.js";
+import {
+  APP_INSTALLATION_PENDING_CODE,
+  AppMintHaltedError,
+  loadAppCredential,
+  RESYNC_COOLDOWN_CODE,
+} from "../src/app-auth.js";
+import { QueekApiError } from "../src/client.js";
 import { createInstallHandlers } from "../src/install-handlers.js";
 import { createLogger } from "../src/logger.js";
 import { resyncFromQueek } from "../src/resync.js";
@@ -115,7 +121,13 @@ describe("resyncFromQueek", () => {
     // The store is EMPTY (wiped). apiBase is passed explicitly — there is
     // no local row to read it from.
     const result = await resyncFromQueek(resyncArgs(ctx));
-    expect(result).toEqual({ listed: [ID_A], resyncRequested: [ID_A], cooldownSkipped: [], purged: [] });
+    expect(result).toEqual({
+      listed: [ID_A],
+      resyncRequested: [ID_A],
+      cooldownSkipped: [],
+      pendingSkipped: [],
+      purged: [],
+    });
     expect(ctx.fake.resyncCalls).toEqual([ID_A]);
 
     // The rotated secret arrives over the signed install channel…
@@ -163,16 +175,138 @@ describe("resyncFromQueek", () => {
     expect(result.resyncRequested).toHaveLength(3);
   });
 
-  it("treats a per-installation 429 as rotation cooldown: skip, no retry loop", async () => {
+  it("follows opaque keyset cursors without interpreting them", async () => {
+    const ctx = context({
+      listItems: [{ id: ID_A }, { id: ID_B }, { id: "cccccccc-cccc-cccc-cccc-cccccccccccc" }],
+      listPageSize: 1,
+    });
+    const result = await resyncFromQueek(resyncArgs(ctx));
+    expect(result.listed).toHaveLength(3);
+    const cursors = ctx.fake.mock.mock.calls
+      .filter((call) => String(call[0]).includes("/api/v1/apps/installations") && call[1]?.method === "GET")
+      .map((call) => new URL(String(call[0])).searchParams.get("cursor"))
+      .filter((cursor): cursor is string => cursor !== null);
+    // Two follow-up pages, both keyed by opaque handles — a client that
+    // parsed cursors as numeric offsets could never walk this list.
+    expect(cursors).toHaveLength(2);
+    for (const cursor of cursors) {
+      expect(cursor).toMatch(/^keyset_/);
+      expect(Number.isNaN(Number(cursor))).toBe(true);
+    }
+  });
+
+  it("429 resync_cooldown: skip, recorded, no retry loop", async () => {
     const ctx = context({
       listItems: [{ id: ID_A }],
-      resyncQueue: [{ status: 429, code: "too_many_requests", headers: { "Retry-After": "3600" } }],
+      resyncQueue: [{ status: 429, code: RESYNC_COOLDOWN_CODE, headers: { "Retry-After": "3600" } }],
     });
     const result = await resyncFromQueek(resyncArgs(ctx));
     expect(result.resyncRequested).toEqual([]);
     expect(result.cooldownSkipped).toEqual([ID_A]);
+    expect(result.pendingSkipped).toEqual([]);
     // A one-hour cooldown is never slept through: skipped, not retried.
     expect(ctx.sleeps).toEqual([]);
+  });
+
+  it("429 too_many_requests on resync: backs off on Retry-After and retries (never a cooldown skip)", async () => {
+    const ctx = context({
+      listItems: [{ id: ID_A }],
+      resyncQueue: [{ status: 429, code: "too_many_requests", headers: { "Retry-After": "1" } }],
+    });
+    const result = await resyncFromQueek(resyncArgs(ctx));
+    expect(result.resyncRequested).toEqual([ID_A]);
+    expect(result.cooldownSkipped).toEqual([]);
+    expect(result.pendingSkipped).toEqual([]);
+    expect(ctx.sleeps).toEqual([1000]);
+  });
+
+  it("persistent 429 too_many_requests on resync: bounded retries, then aborts the run", async () => {
+    const ctx = context({
+      listItems: [{ id: ID_A }],
+      resyncQueue: [
+        { status: 429, code: "too_many_requests", headers: { "Retry-After": "0" } },
+        { status: 429, code: "too_many_requests", headers: { "Retry-After": "0" } },
+        { status: 429, code: "too_many_requests", headers: { "Retry-After": "0" } },
+        { status: 429, code: "too_many_requests", headers: { "Retry-After": "0" } },
+      ],
+    });
+    const failure = await resyncFromQueek(resyncArgs(ctx)).catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(QueekApiError);
+    expect((failure as QueekApiError).status).toBe(429);
+    // 1 initial + 2 backoff retries, then the throttle aborts the run —
+    // pushing on would only deepen a per-app bucket. Never recorded as
+    // a cooldown skip.
+    expect(ctx.sleeps).toEqual([0, 0]);
+  });
+
+  it("409 pending on resync: retries with backoff, then 202 requests delivery", async () => {
+    const ctx = context({
+      listItems: [{ id: ID_A }],
+      resyncQueue: [{ status: 409, code: APP_INSTALLATION_PENDING_CODE, message: "Pending." }],
+    });
+    ctx.store.saveInstallation(installationRecord(ID_A));
+    const result = await resyncFromQueek(resyncArgs(ctx));
+    expect(result.resyncRequested).toEqual([ID_A]);
+    expect(result.pendingSkipped).toEqual([]);
+    expect(result.purged).toEqual([]);
+    expect(ctx.sleeps).toEqual([250]);
+    // A 202 proves the installation is active again: the pending mark clears.
+    expect(ctx.provider.isKnownPending(ID_A)).toBe(false);
+    expect(await ctx.store.getInstallation(ID_A)).not.toBeNull();
+  });
+
+  it("persistent 409 pending on resync: skipped + recorded, row kept and marked", async () => {
+    const ctx = context({
+      listItems: [{ id: ID_A }],
+      resyncQueue: [
+        { status: 409, code: APP_INSTALLATION_PENDING_CODE, message: "Pending." },
+        { status: 409, code: APP_INSTALLATION_PENDING_CODE, message: "Pending." },
+        { status: 409, code: APP_INSTALLATION_PENDING_CODE, message: "Pending." },
+        { status: 409, code: APP_INSTALLATION_PENDING_CODE, message: "Pending." },
+      ],
+    });
+    ctx.store.saveInstallation(installationRecord(ID_A));
+    const result = await resyncFromQueek(resyncArgs(ctx));
+    expect(result.resyncRequested).toEqual([]);
+    expect(result.cooldownSkipped).toEqual([]);
+    expect(result.pendingSkipped).toEqual([ID_A]);
+    expect(result.purged).toEqual([]);
+    expect(ctx.sleeps).toEqual([250, 500]);
+    // NEVER purged on a 409: the row survives, marked pending.
+    expect(await ctx.store.getInstallation(ID_A)).not.toBeNull();
+    expect(ctx.provider.isKnownPending(ID_A)).toBe(true);
+  });
+
+  it("purge-absent keeps a locally pending row the active-only list omits", async () => {
+    // The app learned ID_B is pending from an earlier mint 409 (same
+    // provider, so the mark is visible to resync).
+    const ctx = context({
+      listItems: [],
+      mintQueue: [
+        { status: 409, code: APP_INSTALLATION_PENDING_CODE, message: "Pending." },
+        { status: 409, code: APP_INSTALLATION_PENDING_CODE, message: "Pending." },
+        { status: 409, code: APP_INSTALLATION_PENDING_CODE, message: "Pending." },
+      ],
+    });
+    ctx.store.saveInstallation(installationRecord(ID_B));
+    await expect(ctx.provider.acquireToken(ID_B)).rejects.toBeInstanceOf(QueekApiError);
+    expect(ctx.provider.isKnownPending(ID_B)).toBe(true);
+
+    // The list covers active installations only: ID_B is absent, but it
+    // must NOT be purged — the app knows it is pending.
+    const result = await resyncFromQueek(resyncArgs(ctx));
+    expect(result.listed).toEqual([]);
+    expect(result.purged).toEqual([]);
+    expect(await ctx.store.getInstallation(ID_B)).not.toBeNull();
+  });
+
+  it("purge-absent still purges rows that are NOT known pending", async () => {
+    const ctx = context({ listItems: [] });
+    ctx.store.saveInstallation(installationRecord(ID_B));
+    expect(ctx.provider.isKnownPending(ID_B)).toBe(false);
+    const result = await resyncFromQueek(resyncArgs(ctx));
+    expect(result.purged).toEqual([ID_B]);
+    expect(await ctx.store.getInstallation(ID_B)).toBeNull();
   });
 
   it("purges on 404 app_installation_gone during resync", async () => {

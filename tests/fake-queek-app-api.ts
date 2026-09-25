@@ -14,7 +14,10 @@ import { vi } from "vitest";
  *   exactly like the contract. Override per call with `mintQueue`.
  * - `GET /api/v1/apps/installations?cursor=` → 200
  *   `{data: [{id, store, api_base, scopes, status}], next_cursor}`,
- *   paginated by `listPageSize`.
+ *   paginated by `listPageSize` with OPAQUE keyset cursors (unguessable
+ *   handles, never offsets — the SDK must echo them verbatim until null).
+ *   Lists active installations only (rev 8); pending/throttle/cooldown
+ *   refusals are scripted per call with `mintQueue`/`resyncQueue`.
  * - `POST /api/v1/apps/installations/{id}/resync` → 202
  *   `{status: "delivering"}`. Override per call with `resyncQueue`.
  * - `/api/v1/merchant/*` → 200 for `X-Client-Key` values this fake minted
@@ -125,6 +128,7 @@ export function fakeQueekAppApi(options: FakeAppApiOptions): FakeAppApi {
   const merchantCalls: RecordedAppCall[] = [];
   const resyncCalls: string[] = [];
   const issued = new Map<string, string>();
+  const cursorPositions = new Map<string, number>();
   let listCalls = 0;
   let minted = 0;
 
@@ -190,12 +194,27 @@ export function fakeQueekAppApi(options: FakeAppApiOptions): FakeAppApi {
       listCalls += 1;
       const checked = verifyAppJwt(auth);
       if (!checked.ok) return jsonResponse(401, errorBody("invalid_client", "Bad app JWT."), {});
+      // Opaque keyset cursors (rev 8): the token is an unguessable handle
+      // the fake maps back to a position — it never encodes an offset, so
+      // a client that parses it as a number walks off the end. Unknown
+      // tokens are refused; the SDK must echo them verbatim until null.
       const items = options.listItems ?? [];
       const pageSize = options.listPageSize ?? items.length;
       const cursor = parsed.searchParams.get("cursor");
-      const offset = cursor === null ? 0 : Number(cursor);
+      let offset = 0;
+      if (cursor !== null) {
+        const position = cursorPositions.get(cursor);
+        if (position === undefined)
+          return jsonResponse(400, errorBody("invalid_cursor", "Unknown cursor."), {});
+        offset = position;
+      }
       const page = items.slice(offset, offset + Math.max(1, pageSize));
-      const next = offset + page.length < items.length ? String(offset + page.length) : null;
+      const end = offset + page.length;
+      let next: string | null = null;
+      if (end < items.length) {
+        next = `keyset_${randomBytes(12).toString("hex")}`;
+        cursorPositions.set(next, end);
+      }
       return jsonResponse(200, {
         data: page.map((item) => ({
           id: item.id,

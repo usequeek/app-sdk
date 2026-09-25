@@ -94,16 +94,25 @@ One asymmetric credential per app — no per-installation secrets cross the hand
      minting, loud log. Minting resumes after the app is re-enabled + process restart
      (or `resumeMinting()`).
    - `404 app_installation_gone` — purges that installation locally.
-   - `429 + Retry-After` — honored with jitter, bounded retries.
+   - `409 app_installation_pending` — the installation is not active yet: retry later
+     with backoff, NEVER purge, NEVER halt. The row is marked pending (in-process; a
+     restart clears it and the next 409 re-marks it).
+   - `429 resync_cooldown` (per-installation resync only) — the ≤1/hour rotation
+     cooldown: skipped + recorded, never retried. Any OTHER 429 is the per-app bucket
+     (`too_many_requests`): `Retry-After` honored with jitter, bounded retries.
    - `5xx` — bounded exponential backoff.
 
 5. **Resync after DB loss or a long outage.** `resyncFromQueek({ apiBase, tokens, store })`
-   lists installations (cursor pagination) → requests a resync per installation (a 429 is
-   the ≤1/hour rotation cooldown: skipped, never retried) → drops cached tokens → purges
-   local rows absent from Queek's list. The fresh `webhook_secret` + non-secret settings
-   arrive over the existing signed install channel — the install handler merges a
-   redelivery for an existing installation idempotently (secret + settings refresh,
-   `installedAt` and the cached token kept).
+   lists ACTIVE installations only (opaque keyset cursor — followed until `next_cursor`
+   is null, never interpreted) → requests a resync per installation (409 pending →
+   backoff + bounded retry, then skipped + recorded, never purged; 429 `resync_cooldown`
+   → skipped + recorded, never retried; any other 429 → `Retry-After` + jitter, bounded
+   retry) → drops cached tokens → purges local rows absent from Queek's list, EXCEPT rows
+   the app knows are pending (observed 409 via mint or resync — absence never purges a
+   pending row). The fresh `webhook_secret` + non-secret settings arrive over the
+   existing signed install channel — the install handler merges a redelivery for an
+   existing installation idempotently (secret + settings refresh, `installedAt` and the
+   cached token kept).
 
 6. **Kill switch behaviour.** One backend operation revokes every token of an app across
    every store on the next request. The SDK side: cached tokens are dropped, minting halts
@@ -125,13 +134,17 @@ retries (~4 h) are gone; resync cannot backfill them. Full runbook: `docs/deploy
 - **app-auth** (`app-auth.ts`): `loadAppCredential` (`APP_SLUG`/`APP_KEY_ID`/`APP_PRIVATE_KEY`,
   PEM validated at boot), `signAppJwt` (RS256, `iat` now − 60 s, `exp` window 540 s ≤ 600 s,
   `kid` header), the wire-contract error codes in one place (`INVALID_CLIENT_CODE`,
-  `APP_TOKEN_REVOKED_CODE`, `APP_INSTALLATION_GONE_CODE`), `AppMintHaltedError`.
+  `APP_TOKEN_REVOKED_CODE`, `APP_INSTALLATION_GONE_CODE`, `APP_INSTALLATION_PENDING_CODE`,
+  `RESYNC_COOLDOWN_CODE`, `TOO_MANY_REQUESTS_CODE`), `AppMintHaltedError`.
 - **tokens** (`tokens.ts`): `createAppTokenProvider({ credential, store, … })` —
   `acquireToken` (cache → sign → mint → persist), single-flight per installation, the exact
-  contract error mapping; `createInstallationClient({ installationId, apiBase, tokens })` —
-  the `QueekClient` every app call uses (re-mint once + retry once on token refusals only).
-- **resync** (`resync.ts`): `resyncFromQueek({ apiBase, tokens, store })` — list (paginated)
-  → resync each (429 = cooldown skip) → drop tokens → purge absent. Connectivity scope only.
+  contract error mapping (409 pending → backoff + bounded retry, marked, never purged);
+  `createInstallationClient({ installationId, apiBase, tokens })` — the `QueekClient`
+  every app call uses (re-mint once + retry once on token refusals only).
+- **resync** (`resync.ts`): `resyncFromQueek({ apiBase, tokens, store })` — list active
+  only (opaque keyset cursor) → resync each (409 pending → retry then skip + record;
+  429 `resync_cooldown` → skip + record; other 429 → backoff + retry) → drop tokens →
+  purge absent except known-pending. Connectivity scope only.
 - **verify** (`signatures.ts`): `verifyQueekSignature` — Standard Webhooks verification (`webhook-id`, `webhook-timestamp`, `webhook-signature` over `{id}.{timestamp}.{body}`, keyed by the decoded `whsec_…` bytes), with timestamp-skew enforcement.
 - **install handlers** (`install-handlers.ts`): `createInstallHandlers({ appSecret, store, onInstall?, onUninstall?, onSettings? })` — serves the signed install/uninstall/settings handoff. Defaults persist the installation (encrypted) in the store; a redelivered install for an existing installation merges idempotently (`saveResyncedInstallation`).
 - **client** (`client.ts`): `createQueekClient({ apiBase, apiKey })` — the low-level typed fetch client over the Merchant API (`X-Client-Key`), with `Idempotency-Key` on writes, typed `QueekApiError`s, and 429 retry helpers. Types come from `openapi/merchant.json`, the committed snapshot of the live contract. Prefer `createInstallationClient` in apps.

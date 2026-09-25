@@ -30,6 +30,21 @@ export const INVALID_CLIENT_CODE = "invalid_client";
 export const APP_TOKEN_REVOKED_CODE = "app_token_revoked";
 /** 404 on an installation-scoped app call: purge that installation locally. */
 export const APP_INSTALLATION_GONE_CODE = "app_installation_gone";
+/**
+ * 409 on an installation-scoped app call: the installation is PENDING
+ * (not yet active). Retry later with backoff — NEVER purge, NEVER halt.
+ * `GET installations` lists active installations only, so a pending row is
+ * absent from the list: resync's purge-absent step must keep local rows
+ * the app knows (via a 409) are pending.
+ */
+export const APP_INSTALLATION_PENDING_CODE = "app_installation_pending";
+/**
+ * 429 on a per-installation resync: the ≤1/hour rotation COOLDOWN. Skip
+ * that installation (recorded, no retry loop). Any OTHER resync 429 is the
+ * per-app bucket (`too_many_requests`): back off on `Retry-After`
+ * (jittered) and retry — never recorded as a cooldown skip.
+ */
+export const RESYNC_COOLDOWN_CODE = "resync_cooldown";
 /** 429 everywhere: honor `Retry-After`, jittered. */
 export const TOO_MANY_REQUESTS_CODE = "too_many_requests";
 
@@ -46,6 +61,16 @@ export function isInvalidClient(code: string | undefined): boolean {
 /** True when a Queek error code means the installation is gone server-side. */
 export function isInstallationGone(code: string | undefined): boolean {
   return code === APP_INSTALLATION_GONE_CODE;
+}
+
+/** True when a Queek error code means the installation is pending (409: retry later, never purge). */
+export function isInstallationPending(code: string | undefined): boolean {
+  return code === APP_INSTALLATION_PENDING_CODE;
+}
+
+/** True when a resync 429 code is the per-installation rotation cooldown (skip, recorded). */
+export function isResyncCooldown(code: string | undefined): boolean {
+  return code === RESYNC_COOLDOWN_CODE;
 }
 
 /**

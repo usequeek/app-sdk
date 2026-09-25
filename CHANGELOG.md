@@ -27,7 +27,8 @@ GitHub-style app credentials (slice S1 of `app-credentials-and-databases`, built
   at boot), `signAppJwt` (RS256 via `node:crypto` only, `iat` now − 60 s, `exp` window 540 s,
   `kid` header), and the wire-contract error codes in exactly one place (`INVALID_CLIENT_CODE`,
   `APP_TOKEN_REVOKED_CODE` (confirmed: `ApiError::APP_TOKEN_REVOKED`, also returned when the app is
-  disabled), `APP_INSTALLATION_GONE_CODE`).
+  disabled), `APP_INSTALLATION_GONE_CODE`, `APP_INSTALLATION_PENDING_CODE`, `RESYNC_COOLDOWN_CODE`,
+  `TOO_MANY_REQUESTS_CODE`).
 - `tokens.ts`: `createAppTokenProvider` (`acquireToken` with 5-minute validity skew, in-process
   single-flight per installation, exact contract error mapping: `invalid_client` halts, kill-switch
   403 drops all tokens and halts, `app_installation_gone` purges, 429 + jitter, bounded 5xx
@@ -41,8 +42,22 @@ GitHub-style app credentials (slice S1 of `app-credentials-and-databases`, built
 - Merchant 403s that are NOT token refusals (e.g. `insufficient_scope`, plan, mode) no longer
   burn a mint per call: they propagate to the caller untouched (rev 7 review). `AppTokens` gains
   `revokeAppAccess()` for the merchant-observed kill switch.
-- `resync.ts`: `resyncFromQueek` (paginated list → per-installation resync with 429-cooldown skip
-  → drop cached tokens → purge absent installations; connectivity scope only).
+- Mint/resync 409 `app_installation_pending` (rev 8 review): retry later with backoff
+  (bounded), NEVER purge, NEVER halt. The installation is marked pending
+  (`markInstallationPending` / `isKnownPending` / `clearInstallationPending` on
+  `AppTokenProvider`, in-process); a 409 with any other code propagates untouched.
+- Resync 429s are distinguished by code (rev 8): 429 `resync_cooldown` is the ≤1/hour
+  rotation cooldown (skipped + recorded in `cooldownSkipped`, never retried); any other 429
+  is the per-app bucket (`too_many_requests`: `Retry-After` + jitter, bounded retries,
+  then the run aborts — never recorded as a cooldown skip). `ResyncResult` gains
+  `pendingSkipped` for installations still pending after the retry budget.
+- Resync purge-absent keeps locally pending rows (rev 8): `GET installations` lists active
+  installations only, so absence never purges an installation the app knows (via a 409 on
+  mint or resync) is pending. The list cursor is treated as opaque keyset throughout —
+  followed until `next_cursor` is null, never interpreted.
+- `resync.ts`: `resyncFromQueek` (active-only list over an opaque keyset cursor →
+  per-installation resync with pending-retry/skip + cooldown-skip vs throttle-retry →
+  drop cached tokens → purge absent except known-pending; connectivity scope only).
 - `store.ts`: `PostgresInstallationStore` (`pg`, pool max 2, advisory-locked schema +
   `schema_version` row), `createInstallationStore` (`DATABASE_URL` → Postgres, else SQLite —
   refused in production), AES-GCM envelope unchanged.
@@ -50,9 +65,10 @@ GitHub-style app credentials (slice S1 of `app-credentials-and-databases`, built
   isolation, concurrency ≤ pool size, honors 429 once per installation).
 - CI runs the Postgres suite via a `postgres:16` service container (`DATABASE_URL` always set);
   without `DATABASE_URL` those tests skip cleanly.
-- Vitest suites against a local fake Queek server (JWT-verifying mint, paginated list, resync,
+- Vitest suites against a local fake Queek server (JWT-verifying mint, opaque-cursor list, resync,
   merchant refusals): cache-hit/expiry/single-flight/two-container minting, every contract error,
-  wipe → resync → connectivity, cooldown skip, purge-absent, production-refuses-SQLite.
+  wipe → resync → connectivity, cooldown skip vs throttle retry, pending mint/resync retry + skip,
+  purge-absent (including pending-kept), production-refuses-SQLite.
 
 ## [Unreleased]
 

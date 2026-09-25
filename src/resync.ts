@@ -1,4 +1,9 @@
-import { isInstallationGone, RETRY_JITTER_MAX_MS } from "./app-auth.js";
+import {
+  isInstallationGone,
+  isInstallationPending,
+  isResyncCooldown,
+  RETRY_JITTER_MAX_MS,
+} from "./app-auth.js";
 import { QueekApiError, queekApiErrorFromResponse } from "./client.js";
 import { createLogger, type Logger } from "./logger.js";
 import type { InstallationStore } from "./store.js";
@@ -9,19 +14,28 @@ import { type AppTokenProvider, resolveAppApiBase } from "./tokens.js";
  * outage that outlasted the webhook retries), re-list the app's
  * installations from Queek and re-handshake each one's secrets.
  *
- * - `GET /api/v1/apps/installations?cursor=` (secret-free refs, cursor
- *   pagination) → for each listed installation `POST …/resync` → 202
- *   `{status: "delivering"}`; the fresh `webhook_secret` + non-secret
+ * - `GET /api/v1/apps/installations?cursor=` (secret-free refs for ACTIVE
+ *   installations only; the cursor is opaque keyset — followed until null,
+ *   never interpreted) → for each listed installation `POST …/resync` →
+ *   202 `{status: "delivering"}`; the fresh `webhook_secret` + non-secret
  *   settings arrive over the EXISTING signed install channel (same handoff
  *   envelope as install), handled by the install handler — which accepts a
  *   resync for an existing installation idempotently.
+ * - Per-installation refusals (rev 8, distinguished by code): 409
+ *   `app_installation_pending` retries later with backoff (bounded, then
+ *   skipped + recorded — NEVER purged); 429 `resync_cooldown` is the
+ *   rotation COOLDOWN (≤1/hour: skipped + recorded, no retry loop); any
+ *   OTHER 429 is the per-app bucket (`too_many_requests`: `Retry-After` +
+ *   jitter, bounded retries — never recorded as a cooldown skip).
  * - Cached tokens are dropped for every installation still listed (a
  *   post-outage token may be revoked server-side; the next call re-mints).
  * - Local rows ABSENT from the list are purged (covers
- *   uninstall-while-down after the notify retries exhaust).
- * - A per-installation 429 is the rotation COOLDOWN (≤1/hour): that
- *   installation is skipped (recorded, no retry loop); a 429 on the LIST
- *   endpoint is honored (`Retry-After` + jitter) with bounded retries.
+ *   uninstall-while-down after the notify retries exhaust) — EXCEPT rows
+ *   the app knows are pending (observed 409 via mint or resync): the list
+ *   covers active installations only, so absence never purges a pending
+ *   row.
+ * - A 429 on the LIST endpoint is honored (`Retry-After` + jitter) with
+ *   bounded retries.
  *
  * SCOPE: connectivity only (install validity + webhooks + tokens recover
  * with zero merchant action). App WORKING data (inbound tokens, order
@@ -51,8 +65,14 @@ export interface ResyncResult {
   listed: string[];
   /** Installations a resync delivery was requested for (202). */
   resyncRequested: string[];
-  /** Listed installations skipped on rotation-cooldown 429. */
+  /** Listed installations skipped on rotation-cooldown 429 (`resync_cooldown`). */
   cooldownSkipped: string[];
+  /**
+   * Listed installations still pending (409 `app_installation_pending`)
+   * after the bounded retry budget: skipped, never purged. The row stays
+   * marked pending so later purge-absent steps keep it too.
+   */
+  pendingSkipped: string[];
   /** Local rows purged (absent from the list, or 404 `app_installation_gone`). */
   purged: string[];
 }
@@ -68,6 +88,11 @@ export interface ResyncListItem {
 const MAX_LIST_ATTEMPTS = 3;
 const LIST_BACKOFF_BASE_MS = 250;
 const LIST_BACKOFF_MAX_MS = 5_000;
+
+/** Per-installation resync attempts before a retryable refusal is skipped or aborts the run. */
+const MAX_RESYNC_ATTEMPTS = 3;
+const RESYNC_BACKOFF_BASE_MS = 250;
+const RESYNC_BACKOFF_MAX_MS = 5_000;
 
 function defaultSleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -103,21 +128,18 @@ export async function resyncFromQueek(options: ResyncOptions): Promise<ResyncRes
     return response;
   }
 
-  async function throwOnAppError(
-    response: Response,
-    installationId: string,
-    installationPid: string,
-  ): Promise<void> {
+  /** Parse an app-endpoint failure without acting on it: the caller below
+   *  decides by status + code (pending/cooldown/throttle/gone/halt). */
+  async function readAppError(response: Response): Promise<QueekApiError> {
     const text = await response.text();
     const parsed: unknown = text === "" ? null : tryParseJson(text);
-    const error = queekApiErrorFromResponse(response.status, parsed, response.headers);
-    // 404-gone purges inside; 401/403-halt throws the halted error. A
-    // per-install resync 429 is the rotation cooldown (skip, no retry);
-    // list-endpoint 429s are retried by the caller below, never here.
-    await options.tokens.handleAppEndpointError(error, { id: installationId, pid: installationPid });
+    return queekApiErrorFromResponse(response.status, parsed, response.headers);
   }
 
-  // -- List (cursor pagination, secret-free) ---------------------------------
+  // -- List (opaque keyset cursor, secret-free) ------------------------------
+  // The cursor is never interpreted — echoed back verbatim until
+  // `next_cursor` is null (rev 8: keyset on a stable unique key, scoped to
+  // the calling app; inserts/uninstalls mid-walk never skip or duplicate).
   const listed: ResyncListItem[] = [];
   let cursor: string | null = null;
   let attempt = 0;
@@ -151,7 +173,7 @@ export async function resyncFromQueek(options: ResyncOptions): Promise<ResyncRes
     if (!response.ok || response.status !== 200) {
       // 401/403 halt inside (invalid_client / kill switch); 404-gone is a
       // no-op against the empty id; anything else propagates.
-      await throwOnAppError(response, "", "");
+      await options.tokens.handleAppEndpointError(await readAppError(response), { id: "", pid: "" });
     }
     const page = (await response.json()) as { data?: ResyncListItem[]; next_cursor?: string | null };
     for (const item of page.data ?? []) listed.push(item);
@@ -161,34 +183,72 @@ export async function resyncFromQueek(options: ResyncOptions): Promise<ResyncRes
   }
 
   // -- Resync each, drop cached tokens, purge the absent ----------------------
-  const result: ResyncResult = { listed: [], resyncRequested: [], cooldownSkipped: [], purged: [] };
+  const result: ResyncResult = {
+    listed: [],
+    resyncRequested: [],
+    cooldownSkipped: [],
+    pendingSkipped: [],
+    purged: [],
+  };
   const listedIds = new Set<string>();
   for (const item of listed) {
     listedIds.add(item.id);
     result.listed.push(item.id);
-    const response = await appFetch(`/installations/${encodeURIComponent(item.id)}/resync`, {
-      method: "POST",
-    });
-    if (response.status === 202) {
-      result.resyncRequested.push(item.id);
-      continue;
-    }
-    if (response.status === 429) {
-      // Rotation cooldown (≤1/hour): skip this installation, no retry loop.
-      result.cooldownSkipped.push(item.id);
-      logger.warn("queek resync skipped: rotation cooldown", { installation: item.id });
-      continue;
-    }
-    try {
-      await throwOnAppError(response, item.id, item.id);
-    } catch (error) {
-      // Gone server-side: the row is already purged inside — record it
-      // and keep going. Anything else (halt et al.) aborts the run.
-      if (error instanceof QueekApiError && error.status === 404 && isInstallationGone(error.code)) {
-        result.purged.push(item.id);
+    const resyncPath = `/installations/${encodeURIComponent(item.id)}/resync`;
+    for (let attempt = 0; ; attempt++) {
+      const response = await appFetch(resyncPath, { method: "POST" });
+      if (response.status === 202) {
+        result.resyncRequested.push(item.id);
+        options.tokens.clearInstallationPending(item.id);
+        break;
+      }
+      const error = await readAppError(response);
+      if (response.status === 429 && isResyncCooldown(error.code)) {
+        // Rotation cooldown (≤1/hour): skip this installation, no retry loop.
+        result.cooldownSkipped.push(item.id);
+        logger.warn("queek resync skipped: rotation cooldown", { installation: item.id });
+        break;
+      }
+      if (response.status === 429) {
+        // Per-app bucket (rev 8): back off on `Retry-After` (jittered) and
+        // retry — never recorded as a cooldown skip. An exhausted budget
+        // aborts the run: the whole app is throttled, so pushing on would
+        // only deepen it; the caller retries later.
+        if (attempt >= MAX_RESYNC_ATTEMPTS - 1) throw error;
+        await sleep(jittered(error.retryAfterMs ?? RESYNC_BACKOFF_BASE_MS));
         continue;
       }
-      throw error;
+      if (response.status === 409 && isInstallationPending(error.code)) {
+        // Pending installation (rev 8): retry later with backoff — NEVER
+        // purge. An exhausted budget skips (recorded); the row stays
+        // marked pending so the purge-absent step below keeps it.
+        options.tokens.markInstallationPending(item.id);
+        if (attempt >= MAX_RESYNC_ATTEMPTS - 1) {
+          result.pendingSkipped.push(item.id);
+          logger.warn("queek resync skipped: installation pending", { installation: item.id });
+          break;
+        }
+        const backoff = Math.min(RESYNC_BACKOFF_MAX_MS, RESYNC_BACKOFF_BASE_MS * 2 ** attempt);
+        await sleep(jittered(backoff));
+        continue;
+      }
+      try {
+        // 404-gone purges inside; 401/403-halt throws the halted error; a
+        // 409 with any OTHER code rethrows here untouched (never purged).
+        await options.tokens.handleAppEndpointError(error, { id: item.id, pid: item.id });
+      } catch (endpointError) {
+        // Gone server-side: the row is already purged inside — record it
+        // and keep going. Anything else (halt et al.) aborts the run.
+        if (
+          endpointError instanceof QueekApiError &&
+          endpointError.status === 404 &&
+          isInstallationGone(endpointError.code)
+        ) {
+          result.purged.push(item.id);
+          break;
+        }
+        throw endpointError;
+      }
     }
   }
 
@@ -197,10 +257,20 @@ export async function resyncFromQueek(options: ResyncOptions): Promise<ResyncRes
   for (const id of listedIds) {
     await options.store.clearCachedToken(id);
   }
-  // …and purge local rows Queek no longer lists (uninstall-while-down).
+  // …and purge local rows Queek no longer lists (uninstall-while-down) —
+  // EXCEPT rows the app knows are pending. The list covers ACTIVE
+  // installations only (rev 8), so absence alone never purges a pending
+  // row: it stays for a later run, when it is active (listed + resynced),
+  // gone (404 → purged), or still pending (kept again).
   const local = await options.store.listInstallations();
   for (const row of local) {
     if (!listedIds.has(row.installationId)) {
+      if (options.tokens.isKnownPending(row.installationId)) {
+        logger.warn("queek resync kept a pending installation absent from Queek's list", {
+          installation: row.installationPid,
+        });
+        continue;
+      }
       await options.store.deleteInstallation(row.installationId);
       result.purged.push(row.installationId);
       logger.warn("queek resync purged an installation absent from Queek's list", {

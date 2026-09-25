@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   API_KEY_REVOKED_CODE,
+  APP_INSTALLATION_PENDING_CODE,
   APP_TOKEN_REVOKED_CODE,
   AppMintHaltedError,
   INVALID_CLIENT_CODE,
@@ -272,6 +273,60 @@ describe("mint error mapping (wire contract)", () => {
     expect(failure).toBeInstanceOf(QueekApiError);
     expect(mintAttempts(ctx)).toBe(3);
     expect(ctx.sleeps).toEqual([250, 500]);
+  });
+});
+
+describe("mint 409 app_installation_pending (rev 8: retry later, never purge)", () => {
+  it("409 pending then 201: backs off and succeeds; the pending mark clears", async () => {
+    const ctx = setup({
+      mintQueue: [{ status: 409, code: APP_INSTALLATION_PENDING_CODE, message: "Pending." }],
+    });
+    seed(ctx);
+    await expect(ctx.provider.acquireToken(INSTALLATION_ID)).resolves.toMatch(/^tok_/);
+    expect(mintAttempts(ctx)).toBe(2);
+    expect(ctx.sleeps).toEqual([250]);
+    const row = await ctx.store.getInstallation(INSTALLATION_ID);
+    expect(row?.token).toMatch(/^tok_/);
+    expect(ctx.provider.isKnownPending(INSTALLATION_ID)).toBe(false);
+    expect(ctx.provider.isHalted()).toBe(false);
+  });
+
+  it("persistent 409: bounded retries, then the 409 propagates — row kept, marked, minting NOT halted", async () => {
+    const ctx = setup({
+      mintQueue: [
+        { status: 409, code: APP_INSTALLATION_PENDING_CODE, message: "Pending." },
+        { status: 409, code: APP_INSTALLATION_PENDING_CODE, message: "Pending." },
+        { status: 409, code: APP_INSTALLATION_PENDING_CODE, message: "Pending." },
+        { status: 409, code: APP_INSTALLATION_PENDING_CODE, message: "Pending." },
+      ],
+    });
+    seed(ctx);
+    const failure = await ctx.provider.acquireToken(INSTALLATION_ID).catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(QueekApiError);
+    expect((failure as QueekApiError).status).toBe(409);
+    expect((failure as QueekApiError).code).toBe(APP_INSTALLATION_PENDING_CODE);
+    // Bounded: 1 initial + 2 retries, then give up (the caller retries later).
+    expect(mintAttempts(ctx)).toBe(3);
+    expect(ctx.sleeps).toEqual([250, 500]);
+    // NEVER purge, NEVER halt — the row survives and is marked pending so
+    // resync's purge-absent step (active-only list) keeps it.
+    expect(await ctx.store.getInstallation(INSTALLATION_ID)).not.toBeNull();
+    expect(ctx.provider.isKnownPending(INSTALLATION_ID)).toBe(true);
+    expect(ctx.provider.isHalted()).toBe(false);
+  });
+
+  it("409 with any OTHER code propagates immediately: no retry, no pending mark", async () => {
+    const ctx = setup({
+      mintQueue: [{ status: 409, code: "some_future_code", message: "Something else." }],
+    });
+    seed(ctx);
+    const failure = await ctx.provider.acquireToken(INSTALLATION_ID).catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(QueekApiError);
+    expect((failure as QueekApiError).code).toBe("some_future_code");
+    expect(mintAttempts(ctx)).toBe(1);
+    expect(ctx.sleeps).toEqual([]);
+    expect(ctx.provider.isKnownPending(INSTALLATION_ID)).toBe(false);
+    expect(await ctx.store.getInstallation(INSTALLATION_ID)).not.toBeNull();
   });
 });
 

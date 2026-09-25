@@ -5,6 +5,7 @@ import {
   INVALID_CLIENT_CODE,
   isAppTokenRevoked,
   isInstallationGone,
+  isInstallationPending,
   isTokenRefusal,
   MAX_MINT_ATTEMPTS,
   MINT_BACKOFF_BASE_MS,
@@ -51,8 +52,10 @@ import type { InstallationStore } from "./store.js";
  * - Error handling exactly per the wire contract: 401 `invalid_client`
  *   halts minting app-wide (loud log, no retry loop); 403 kill-switch
  *   drops ALL cached tokens and halts; 404 `app_installation_gone` purges
- *   the installation; 429 honors `Retry-After` + jitter with bounded
- *   retries; 5xx/network bounded exponential backoff.
+ *   the installation; 409 `app_installation_pending` retries later with
+ *   backoff — NEVER purges, NEVER halts (the row is marked pending so
+ *   resync's purge-absent step keeps it); 429 honors `Retry-After` +
+ *   jitter with bounded retries; 5xx/network bounded exponential backoff.
  */
 
 /** Path of the app-credential API below the store host. */
@@ -123,6 +126,14 @@ export class AppTokenProvider implements AppTokens {
   private readonly random: () => number;
   private readonly inflight = new Map<string, Promise<string>>();
   private halted: AppMintHaltedError | null = null;
+  /**
+   * Installation ids this process observed as server-side pending (409
+   * `app_installation_pending`) and not since confirmed otherwise.
+   * Resync's purge-absent step keeps marked rows — the list covers active
+   * installations only. In-process only: a restart clears it, and the
+   * next 409 re-marks the row.
+   */
+  private readonly pendingInstallations = new Set<string>();
 
   constructor(options: TokenProviderOptions) {
     this.credential = options.credential;
@@ -172,6 +183,8 @@ export class AppTokenProvider implements AppTokens {
     }
     if (this.halted) throw this.halted;
     const minted = await this.mintWithRetry(row.apiBase, installationId, row.installationPid);
+    // A successful mint proves the installation is active again.
+    this.clearInstallationPending(installationId);
     await this.store.saveInstallation({
       ...row,
       token: minted.token,
@@ -195,6 +208,32 @@ export class AppTokenProvider implements AppTokens {
   /** Kill-switch path (also used by ops): forget every cached token, keep the rows. */
   async dropAllCachedTokens(): Promise<void> {
     await this.store.clearAllCachedTokens();
+  }
+
+  /**
+   * Record that Queek answered 409 `app_installation_pending` for this
+   * installation. Resync's purge-absent step keeps marked rows (the list
+   * covers active installations only). Called by the mint path and by
+   * `resyncFromQueek`; idempotent.
+   */
+  markInstallationPending(installationId: string): void {
+    this.pendingInstallations.add(installationId);
+  }
+
+  /**
+   * Forget a pending mark: the installation answered active again (mint or
+   * resync 202), or its row was purged on 404 `app_installation_gone`.
+   */
+  clearInstallationPending(installationId: string): void {
+    this.pendingInstallations.delete(installationId);
+  }
+
+  /**
+   * True when this process observed the installation as pending (409) and
+   * nothing has cleared it since. Consulted by resync's purge-absent step.
+   */
+  isKnownPending(installationId: string): boolean {
+    return this.pendingInstallations.has(installationId);
   }
 
   /**
@@ -249,10 +288,14 @@ export class AppTokenProvider implements AppTokens {
     }
     if (error.status === 404 && isInstallationGone(error.code)) {
       await this.store.deleteInstallation(installation.id);
+      this.clearInstallationPending(installation.id);
       this.logger.warn("queek installation gone server-side; purged locally", {
         installation: installation.pid,
       });
     }
+    // NOTE: 409 `app_installation_pending` never reaches here as a purge
+    // or halt — the mint loop retries it with backoff below, and resync
+    // handles it per installation. A pending row is marked, never deleted.
     throw error;
   }
 
@@ -273,6 +316,23 @@ export class AppTokenProvider implements AppTokens {
         // `handleAppEndpointError` (halt/drop/purge already performed).
         if (error.status === 401 || error.status === 404 || error.status === 403) {
           await this.handleAppEndpointError(error, { id: installationId, pid: installationPid });
+        }
+        if (error.status === 409 && isInstallationPending(error.code)) {
+          // Pending installation (rev 8): retry later with backoff —
+          // NEVER purge, NEVER halt. The row is marked so resync's
+          // purge-absent step keeps it (the list covers active rows
+          // only). After the bounded budget the 409 propagates to the
+          // caller, which retries later; the mark stays until a mint
+          // succeeds or the row is purged as gone.
+          this.markInstallationPending(installationId);
+          this.logger.warn("queek installation pending; mint retry later with backoff", {
+            installation: installationPid,
+            code: error.code,
+          });
+          if (attempt === MAX_MINT_ATTEMPTS - 1) throw error;
+          const backoff = Math.min(MINT_BACKOFF_MAX_MS, MINT_BACKOFF_BASE_MS * 2 ** attempt);
+          await this.sleep(this.jittered(backoff));
+          continue;
         }
         if (attempt === MAX_MINT_ATTEMPTS - 1) throw error;
         if (error.status === 429) {
