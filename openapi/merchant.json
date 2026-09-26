@@ -3,7 +3,7 @@
   "info": {
     "title": "Merchant API",
     "version": "v1",
-    "description": "Merchant API — Queek.\n\n## Errors\n\nEvery error answers `{\"error\": {\"code\", \"message\", \"field\"?, \"errors\"?, \"doc_url\", \"request_id\"}}`, alongside the\nlegacy top-level keys. Switch on `error.code`, never on the message. Codes: `ai_unavailable_in_test_mode`, `api_key_expired`, `api_key_mode_mismatch`, `api_key_revoked`, `app_handoff_failed`, `app_installation_gone`, `app_installation_pending`, `app_token_revoked`, `bad_request`, `client_key_required`, `conflict`, `custom_gateway_forbidden`, `custom_gateway_kyc_required`, `custom_gateway_not_configured`, `custom_gateway_not_verified`, `custom_gateway_plan_required`, `custom_gateway_store_ineligible`, `custom_gateway_verification_failed`, `forbidden`, `gone`, `idempotency_key_in_progress`, `idempotency_key_reuse`, `insufficient_scope`, `invalid_client`, `invalid_client_key`, `metafield_definition_missing`, `metafield_filter_unsupported_type`, `metafield_namespace_reserved`, `metafield_value_invalid`, `metaobject_definition_missing`, `metaobject_field_invalid`, `metaobject_reference_invalid`, `metaobject_type_reserved`, `method_not_allowed`, `not_found`, `origin_not_allowed`, `origin_required`, `payload_too_large`, `payment_amount_mismatch`, `plan_inactive`, `private_key_required`, `resync_cooldown`, `route_not_available`, `server_error`, `service_unavailable`, `subscription_feature_locked`, `too_many_requests`, `unauthenticated`, `unknown_product_ref`, `unknown_service`, `unknown_variant_ref`, `unsupported_media_type`, `validation_failed`, `vendor_access_denied`, `vendor_mail_sender_forbidden`, `vendor_mail_sender_not_configured`, `vendor_mail_sender_plan_required`, `vendor_mail_sender_verification_failed`.\nEach error carries `doc_url` pointing at its own entry in the error reference.\n\n## Request ids\n\nSend `X-Request-Id` (8–128 chars matching `^[A-Za-z0-9_.:-]+$`) to correlate your trace with ours,\nor read the one we generate — it is echoed on every response, error bodies included, and appears on every log line\nof the request. `X-Queek-Api-Version` carries the API version (`v1`).\n\n## Idempotency\n\nSend `Idempotency-Key` on a write and a retry cannot execute twice. Same key + same body replays the stored\nresponse verbatim with `Idempotent-Replayed: true` for 24h. Same key + a different body is\n`409 idempotency_key_reuse`. A concurrent duplicate waits 15s for the first to finish, then replays;\npast that it is `409 idempotency_key_in_progress`. Responses ≥ 400 are not stored, so a failure stays retryable.\nThe slot is vendor + caller + METHOD:path + key. The body is the fingerprint, not part of the slot. Operations that accept the header document it as a parameter.\n\n## Rate limits\n\n180 requests/min per API key + IP, or storefront origin + IP when no key is sent. On top of that, a private (`sk_live_`) key carries its\nstore's plan quota: `free` 60/min, `social_media` 120/min, `starter` 120/min, `growth` 240/min, `scale` 1200/min, `enterprise` 2400/min. sk_live_ private keys only. A pk_live_ public key is shared by every visitor of the store, so it gets no per-store bucket.\nExceeding either is `too_many_requests` with `Retry-After`.\n\n## Webhooks\n\nSubscribe an endpoint per store and Queek posts the signed event to it. Topics are listed under `webhooks`\nin this document; the body is signed with the Standard Webhooks scheme — HMAC-SHA256 over the base64-decoded secret, value `v1,<base64>` —\nover `{webhook-id}.{webhook-timestamp}.{raw body}`, tolerance 300s. A rotation keeps the previous secret valid for\n24h and sends both signatures, space delimited. Delivery is 8 attempts on a published backoff;\nan endpoint failing for 24h is disabled and the merchant notified. Every operation names the one scope it requires. A write scope also returns, in that write's own response, the record it wrote — listing or reading records needs the matching read scope. A key acts for its whole store, never only for the records one person created."
+    "description": "Merchant API — Queek.\n\n## Errors\n\nEvery error answers `{\"error\": {\"code\", \"message\", \"field\"?, \"errors\"?, \"doc_url\", \"request_id\"}}`, alongside the\nlegacy top-level keys. Switch on `error.code`, never on the message. Codes: `ai_unavailable_in_test_mode`, `api_key_expired`, `api_key_mode_mismatch`, `api_key_revoked`, `app_handoff_failed`, `app_installation_gone`, `app_installation_pending`, `app_ip_not_allowed`, `app_token_revoked`, `bad_request`, `client_key_required`, `conflict`, `custom_gateway_forbidden`, `custom_gateway_kyc_required`, `custom_gateway_not_configured`, `custom_gateway_not_verified`, `custom_gateway_plan_required`, `custom_gateway_store_ineligible`, `custom_gateway_verification_failed`, `forbidden`, `gone`, `idempotency_key_in_progress`, `idempotency_key_reuse`, `insufficient_scope`, `invalid_client`, `invalid_client_key`, `metafield_definition_missing`, `metafield_filter_unsupported_type`, `metafield_namespace_reserved`, `metafield_value_invalid`, `metaobject_definition_missing`, `metaobject_field_invalid`, `metaobject_reference_invalid`, `metaobject_type_reserved`, `method_not_allowed`, `not_found`, `origin_not_allowed`, `origin_required`, `payload_too_large`, `payment_amount_mismatch`, `plan_inactive`, `private_key_required`, `resync_cooldown`, `route_not_available`, `server_error`, `service_unavailable`, `subscription_feature_locked`, `too_many_requests`, `unauthenticated`, `unknown_product_ref`, `unknown_service`, `unknown_variant_ref`, `unsupported_media_type`, `validation_failed`, `vendor_access_denied`, `vendor_mail_sender_forbidden`, `vendor_mail_sender_not_configured`, `vendor_mail_sender_plan_required`, `vendor_mail_sender_verification_failed`.\nEach error carries `doc_url` pointing at its own entry in the error reference.\n\n## Request ids\n\nSend `X-Request-Id` (8–128 chars matching `^[A-Za-z0-9_.:-]+$`) to correlate your trace with ours,\nor read the one we generate — it is echoed on every response, error bodies included, and appears on every log line\nof the request. `X-Queek-Api-Version` carries the API version (`v1`).\n\n## Idempotency\n\nSend `Idempotency-Key` on a write and a retry cannot execute twice. Same key + same body replays the stored\nresponse verbatim with `Idempotent-Replayed: true` for 24h. Same key + a different body is\n`409 idempotency_key_reuse`. A concurrent duplicate waits 15s for the first to finish, then replays;\npast that it is `409 idempotency_key_in_progress`. Responses ≥ 400 are not stored, so a failure stays retryable.\nThe slot is vendor + caller + METHOD:path + key. The body is the fingerprint, not part of the slot. Operations that accept the header document it as a parameter.\n\n## Rate limits\n\n180 requests/min per API key + IP, or storefront origin + IP when no key is sent. On top of that, a private (`sk_live_`) key carries its\nstore's plan quota: `free` 60/min, `social_media` 120/min, `starter` 120/min, `growth` 240/min, `scale` 1200/min, `enterprise` 2400/min. sk_live_ private keys only. A pk_live_ public key is shared by every visitor of the store, so it gets no per-store bucket.\nExceeding either is `too_many_requests` with `Retry-After`.\n\n## Webhooks\n\nSubscribe an endpoint per store and Queek posts the signed event to it. Topics are listed under `webhooks`\nin this document; the body is signed with the Standard Webhooks scheme — HMAC-SHA256 over the base64-decoded secret, value `v1,<base64>` —\nover `{webhook-id}.{webhook-timestamp}.{raw body}`, tolerance 300s. A rotation keeps the previous secret valid for\n24h and sends both signatures, space delimited. Delivery is 8 attempts on a published backoff;\nan endpoint failing for 24h is disabled and the merchant notified. Every operation names the one scope it requires. A write scope also returns, in that write's own response, the record it wrote — listing or reading records needs the matching read scope. A key acts for its whole store, never only for the records one person created."
   },
   "servers": [
     {
@@ -492,6 +492,29 @@
         ],
         "parameters": [
           {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1,
+              "maximum": 100
+            },
+            "example": 2
+          },
+          {
+            "name": "starting_after",
+            "in": "query",
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
             "name": "X-Client-Key",
             "in": "header",
             "required": true,
@@ -518,28 +541,29 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "status": {
-                      "type": "string"
-                    },
-                    "message": {
-                      "type": "string"
-                    },
                     "data": {
                       "type": "array",
                       "items": {
                         "$ref": "#/components/schemas/MetaobjectDefinitionResource"
                       }
+                    },
+                    "has_more": {
+                      "type": "boolean"
+                    },
+                    "next_cursor": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
                     }
                   },
                   "required": [
-                    "status",
-                    "message",
-                    "data"
+                    "data",
+                    "has_more",
+                    "next_cursor"
                   ]
                 },
                 "example": {
-                  "status": "success",
-                  "message": "Collected definitions",
                   "data": [
                     {
                       "p_id": 74,
@@ -578,7 +602,9 @@
                       "created_at": "2026-09-15T09:00:00.000000Z",
                       "updated_at": "2026-09-15T09:00:00.000000Z"
                     }
-                  ]
+                  ],
+                  "has_more": true,
+                  "next_cursor": "eyJpZCI6NzQsIl9wb2ludHNUb05leHRJdGVtcyI6dHJ1ZX0"
                 }
               }
             }
@@ -613,6 +639,30 @@
                     "code": "insufficient_scope",
                     "message": "This API key does not carry the 'merchant-collected-definitions-manage' scope it was called with.",
                     "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
+                    "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed — `error.errors` carries per-field detail. Switch on `error.code`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueekError"
+                },
+                "example": {
+                  "error": {
+                    "code": "validation_failed",
+                    "message": "The limit field must be at least 1.",
+                    "field": "limit",
+                    "errors": {
+                      "limit": [
+                        "The limit field must be at least 1."
+                      ]
+                    },
+                    "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
                     "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                   }
                 }
@@ -1329,28 +1379,28 @@
         ],
         "parameters": [
           {
-            "name": "page",
+            "name": "limit",
             "in": "query",
             "schema": {
               "type": [
                 "integer",
                 "null"
               ],
-              "minimum": 1
-            },
-            "example": 1
-          },
-          {
-            "name": "per_page",
-            "in": "query",
-            "schema": {
-              "type": [
-                "integer",
-                "null"
-              ],
-              "minimum": 1
+              "minimum": 1,
+              "maximum": 100
             },
             "example": 2
+          },
+          {
+            "name": "starting_after",
+            "in": "query",
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "example": "eyJpZCI6MzEwOSwiX3BvaW50c1RvTmV4dEl0ZW1zIjp0cnVlfQ"
           },
           {
             "name": "collection_mode",
@@ -1463,41 +1513,8 @@
                       "updated_at": "2026-09-20T09:15:00+01:00"
                     }
                   ],
-                  "links": {
-                    "first": "https://api.usequeek.com/api/v1/merchant/collections?page=1",
-                    "last": "https://api.usequeek.com/api/v1/merchant/collections?page=1",
-                    "prev": null,
-                    "next": null
-                  },
-                  "meta": {
-                    "current_page": 1,
-                    "from": 1,
-                    "last_page": 1,
-                    "links": [
-                      {
-                        "url": null,
-                        "label": "&laquo; Previous",
-                        "page": null,
-                        "active": false
-                      },
-                      {
-                        "url": "https://api.usequeek.com/api/v1/merchant/collections?page=1",
-                        "label": "1",
-                        "page": 1,
-                        "active": true
-                      },
-                      {
-                        "url": null,
-                        "label": "Next &raquo;",
-                        "page": null,
-                        "active": false
-                      }
-                    ],
-                    "path": "https://api.usequeek.com/api/v1/merchant/collections",
-                    "per_page": 2,
-                    "to": 2,
-                    "total": 2
-                  }
+                  "has_more": true,
+                  "next_cursor": "eyJpZCI6MzEwOSwiX3BvaW50c1RvTmV4dEl0ZW1zIjp0cnVlfQ"
                 }
               }
             }
@@ -2231,6 +2248,29 @@
         ],
         "parameters": [
           {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1,
+              "maximum": 100
+            },
+            "example": 2
+          },
+          {
+            "name": "starting_after",
+            "in": "query",
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
             "name": "type",
             "in": "query",
             "schema": {
@@ -2287,7 +2327,26 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object"
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "string"
+                    },
+                    "has_more": {
+                      "type": "boolean"
+                    },
+                    "next_cursor": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "has_more",
+                    "next_cursor"
+                  ]
                 },
                 "example": {
                   "data": [
@@ -2359,53 +2418,8 @@
                       "updated_at": "2026-08-30T12:10:00+01:00"
                     }
                   ],
-                  "links": {
-                    "first": "https://api.usequeek.com/api/v1/merchant/posts?page=1",
-                    "last": "https://api.usequeek.com/api/v1/merchant/posts?page=2",
-                    "prev": null,
-                    "next": "https://api.usequeek.com/api/v1/merchant/posts?page=2"
-                  },
-                  "meta": {
-                    "current_page": 1,
-                    "from": 1,
-                    "last_page": 2,
-                    "links": [
-                      {
-                        "url": null,
-                        "label": "&laquo; Previous",
-                        "page": null,
-                        "active": false
-                      },
-                      {
-                        "url": "https://api.usequeek.com/api/v1/merchant/posts?page=1",
-                        "label": "1",
-                        "page": 1,
-                        "active": true
-                      },
-                      {
-                        "url": "https://api.usequeek.com/api/v1/merchant/posts?page=2",
-                        "label": "2",
-                        "page": 2,
-                        "active": false
-                      },
-                      {
-                        "url": "https://api.usequeek.com/api/v1/merchant/posts?page=2",
-                        "label": "Next &raquo;",
-                        "page": 2,
-                        "active": false
-                      }
-                    ],
-                    "path": "https://api.usequeek.com/api/v1/merchant/posts",
-                    "per_page": 2,
-                    "to": 2,
-                    "total": 4,
-                    "currency": {
-                      "code": "NGN",
-                      "symbol": "₦"
-                    }
-                  },
-                  "status": "success",
-                  "message": "Storefront posts retrieved"
+                  "has_more": true,
+                  "next_cursor": "eyJpZCI6IjAxOWEyZDExLTVhNmItN2M3ZC04ZTlmLTBhMWIyYzNkNGUwMiIsIl9wb2ludHNUb05leHRJdGVtcyI6dHJ1ZX0"
                 }
               }
             }
@@ -2501,28 +2515,27 @@
         ],
         "parameters": [
           {
-            "name": "page",
+            "name": "limit",
             "in": "query",
             "schema": {
               "type": [
                 "integer",
                 "null"
               ],
-              "minimum": 1
+              "minimum": 1,
+              "maximum": 100
             },
             "example": 1
           },
           {
-            "name": "per_page",
+            "name": "starting_after",
             "in": "query",
             "schema": {
               "type": [
-                "integer",
+                "string",
                 "null"
-              ],
-              "minimum": 1
-            },
-            "example": 1
+              ]
+            }
           },
           {
             "name": "discount_type",
@@ -2584,80 +2597,35 @@
                   "type": "object"
                 },
                 "example": {
-                  "success": true,
-                  "data": {
-                    "current_page": 1,
-                    "data": [
-                      {
-                        "id": "019a2e91-0b1c-7d2e-8f3a-4b5c6d7e8f01",
-                        "code": "LEKKI10",
-                        "title": "Lekki Launch 10% Off",
-                        "description": "10% off your first order from our Lekki kitchen.",
-                        "discount_type": "percentage",
-                        "discount_value": "10.00",
-                        "applies_to": "all_products",
-                        "target_product_ids": [],
-                        "target_category_ids": [],
-                        "minimum_order_amount": "5000.00",
-                        "capped_amount": null,
-                        "capped_amount_per_user": null,
-                        "usage_limit": 500,
-                        "usage_limit_per_user": 1,
-                        "used_count": 37,
-                        "is_active": true,
-                        "is_valid": true,
-                        "is_expired": false,
-                        "image_url": null,
-                        "starts_at": "2026-08-30T11:45:00+01:00",
-                        "expires_at": null,
-                        "created_at": "2026-08-30T11:45:00+01:00",
-                        "updated_at": "2026-09-24T09:10:00+01:00"
-                      }
-                    ],
-                    "first_page_url": "https://api.usequeek.com/api/v1/merchant/coupons?page=1",
-                    "from": 1,
-                    "last_page": 3,
-                    "last_page_url": "https://api.usequeek.com/api/v1/merchant/coupons?page=3",
-                    "links": [
-                      {
-                        "url": null,
-                        "label": "&laquo; Previous",
-                        "page": null,
-                        "active": false
-                      },
-                      {
-                        "url": "https://api.usequeek.com/api/v1/merchant/coupons?page=1",
-                        "label": "1",
-                        "page": 1,
-                        "active": true
-                      },
-                      {
-                        "url": "https://api.usequeek.com/api/v1/merchant/coupons?page=2",
-                        "label": "2",
-                        "page": 2,
-                        "active": false
-                      },
-                      {
-                        "url": "https://api.usequeek.com/api/v1/merchant/coupons?page=3",
-                        "label": "3",
-                        "page": 3,
-                        "active": false
-                      },
-                      {
-                        "url": "https://api.usequeek.com/api/v1/merchant/coupons?page=2",
-                        "label": "Next &raquo;",
-                        "page": 2,
-                        "active": false
-                      }
-                    ],
-                    "next_page_url": "https://api.usequeek.com/api/v1/merchant/coupons?page=2",
-                    "path": "https://api.usequeek.com/api/v1/merchant/coupons",
-                    "per_page": 1,
-                    "prev_page_url": null,
-                    "to": 1,
-                    "total": 3
-                  },
-                  "message": "Coupons retrieved successfully"
+                  "data": [
+                    {
+                      "id": "019a2e91-0b1c-7d2e-8f3a-4b5c6d7e8f01",
+                      "code": "LEKKI10",
+                      "title": "Lekki Launch 10% Off",
+                      "description": "10% off your first order from our Lekki kitchen.",
+                      "discount_type": "percentage",
+                      "discount_value": "10.00",
+                      "applies_to": "all_products",
+                      "target_product_ids": [],
+                      "target_category_ids": [],
+                      "minimum_order_amount": "5000.00",
+                      "capped_amount": null,
+                      "capped_amount_per_user": null,
+                      "usage_limit": 500,
+                      "usage_limit_per_user": 1,
+                      "used_count": 37,
+                      "is_active": true,
+                      "is_valid": true,
+                      "is_expired": false,
+                      "image_url": null,
+                      "starts_at": "2026-08-30T11:45:00+01:00",
+                      "expires_at": null,
+                      "created_at": "2026-08-30T11:45:00+01:00",
+                      "updated_at": "2026-09-24T09:10:00+01:00"
+                    }
+                  ],
+                  "has_more": true,
+                  "next_cursor": "eyJpZCI6IjAxOWEyZTkxLTBiMWMtN2QyZS04ZjNhLTRiNWM2ZDdlOGYwMSIsIl9wb2ludHNUb05leHRJdGVtcyI6dHJ1ZX0"
                 }
               }
             }
@@ -2708,11 +2676,11 @@
                 "example": {
                   "error": {
                     "code": "validation_failed",
-                    "message": "The per page field must be at least 1.",
-                    "field": "per_page",
+                    "message": "The limit field must be at least 1.",
+                    "field": "limit",
                     "errors": {
-                      "per_page": [
-                        "The per page field must be at least 1."
+                      "limit": [
+                        "The limit field must be at least 1."
                       ]
                     },
                     "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
@@ -2940,12 +2908,35 @@
     "/customers": {
       "get": {
         "operationId": "customers.list",
-        "description": "Requires scope `merchant-customers-read`.\n\nLists the store’s customers, paged (per_page up to 100) — the same object customers/* webhooks send. Contact fields are masked without the contact scope.",
+        "description": "Requires scope `merchant-customers-read`.\n\nLists the store’s customers with cursor pagination (`limit` up to 100 + `starting_after`, `has_more`/`next_cursor`) — the same object customers/* webhooks send. Contact fields are masked without the contact scope.",
         "summary": "List customers",
         "tags": [
           "Customers"
         ],
         "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1,
+              "maximum": 100
+            },
+            "example": 2
+          },
+          {
+            "name": "starting_after",
+            "in": "query",
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
           {
             "name": "from_date",
             "in": "query",
@@ -3058,7 +3049,26 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object"
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "string"
+                    },
+                    "has_more": {
+                      "type": "boolean"
+                    },
+                    "next_cursor": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "has_more",
+                    "next_cursor"
+                  ]
                 },
                 "example": {
                   "data": [
@@ -3083,57 +3093,8 @@
                       "updated_at": "2026-09-24T12:58:00+01:00"
                     }
                   ],
-                  "links": {
-                    "first": "https://api.usequeek.com/api/v1/merchant/customers?page=1",
-                    "last": "https://api.usequeek.com/api/v1/merchant/customers?page=3",
-                    "prev": null,
-                    "next": "https://api.usequeek.com/api/v1/merchant/customers?page=2"
-                  },
-                  "meta": {
-                    "current_page": 1,
-                    "from": 1,
-                    "last_page": 3,
-                    "links": [
-                      {
-                        "url": null,
-                        "label": "&laquo; Previous",
-                        "page": null,
-                        "active": false
-                      },
-                      {
-                        "url": "https://api.usequeek.com/api/v1/merchant/customers?page=1",
-                        "label": "1",
-                        "page": 1,
-                        "active": true
-                      },
-                      {
-                        "url": "https://api.usequeek.com/api/v1/merchant/customers?page=2",
-                        "label": "2",
-                        "page": 2,
-                        "active": false
-                      },
-                      {
-                        "url": "https://api.usequeek.com/api/v1/merchant/customers?page=3",
-                        "label": "3",
-                        "page": 3,
-                        "active": false
-                      },
-                      {
-                        "url": "https://api.usequeek.com/api/v1/merchant/customers?page=2",
-                        "label": "Next &raquo;",
-                        "page": 2,
-                        "active": false
-                      }
-                    ],
-                    "path": "https://api.usequeek.com/api/v1/merchant/customers",
-                    "per_page": 2,
-                    "to": 2,
-                    "total": 6,
-                    "currency": {
-                      "code": "NGN",
-                      "symbol": "₦"
-                    }
-                  }
+                  "has_more": true,
+                  "next_cursor": "eyJpZCI6OTAzNDEsIl9wb2ludHNUb05leHRJdGVtcyI6dHJ1ZX0"
                 }
               }
             }
@@ -3229,28 +3190,27 @@
         ],
         "parameters": [
           {
-            "name": "page",
+            "name": "limit",
             "in": "query",
             "schema": {
               "type": [
                 "integer",
                 "null"
               ],
-              "minimum": 1
-            },
-            "example": 1
-          },
-          {
-            "name": "per_page",
-            "in": "query",
-            "schema": {
-              "type": [
-                "integer",
-                "null"
-              ],
-              "minimum": 1
+              "minimum": 1,
+              "maximum": 50
             },
             "example": 2
+          },
+          {
+            "name": "starting_after",
+            "in": "query",
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
           },
           {
             "name": "search",
@@ -3289,52 +3249,26 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "status": {
-                      "type": "string",
-                      "const": "success"
-                    },
-                    "message": {
-                      "type": "string",
-                      "const": "Followers retrieved"
-                    },
                     "data": {
-                      "type": "array",
-                      "items": {}
+                      "type": "string"
                     },
-                    "meta": {
-                      "type": "object",
-                      "properties": {
-                        "total": {
-                          "type": "integer"
-                        },
-                        "per_page": {
-                          "type": "integer"
-                        },
-                        "current_page": {
-                          "type": "integer"
-                        },
-                        "last_page": {
-                          "type": "integer"
-                        }
-                      },
-                      "required": [
-                        "total",
-                        "per_page",
-                        "current_page",
-                        "last_page"
+                    "has_more": {
+                      "type": "boolean"
+                    },
+                    "next_cursor": {
+                      "type": [
+                        "string",
+                        "null"
                       ]
                     }
                   },
                   "required": [
-                    "status",
-                    "message",
                     "data",
-                    "meta"
+                    "has_more",
+                    "next_cursor"
                   ]
                 },
                 "example": {
-                  "status": "success",
-                  "message": "Followers retrieved",
                   "data": [
                     {
                       "id": "019a2f33-1a2b-7c3d-8e4f-5a6b7c8d9e02",
@@ -3359,12 +3293,8 @@
                       "followed_at": "2026-07-03T19:15:00+01:00"
                     }
                   ],
-                  "meta": {
-                    "total": 9,
-                    "per_page": 2,
-                    "current_page": 1,
-                    "last_page": 5
-                  }
+                  "has_more": true,
+                  "next_cursor": "eyJpZCI6IjAxOWEyZjMzLTFhMmItN2MzZC04ZTRmLTVhNmI3YzhkOWUwMSIsIl9wb2ludHNUb05leHRJdGVtcyI6dHJ1ZX0"
                 }
               }
             }
@@ -3415,11 +3345,11 @@
                 "example": {
                   "error": {
                     "code": "validation_failed",
-                    "message": "The per page field must be at least 1.",
-                    "field": "per_page",
+                    "message": "The limit field must be at least 1.",
+                    "field": "limit",
                     "errors": {
-                      "per_page": [
-                        "The per page field must be at least 1."
+                      "limit": [
+                        "The limit field must be at least 1."
                       ]
                     },
                     "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
@@ -3624,19 +3554,7 @@
         ],
         "parameters": [
           {
-            "name": "page",
-            "in": "query",
-            "schema": {
-              "type": [
-                "integer",
-                "null"
-              ],
-              "minimum": 1
-            },
-            "example": 1
-          },
-          {
-            "name": "per_page",
+            "name": "limit",
             "in": "query",
             "schema": {
               "type": [
@@ -3647,6 +3565,16 @@
               "maximum": 100
             },
             "example": 2
+          },
+          {
+            "name": "starting_after",
+            "in": "query",
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
           },
           {
             "name": "type",
@@ -3804,57 +3732,8 @@
                       "updated_at": "2026-09-01T09:00:00+01:00"
                     }
                   ],
-                  "links": {
-                    "first": "https://api.usequeek.com/api/v1/merchant/discounts?page=1",
-                    "last": "https://api.usequeek.com/api/v1/merchant/discounts?page=3",
-                    "prev": null,
-                    "next": "https://api.usequeek.com/api/v1/merchant/discounts?page=2"
-                  },
-                  "meta": {
-                    "current_page": 1,
-                    "from": 1,
-                    "last_page": 3,
-                    "links": [
-                      {
-                        "url": null,
-                        "label": "&laquo; Previous",
-                        "page": null,
-                        "active": false
-                      },
-                      {
-                        "url": "https://api.usequeek.com/api/v1/merchant/discounts?page=1",
-                        "label": "1",
-                        "page": 1,
-                        "active": true
-                      },
-                      {
-                        "url": "https://api.usequeek.com/api/v1/merchant/discounts?page=2",
-                        "label": "2",
-                        "page": 2,
-                        "active": false
-                      },
-                      {
-                        "url": "https://api.usequeek.com/api/v1/merchant/discounts?page=3",
-                        "label": "3",
-                        "page": 3,
-                        "active": false
-                      },
-                      {
-                        "url": "https://api.usequeek.com/api/v1/merchant/discounts?page=2",
-                        "label": "Next &raquo;",
-                        "page": 2,
-                        "active": false
-                      }
-                    ],
-                    "path": "https://api.usequeek.com/api/v1/merchant/discounts",
-                    "per_page": 2,
-                    "to": 2,
-                    "total": 5,
-                    "currency": {
-                      "code": "NGN",
-                      "symbol": "₦"
-                    }
-                  }
+                  "has_more": true,
+                  "next_cursor": "eyJpZCI6IjAxOWEyZTkwLTdhMWItN2MyZC05ZTNmLTRhNWI2YzdkOGUwMSIsIl9wb2ludHNUb05leHRJdGVtcyI6dHJ1ZX0"
                 }
               }
             }
@@ -3905,11 +3784,11 @@
                 "example": {
                   "error": {
                     "code": "validation_failed",
-                    "message": "The per page field must not be greater than 100.",
-                    "field": "per_page",
+                    "message": "The limit field must not be greater than 100.",
+                    "field": "limit",
                     "errors": {
-                      "per_page": [
-                        "The per page field must not be greater than 100."
+                      "limit": [
+                        "The limit field must not be greater than 100."
                       ]
                     },
                     "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
@@ -4687,6 +4566,29 @@
             "example": 20417
           },
           {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1,
+              "maximum": 100
+            },
+            "example": 2
+          },
+          {
+            "name": "starting_after",
+            "in": "query",
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
             "name": "X-Client-Key",
             "in": "header",
             "required": true,
@@ -4711,38 +4613,63 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "status": {
-                      "type": "string",
-                      "const": "success"
-                    },
-                    "message": {
-                      "type": "string",
-                      "const": "Product images"
-                    },
-                    "data": {
-                      "type": "array",
-                      "items": {
-                        "type": "string"
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "const": "success"
+                        },
+                        "message": {
+                          "type": "string",
+                          "const": "Product images"
+                        },
+                        "data": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          },
+                          "minItems": 0,
+                          "maxItems": 0
+                        },
+                        "meta": {
+                          "type": "string"
+                        }
                       },
-                      "minItems": 0,
-                      "maxItems": 0
+                      "required": [
+                        "status",
+                        "message",
+                        "data",
+                        "meta"
+                      ]
                     },
-                    "meta": {
-                      "type": "string"
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "type": "array",
+                          "items": {}
+                        },
+                        "has_more": {
+                          "type": "boolean"
+                        },
+                        "next_cursor": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "data",
+                        "has_more",
+                        "next_cursor"
+                      ]
                     }
-                  },
-                  "required": [
-                    "status",
-                    "message",
-                    "data",
-                    "meta"
                   ]
                 },
                 "example": {
-                  "status": "success",
-                  "message": "Product images",
                   "data": [
                     {
                       "id": 88214,
@@ -4826,7 +4753,9 @@
                         }
                       }
                     }
-                  ]
+                  ],
+                  "has_more": true,
+                  "next_cursor": "eyJpZCI6ODgyMTUsIl9wb2ludHNUb05leHRJdGVtcyI6dHJ1ZX0"
                 }
               }
             }
@@ -4879,6 +4808,30 @@
                     "code": "not_found",
                     "message": "Product not found.",
                     "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#not_found",
+                    "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed — `error.errors` carries per-field detail. Switch on `error.code`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueekError"
+                },
+                "example": {
+                  "error": {
+                    "code": "validation_failed",
+                    "message": "The limit field must be at least 1.",
+                    "field": "limit",
+                    "errors": {
+                      "limit": [
+                        "The limit field must be at least 1."
+                      ]
+                    },
+                    "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
                     "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                   }
                 }
@@ -5787,7 +5740,20 @@
             "example": 20417
           },
           {
-            "name": "type",
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1,
+              "maximum": 100
+            },
+            "example": 2
+          },
+          {
+            "name": "starting_after",
             "in": "query",
             "schema": {
               "type": [
@@ -5797,16 +5763,14 @@
             }
           },
           {
-            "name": "limit",
+            "name": "type",
             "in": "query",
             "schema": {
               "type": [
-                "integer",
+                "string",
                 "null"
-              ],
-              "minimum": 1
-            },
-            "example": 2
+              ]
+            }
           },
           {
             "name": "X-Client-Key",
@@ -5833,10 +5797,28 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object"
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "string"
+                    },
+                    "has_more": {
+                      "type": "boolean"
+                    },
+                    "next_cursor": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "has_more",
+                    "next_cursor"
+                  ]
                 },
                 "example": {
-                  "success": true,
                   "data": [
                     {
                       "id": "019a3a0e-6d21-7b54-8e90-2f4a6c8e0b11",
@@ -5885,7 +5867,9 @@
                       },
                       "created_at": "2026-09-24T07:05:00+01:00"
                     }
-                  ]
+                  ],
+                  "has_more": true,
+                  "next_cursor": "eyJpZCI6IjAxOWEzYTBlLTZkMjEtN2I1NC04ZTkwLTJmNGE2YzhlMGIxMCIsIl9wb2ludHNUb05leHRJdGVtcyI6dHJ1ZX0"
                 }
               }
             }
@@ -6194,28 +6178,27 @@
         ],
         "parameters": [
           {
-            "name": "page",
+            "name": "limit",
             "in": "query",
             "schema": {
               "type": [
                 "integer",
                 "null"
               ],
-              "minimum": 1
-            },
-            "example": 1
-          },
-          {
-            "name": "per_page",
-            "in": "query",
-            "schema": {
-              "type": [
-                "integer",
-                "null"
-              ],
-              "minimum": 1
+              "minimum": 1,
+              "maximum": 100
             },
             "example": 2
+          },
+          {
+            "name": "starting_after",
+            "in": "query",
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
           },
           {
             "name": "type",
@@ -6289,41 +6272,26 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "success": {
+                    "data": {
+                      "type": "string"
+                    },
+                    "has_more": {
                       "type": "boolean"
                     },
-                    "data": {
-                      "type": "array",
-                      "items": {}
-                    },
-                    "pagination": {
-                      "type": "object",
-                      "properties": {
-                        "current_page": {
-                          "type": "integer"
-                        },
-                        "last_page": {
-                          "type": "integer"
-                        },
-                        "per_page": {
-                          "type": "integer"
-                        }
-                      },
-                      "required": [
-                        "current_page",
-                        "last_page",
-                        "per_page"
+                    "next_cursor": {
+                      "type": [
+                        "string",
+                        "null"
                       ]
                     }
                   },
                   "required": [
-                    "success",
                     "data",
-                    "pagination"
+                    "has_more",
+                    "next_cursor"
                   ]
                 },
                 "example": {
-                  "success": true,
                   "data": [
                     {
                       "id": "019a3a0e-6d21-7b54-8e90-2f4a6c8e0b12",
@@ -6379,11 +6347,8 @@
                       "created_at": "2026-09-24T13:42:00+01:00"
                     }
                   ],
-                  "pagination": {
-                    "current_page": 1,
-                    "last_page": 6,
-                    "per_page": 2
-                  }
+                  "has_more": true,
+                  "next_cursor": "eyJpZCI6IjAxOWEzYTBlLTZkMjEtN2I1NC04ZTkwLTJmNGE2YzhlMGIxMSIsIl9wb2ludHNUb05leHRJdGVtcyI6dHJ1ZX0"
                 }
               }
             }
@@ -6434,11 +6399,11 @@
                 "example": {
                   "error": {
                     "code": "validation_failed",
-                    "message": "The per page field must be at least 1.",
-                    "field": "per_page",
+                    "message": "The limit field must be at least 1.",
+                    "field": "limit",
                     "errors": {
-                      "per_page": [
-                        "The per page field must be at least 1."
+                      "limit": [
+                        "The limit field must be at least 1."
                       ]
                     },
                     "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
@@ -6479,6 +6444,29 @@
         ],
         "parameters": [
           {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1,
+              "maximum": 100
+            },
+            "example": 2
+          },
+          {
+            "name": "starting_after",
+            "in": "query",
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
             "name": "owner_type",
             "in": "query",
             "schema": {
@@ -6513,38 +6501,62 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "status": {
-                      "type": "string",
-                      "const": "success"
-                    },
-                    "message": {
-                      "type": "string",
-                      "const": "Metafield definitions"
-                    },
-                    "data": {
-                      "type": "array",
-                      "items": {
-                        "type": "string"
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "const": "success"
+                        },
+                        "message": {
+                          "type": "string",
+                          "const": "Metafield definitions"
+                        },
+                        "data": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          },
+                          "minItems": 0,
+                          "maxItems": 0
+                        },
+                        "meta": {
+                          "type": "string"
+                        }
                       },
-                      "minItems": 0,
-                      "maxItems": 0
+                      "required": [
+                        "status",
+                        "message",
+                        "data",
+                        "meta"
+                      ]
                     },
-                    "meta": {
-                      "type": "string"
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "type": "string"
+                        },
+                        "has_more": {
+                          "type": "boolean"
+                        },
+                        "next_cursor": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "data",
+                        "has_more",
+                        "next_cursor"
+                      ]
                     }
-                  },
-                  "required": [
-                    "status",
-                    "message",
-                    "data",
-                    "meta"
                   ]
                 },
                 "example": {
-                  "status": "success",
-                  "message": "Metafield definitions",
                   "data": [
                     {
                       "p_id": 413,
@@ -6584,7 +6596,9 @@
                       "created_at": "2026-08-02T10:00:00.000000Z",
                       "updated_at": "2026-08-02T10:00:00.000000Z"
                     }
-                  ]
+                  ],
+                  "has_more": true,
+                  "next_cursor": "eyJpZCI6NDEyLCJfcG9pbnRzVG9OZXh0SXRlbXMiOnRydWV9"
                 }
               }
             }
@@ -6905,6 +6919,29 @@
         ],
         "parameters": [
           {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1,
+              "maximum": 100
+            },
+            "example": 2
+          },
+          {
+            "name": "starting_after",
+            "in": "query",
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
             "name": "X-Client-Key",
             "in": "header",
             "required": true,
@@ -6929,38 +6966,62 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "status": {
-                      "type": "string",
-                      "const": "success"
-                    },
-                    "message": {
-                      "type": "string",
-                      "const": "Metaobject definitions"
-                    },
-                    "data": {
-                      "type": "array",
-                      "items": {
-                        "type": "string"
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "const": "success"
+                        },
+                        "message": {
+                          "type": "string",
+                          "const": "Metaobject definitions"
+                        },
+                        "data": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          },
+                          "minItems": 0,
+                          "maxItems": 0
+                        },
+                        "meta": {
+                          "type": "string"
+                        }
                       },
-                      "minItems": 0,
-                      "maxItems": 0
+                      "required": [
+                        "status",
+                        "message",
+                        "data",
+                        "meta"
+                      ]
                     },
-                    "meta": {
-                      "type": "string"
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "type": "string"
+                        },
+                        "has_more": {
+                          "type": "boolean"
+                        },
+                        "next_cursor": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "data",
+                        "has_more",
+                        "next_cursor"
+                      ]
                     }
-                  },
-                  "required": [
-                    "status",
-                    "message",
-                    "data",
-                    "meta"
                   ]
                 },
                 "example": {
-                  "status": "success",
-                  "message": "Metaobject definitions",
                   "data": [
                     {
                       "p_id": 61,
@@ -6999,7 +7060,9 @@
                       "created_at": "2026-08-10T08:00:00.000000Z",
                       "updated_at": "2026-08-10T08:00:00.000000Z"
                     }
-                  ]
+                  ],
+                  "has_more": true,
+                  "next_cursor": "eyJpZCI6NjEsIl9wb2ludHNUb05leHRJdGVtcyI6dHJ1ZX0"
                 }
               }
             }
@@ -7034,6 +7097,30 @@
                     "code": "insufficient_scope",
                     "message": "This API key does not carry the 'merchant-metaobjects-read' scope it was called with.",
                     "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
+                    "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed — `error.errors` carries per-field detail. Switch on `error.code`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueekError"
+                },
+                "example": {
+                  "error": {
+                    "code": "validation_failed",
+                    "message": "The limit field must be at least 1.",
+                    "field": "limit",
+                    "errors": {
+                      "limit": [
+                        "The limit field must be at least 1."
+                      ]
+                    },
+                    "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
                     "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                   }
                 }
@@ -7321,28 +7408,27 @@
         ],
         "parameters": [
           {
-            "name": "page",
+            "name": "limit",
             "in": "query",
             "schema": {
               "type": [
                 "integer",
                 "null"
               ],
-              "minimum": 1
-            },
-            "example": 1
-          },
-          {
-            "name": "per_page",
-            "in": "query",
-            "schema": {
-              "type": [
-                "integer",
-                "null"
-              ],
-              "minimum": 1
+              "minimum": 1,
+              "maximum": 50
             },
             "example": 2
+          },
+          {
+            "name": "starting_after",
+            "in": "query",
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
           },
           {
             "name": "type",
@@ -7401,7 +7487,33 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object"
+                  "anyOf": [
+                    {
+                      "type": "object"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "type": "string"
+                        },
+                        "has_more": {
+                          "type": "boolean"
+                        },
+                        "next_cursor": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "data",
+                        "has_more",
+                        "next_cursor"
+                      ]
+                    }
+                  ]
                 },
                 "example": {
                   "data": [
@@ -7434,51 +7546,8 @@
                       "updated_at": "2026-08-12T09:15:00.000000Z"
                     }
                   ],
-                  "links": {
-                    "first": "https://api.usequeek.com/api/v1/merchant/metaobjects?page=1",
-                    "last": "https://api.usequeek.com/api/v1/merchant/metaobjects?page=2",
-                    "prev": null,
-                    "next": "https://api.usequeek.com/api/v1/merchant/metaobjects?page=2"
-                  },
-                  "meta": {
-                    "current_page": 1,
-                    "from": 1,
-                    "last_page": 2,
-                    "links": [
-                      {
-                        "url": null,
-                        "label": "&laquo; Previous",
-                        "page": null,
-                        "active": false
-                      },
-                      {
-                        "url": "https://api.usequeek.com/api/v1/merchant/metaobjects?page=1",
-                        "label": "1",
-                        "page": 1,
-                        "active": true
-                      },
-                      {
-                        "url": "https://api.usequeek.com/api/v1/merchant/metaobjects?page=2",
-                        "label": "2",
-                        "page": 2,
-                        "active": false
-                      },
-                      {
-                        "url": "https://api.usequeek.com/api/v1/merchant/metaobjects?page=2",
-                        "label": "Next &raquo;",
-                        "page": 2,
-                        "active": false
-                      }
-                    ],
-                    "path": "https://api.usequeek.com/api/v1/merchant/metaobjects",
-                    "per_page": 2,
-                    "to": 2,
-                    "total": 4,
-                    "currency": {
-                      "code": "NGN",
-                      "symbol": "₦"
-                    }
-                  }
+                  "has_more": true,
+                  "next_cursor": "eyJpZCI6MTIwMiwiX3BvaW50c1RvTmV4dEl0ZW1zIjp0cnVlfQ"
                 }
               }
             }
@@ -7529,11 +7598,11 @@
                 "example": {
                   "error": {
                     "code": "validation_failed",
-                    "message": "The per page field must be at least 1.",
-                    "field": "per_page",
+                    "message": "The limit field must be at least 1.",
+                    "field": "limit",
                     "errors": {
-                      "per_page": [
-                        "The per page field must be at least 1."
+                      "limit": [
+                        "The limit field must be at least 1."
                       ]
                     },
                     "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
@@ -7776,7 +7845,7 @@
     "/orders": {
       "get": {
         "operationId": "orders.list",
-        "description": "Requires scope `merchant-orders-read`.\n\nLists the store’s orders — the same object orders/* webhooks send. Same filtering, search and pagination as the dashboard table.",
+        "description": "Requires scope `merchant-orders-read`.\n\nLists the store’s orders — the same object orders/* webhooks send. Same filtering and search as the dashboard table with cursor pagination (`limit` + `starting_after`, `has_more`/`next_cursor`).",
         "summary": "List orders",
         "tags": [
           "Orders"
@@ -7880,6 +7949,29 @@
             "example": "desc"
           },
           {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1,
+              "maximum": 100
+            },
+            "example": 2
+          },
+          {
+            "name": "starting_after",
+            "in": "query",
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
             "name": "X-Client-Key",
             "in": "header",
             "required": true,
@@ -7904,7 +7996,26 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object"
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "string"
+                    },
+                    "has_more": {
+                      "type": "boolean"
+                    },
+                    "next_cursor": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "has_more",
+                    "next_cursor"
+                  ]
                 },
                 "example": {
                   "data": [
@@ -7912,7 +8023,7 @@
                       "id": 58214,
                       "uid": "019a3a0e-1c2d-7e3f-8a4b-5c6d7e8f9a02",
                       "order_number": "26-0924-58214",
-                      "status": "pending_payment",
+                      "status": "pending",
                       "payment_status": "paid",
                       "payment_method": "online",
                       "fulfillment_status": "unfulfilled",
@@ -7924,7 +8035,7 @@
                       "external_ref": "CD-7F3K2Q",
                       "delivery_method": "delivery",
                       "currency": "NGN",
-                      "subtotal": "6500.00",
+                      "subtotal": "5000.00",
                       "discount_total": "0.00",
                       "shipping_total": "1500.00",
                       "tax_total": "0.00",
@@ -8014,63 +8125,8 @@
                       "fulfilled_at": null
                     }
                   ],
-                  "links": {
-                    "first": "https://api.usequeek.com/api/v1/merchant/orders?page=1",
-                    "last": "https://api.usequeek.com/api/v1/merchant/orders?page=4",
-                    "prev": null,
-                    "next": "https://api.usequeek.com/api/v1/merchant/orders?page=2"
-                  },
-                  "meta": {
-                    "current_page": 1,
-                    "from": 1,
-                    "last_page": 4,
-                    "links": [
-                      {
-                        "url": null,
-                        "label": "&laquo; Previous",
-                        "page": null,
-                        "active": false
-                      },
-                      {
-                        "url": "https://api.usequeek.com/api/v1/merchant/orders?page=1",
-                        "label": "1",
-                        "page": 1,
-                        "active": true
-                      },
-                      {
-                        "url": "https://api.usequeek.com/api/v1/merchant/orders?page=2",
-                        "label": "2",
-                        "page": 2,
-                        "active": false
-                      },
-                      {
-                        "url": "https://api.usequeek.com/api/v1/merchant/orders?page=3",
-                        "label": "3",
-                        "page": 3,
-                        "active": false
-                      },
-                      {
-                        "url": "https://api.usequeek.com/api/v1/merchant/orders?page=4",
-                        "label": "4",
-                        "page": 4,
-                        "active": false
-                      },
-                      {
-                        "url": "https://api.usequeek.com/api/v1/merchant/orders?page=2",
-                        "label": "Next &raquo;",
-                        "page": 2,
-                        "active": false
-                      }
-                    ],
-                    "path": "https://api.usequeek.com/api/v1/merchant/orders",
-                    "per_page": 2,
-                    "to": 2,
-                    "total": 8,
-                    "currency": {
-                      "code": "NGN",
-                      "symbol": "₦"
-                    }
-                  }
+                  "has_more": true,
+                  "next_cursor": "eyJpZCI6NTgyMTMsIl9wb2ludHNUb05leHRJdGVtcyI6dHJ1ZX0"
                 }
               }
             }
@@ -8747,7 +8803,7 @@
                     "id": 58214,
                     "uid": "019a3a0e-1c2d-7e3f-8a4b-5c6d7e8f9a02",
                     "order_number": "26-0924-58214",
-                    "status": "pending_payment",
+                    "status": "pending",
                     "payment_status": "paid",
                     "payment_method": "online",
                     "fulfillment_status": "unfulfilled",
@@ -8759,7 +8815,7 @@
                     "external_ref": "CD-7F3K2Q",
                     "delivery_method": "delivery",
                     "currency": "NGN",
-                    "subtotal": "6500.00",
+                    "subtotal": "5000.00",
                     "discount_total": "0.00",
                     "shipping_total": "1500.00",
                     "tax_total": "0.00",
@@ -8836,7 +8892,7 @@
                     "id": 58214,
                     "uid": "019a3a0e-1c2d-7e3f-8a4b-5c6d7e8f9a02",
                     "order_number": "26-0924-58214",
-                    "status": "pending_payment",
+                    "status": "pending",
                     "payment_status": "paid",
                     "payment_method": "online",
                     "fulfillment_status": "unfulfilled",
@@ -8848,7 +8904,7 @@
                     "external_ref": "CD-7F3K2Q",
                     "delivery_method": "delivery",
                     "currency": "NGN",
-                    "subtotal": "6500.00",
+                    "subtotal": "5000.00",
                     "discount_total": "0.00",
                     "shipping_total": "1500.00",
                     "tax_total": "0.00",
@@ -9735,35 +9791,34 @@
     "/products": {
       "get": {
         "operationId": "products.list",
-        "description": "Requires scope `merchant-items-read`.\n\nLists the store’s products — the same object products/* webhooks send, with variants, images, the canonical URL and the storefront price. Same filtering and pagination as the dashboard table; sorts limited to public fields.",
+        "description": "Requires scope `merchant-items-read`.\n\nLists the store’s products — the same object products/* webhooks send, with variants, images, the canonical URL and the storefront price. Same filtering as the dashboard table with cursor pagination (`limit` + `starting_after`, `has_more`/`next_cursor`); sorts limited to public fields.",
         "summary": "List products",
         "tags": [
           "Products"
         ],
         "parameters": [
           {
-            "name": "page",
+            "name": "limit",
             "in": "query",
             "schema": {
               "type": [
                 "integer",
                 "null"
               ],
-              "minimum": 1
-            },
-            "example": 1
-          },
-          {
-            "name": "per_page",
-            "in": "query",
-            "schema": {
-              "type": [
-                "integer",
-                "null"
-              ],
-              "minimum": 1
+              "minimum": 1,
+              "maximum": 100
             },
             "example": 2
+          },
+          {
+            "name": "starting_after",
+            "in": "query",
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
           },
           {
             "name": "sort_by",
@@ -9954,7 +10009,26 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object"
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "string"
+                    },
+                    "has_more": {
+                      "type": "boolean"
+                    },
+                    "next_cursor": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "has_more",
+                    "next_cursor"
+                  ]
                 },
                 "example": {
                   "data": [
@@ -10154,69 +10228,8 @@
                       "deleted_at": null
                     }
                   ],
-                  "links": {
-                    "first": "https://api.usequeek.com/api/v1/merchant/products?page=1",
-                    "last": "https://api.usequeek.com/api/v1/merchant/products?page=5",
-                    "prev": null,
-                    "next": "https://api.usequeek.com/api/v1/merchant/products?page=2"
-                  },
-                  "meta": {
-                    "current_page": 1,
-                    "from": 1,
-                    "last_page": 5,
-                    "links": [
-                      {
-                        "url": null,
-                        "label": "&laquo; Previous",
-                        "page": null,
-                        "active": false
-                      },
-                      {
-                        "url": "https://api.usequeek.com/api/v1/merchant/products?page=1",
-                        "label": "1",
-                        "page": 1,
-                        "active": true
-                      },
-                      {
-                        "url": "https://api.usequeek.com/api/v1/merchant/products?page=2",
-                        "label": "2",
-                        "page": 2,
-                        "active": false
-                      },
-                      {
-                        "url": "https://api.usequeek.com/api/v1/merchant/products?page=3",
-                        "label": "3",
-                        "page": 3,
-                        "active": false
-                      },
-                      {
-                        "url": "https://api.usequeek.com/api/v1/merchant/products?page=4",
-                        "label": "4",
-                        "page": 4,
-                        "active": false
-                      },
-                      {
-                        "url": "https://api.usequeek.com/api/v1/merchant/products?page=5",
-                        "label": "5",
-                        "page": 5,
-                        "active": false
-                      },
-                      {
-                        "url": "https://api.usequeek.com/api/v1/merchant/products?page=2",
-                        "label": "Next &raquo;",
-                        "page": 2,
-                        "active": false
-                      }
-                    ],
-                    "path": "https://api.usequeek.com/api/v1/merchant/products",
-                    "per_page": 2,
-                    "to": 2,
-                    "total": 9,
-                    "currency": {
-                      "code": "NGN",
-                      "symbol": "₦"
-                    }
-                  }
+                  "has_more": true,
+                  "next_cursor": "eyJpZCI6MjA0MTcsIl9wb2ludHNUb05leHRJdGVtcyI6dHJ1ZX0"
                 }
               }
             }
@@ -10267,11 +10280,11 @@
                 "example": {
                   "error": {
                     "code": "validation_failed",
-                    "message": "sort_by must be one of: created_at, updated_at, title, price, stock, published.",
-                    "field": "sort_by",
+                    "message": "The starting after cursor is invalid.",
+                    "field": "starting_after",
                     "errors": {
-                      "sort_by": [
-                        "sort_by must be one of: created_at, updated_at, title, price, stock, published."
+                      "starting_after": [
+                        "The starting after cursor is invalid."
                       ]
                     },
                     "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
@@ -11457,6 +11470,29 @@
         ],
         "parameters": [
           {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1,
+              "maximum": 100
+            },
+            "example": 2
+          },
+          {
+            "name": "starting_after",
+            "in": "query",
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
             "name": "X-Client-Key",
             "in": "header",
             "required": true,
@@ -11483,36 +11519,26 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "status": {
-                      "type": "string",
-                      "const": "success"
-                    },
-                    "message": {
-                      "type": "string",
-                      "const": "Shipping zones retrieved"
-                    },
                     "data": {
-                      "type": "array",
-                      "items": {
-                        "type": "string"
-                      },
-                      "minItems": 0,
-                      "maxItems": 0
-                    },
-                    "meta": {
                       "type": "string"
+                    },
+                    "has_more": {
+                      "type": "boolean"
+                    },
+                    "next_cursor": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
                     }
                   },
                   "required": [
-                    "status",
-                    "message",
                     "data",
-                    "meta"
+                    "has_more",
+                    "next_cursor"
                   ]
                 },
                 "example": {
-                  "status": "success",
-                  "message": "Shipping zones retrieved",
                   "data": [
                     {
                       "id": "019a2c5d-3e4f-7a5b-8c6d-7e8f9a0b1c21",
@@ -11556,7 +11582,9 @@
                       "created_at": "2026-07-05T10:05:00+01:00",
                       "updated_at": "2026-09-10T14:32:00+01:00"
                     }
-                  ]
+                  ],
+                  "has_more": true,
+                  "next_cursor": "eyJpZCI6IjAxOWEyYzVkLTNlNGYtN2E1Yi04YzZkLTdlOGY5YTBiMWMyMiIsIl9wb2ludHNUb05leHRJdGVtcyI6dHJ1ZX0"
                 }
               }
             }
@@ -11591,6 +11619,30 @@
                     "code": "insufficient_scope",
                     "message": "This API key does not carry the 'merchant-shipping-read' scope it was called with.",
                     "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
+                    "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed — `error.errors` carries per-field detail. Switch on `error.code`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueekError"
+                },
+                "example": {
+                  "error": {
+                    "code": "validation_failed",
+                    "message": "The limit field must be at least 1.",
+                    "field": "limit",
+                    "errors": {
+                      "limit": [
+                        "The limit field must be at least 1."
+                      ]
+                    },
+                    "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
                     "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                   }
                 }
@@ -12323,6 +12375,29 @@
             "example": 20418
           },
           {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1,
+              "maximum": 100
+            },
+            "example": 2
+          },
+          {
+            "name": "starting_after",
+            "in": "query",
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
             "name": "X-Client-Key",
             "in": "header",
             "required": true,
@@ -12347,38 +12422,62 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "status": {
-                      "type": "string",
-                      "const": "success"
-                    },
-                    "message": {
-                      "type": "string",
-                      "const": "Product variants"
-                    },
-                    "data": {
-                      "type": "array",
-                      "items": {
-                        "type": "string"
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "const": "success"
+                        },
+                        "message": {
+                          "type": "string",
+                          "const": "Product variants"
+                        },
+                        "data": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          },
+                          "minItems": 0,
+                          "maxItems": 0
+                        },
+                        "meta": {
+                          "type": "string"
+                        }
                       },
-                      "minItems": 0,
-                      "maxItems": 0
+                      "required": [
+                        "status",
+                        "message",
+                        "data",
+                        "meta"
+                      ]
                     },
-                    "meta": {
-                      "type": "string"
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "type": "string"
+                        },
+                        "has_more": {
+                          "type": "boolean"
+                        },
+                        "next_cursor": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "data",
+                        "has_more",
+                        "next_cursor"
+                      ]
                     }
-                  },
-                  "required": [
-                    "status",
-                    "message",
-                    "data",
-                    "meta"
                   ]
                 },
                 "example": {
-                  "status": "success",
-                  "message": "Product variants",
                   "data": [
                     {
                       "id": 7731,
@@ -12426,7 +12525,9 @@
                       "created_at": "2026-07-15T11:30:00+01:00",
                       "updated_at": "2026-09-22T16:05:00+01:00"
                     }
-                  ]
+                  ],
+                  "has_more": true,
+                  "next_cursor": "eyJpZCI6NzczMiwiX3BvaW50c1RvTmV4dEl0ZW1zIjp0cnVlfQ"
                 }
               }
             }
@@ -12479,6 +12580,30 @@
                     "code": "not_found",
                     "message": "Product not found.",
                     "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#not_found",
+                    "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed — `error.errors` carries per-field detail. Switch on `error.code`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueekError"
+                },
+                "example": {
+                  "error": {
+                    "code": "validation_failed",
+                    "message": "The limit field must be at least 1.",
+                    "field": "limit",
+                    "errors": {
+                      "limit": [
+                        "The limit field must be at least 1."
+                      ]
+                    },
+                    "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
                     "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                   }
                 }
@@ -16765,6 +16890,7 @@
                   "app_handoff_failed",
                   "app_installation_gone",
                   "app_installation_pending",
+                  "app_ip_not_allowed",
                   "app_token_revoked",
                   "bad_request",
                   "client_key_required",

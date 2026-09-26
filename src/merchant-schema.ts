@@ -274,7 +274,7 @@ export interface paths {
          * List customers
          * @description Requires scope `merchant-customers-read`.
          *
-         *     Lists the store’s customers, paged (per_page up to 100) — the same object customers/* webhooks send. Contact fields are masked without the contact scope.
+         *     Lists the store’s customers with cursor pagination (`limit` up to 100 + `starting_after`, `has_more`/`next_cursor`) — the same object customers/* webhooks send. Contact fields are masked without the contact scope.
          */
         get: operations["customers.list"];
         put?: never;
@@ -646,7 +646,7 @@ export interface paths {
          * List orders
          * @description Requires scope `merchant-orders-read`.
          *
-         *     Lists the store’s orders — the same object orders/* webhooks send. Same filtering, search and pagination as the dashboard table.
+         *     Lists the store’s orders — the same object orders/* webhooks send. Same filtering and search as the dashboard table with cursor pagination (`limit` + `starting_after`, `has_more`/`next_cursor`).
          */
         get: operations["orders.list"];
         put?: never;
@@ -784,7 +784,7 @@ export interface paths {
          * List products
          * @description Requires scope `merchant-items-read`.
          *
-         *     Lists the store’s products — the same object products/* webhooks send, with variants, images, the canonical URL and the storefront price. Same filtering and pagination as the dashboard table; sorts limited to public fields.
+         *     Lists the store’s products — the same object products/* webhooks send, with variants, images, the canonical URL and the storefront price. Same filtering as the dashboard table with cursor pagination (`limit` + `starting_after`, `has_more`/`next_cursor`); sorts limited to public fields.
          */
         get: operations["products.list"];
         put?: never;
@@ -1928,7 +1928,7 @@ export interface components {
                  * @description Stable identifier a client switches on. A new failure mode gets a new code; an existing code never changes meaning.
                  * @enum {string}
                  */
-                code: "ai_unavailable_in_test_mode" | "api_key_expired" | "api_key_mode_mismatch" | "api_key_revoked" | "app_handoff_failed" | "app_installation_gone" | "app_installation_pending" | "app_token_revoked" | "bad_request" | "client_key_required" | "conflict" | "custom_gateway_forbidden" | "custom_gateway_kyc_required" | "custom_gateway_not_configured" | "custom_gateway_not_verified" | "custom_gateway_plan_required" | "custom_gateway_store_ineligible" | "custom_gateway_verification_failed" | "forbidden" | "gone" | "idempotency_key_in_progress" | "idempotency_key_reuse" | "insufficient_scope" | "invalid_client" | "invalid_client_key" | "metafield_definition_missing" | "metafield_filter_unsupported_type" | "metafield_namespace_reserved" | "metafield_value_invalid" | "metaobject_definition_missing" | "metaobject_field_invalid" | "metaobject_reference_invalid" | "metaobject_type_reserved" | "method_not_allowed" | "not_found" | "origin_not_allowed" | "origin_required" | "payload_too_large" | "payment_amount_mismatch" | "plan_inactive" | "private_key_required" | "resync_cooldown" | "route_not_available" | "server_error" | "service_unavailable" | "subscription_feature_locked" | "too_many_requests" | "unauthenticated" | "unknown_product_ref" | "unknown_service" | "unknown_variant_ref" | "unsupported_media_type" | "validation_failed" | "vendor_access_denied" | "vendor_mail_sender_forbidden" | "vendor_mail_sender_not_configured" | "vendor_mail_sender_plan_required" | "vendor_mail_sender_verification_failed";
+                code: "ai_unavailable_in_test_mode" | "api_key_expired" | "api_key_mode_mismatch" | "api_key_revoked" | "app_handoff_failed" | "app_installation_gone" | "app_installation_pending" | "app_ip_not_allowed" | "app_token_revoked" | "bad_request" | "client_key_required" | "conflict" | "custom_gateway_forbidden" | "custom_gateway_kyc_required" | "custom_gateway_not_configured" | "custom_gateway_not_verified" | "custom_gateway_plan_required" | "custom_gateway_store_ineligible" | "custom_gateway_verification_failed" | "forbidden" | "gone" | "idempotency_key_in_progress" | "idempotency_key_reuse" | "insufficient_scope" | "invalid_client" | "invalid_client_key" | "metafield_definition_missing" | "metafield_filter_unsupported_type" | "metafield_namespace_reserved" | "metafield_value_invalid" | "metaobject_definition_missing" | "metaobject_field_invalid" | "metaobject_reference_invalid" | "metaobject_type_reserved" | "method_not_allowed" | "not_found" | "origin_not_allowed" | "origin_required" | "payload_too_large" | "payment_amount_mismatch" | "plan_inactive" | "private_key_required" | "resync_cooldown" | "route_not_available" | "server_error" | "service_unavailable" | "subscription_feature_locked" | "too_many_requests" | "unauthenticated" | "unknown_product_ref" | "unknown_service" | "unknown_variant_ref" | "unsupported_media_type" | "validation_failed" | "vendor_access_denied" | "vendor_mail_sender_forbidden" | "vendor_mail_sender_not_configured" | "vendor_mail_sender_plan_required" | "vendor_mail_sender_verification_failed";
                 /** @description Human-readable explanation. Not stable — never switch on it. */
                 message: string;
                 /** @description First offending field, on validation failures only. */
@@ -3157,7 +3157,11 @@ export interface operations {
     };
     "app.collected_definitions_list": {
         parameters: {
-            query?: never;
+            query?: {
+                /** @example 2 */
+                limit?: number | null;
+                starting_after?: string | null;
+            };
             header: {
                 /**
                  * @description A private API key (`sk_live_…`, `sk_test_…` on a test store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
@@ -3179,8 +3183,6 @@ export interface operations {
                 content: {
                     /**
                      * @example {
-                     *       "status": "success",
-                     *       "message": "Collected definitions",
                      *       "data": [
                      *         {
                      *           "p_id": 74,
@@ -3219,13 +3221,15 @@ export interface operations {
                      *           "created_at": "2026-09-15T09:00:00.000000Z",
                      *           "updated_at": "2026-09-15T09:00:00.000000Z"
                      *         }
-                     *       ]
+                     *       ],
+                     *       "has_more": true,
+                     *       "next_cursor": "eyJpZCI6NzQsIl9wb2ludHNUb05leHRJdGVtcyI6dHJ1ZX0"
                      *     }
                      */
                     "application/json": {
-                        status: string;
-                        message: string;
                         data: components["schemas"]["MetaobjectDefinitionResource"][];
+                        has_more: boolean;
+                        next_cursor: string | null;
                     };
                 };
             };
@@ -3260,6 +3264,31 @@ export interface operations {
                      *         "code": "insufficient_scope",
                      *         "message": "This API key does not carry the 'merchant-collected-definitions-manage' scope it was called with.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Validation failed — `error.errors` carries per-field detail. Switch on `error.code`. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "validation_failed",
+                     *         "message": "The limit field must be at least 1.",
+                     *         "field": "limit",
+                     *         "errors": {
+                     *           "limit": [
+                     *             "The limit field must be at least 1."
+                     *           ]
+                     *         },
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
@@ -3877,10 +3906,10 @@ export interface operations {
     "collections.list": {
         parameters: {
             query?: {
-                /** @example 1 */
-                page?: number | null;
                 /** @example 2 */
-                per_page?: number | null;
+                limit?: number | null;
+                /** @example eyJpZCI6MzEwOSwiX3BvaW50c1RvTmV4dEl0ZW1zIjp0cnVlfQ */
+                starting_after?: string | null;
                 /** @example all */
                 collection_mode?: string | null;
                 search?: string | null;
@@ -3944,41 +3973,8 @@ export interface operations {
                      *           "updated_at": "2026-09-20T09:15:00+01:00"
                      *         }
                      *       ],
-                     *       "links": {
-                     *         "first": "https://api.usequeek.com/api/v1/merchant/collections?page=1",
-                     *         "last": "https://api.usequeek.com/api/v1/merchant/collections?page=1",
-                     *         "prev": null,
-                     *         "next": null
-                     *       },
-                     *       "meta": {
-                     *         "current_page": 1,
-                     *         "from": 1,
-                     *         "last_page": 1,
-                     *         "links": [
-                     *           {
-                     *             "url": null,
-                     *             "label": "&laquo; Previous",
-                     *             "page": null,
-                     *             "active": false
-                     *           },
-                     *           {
-                     *             "url": "https://api.usequeek.com/api/v1/merchant/collections?page=1",
-                     *             "label": "1",
-                     *             "page": 1,
-                     *             "active": true
-                     *           },
-                     *           {
-                     *             "url": null,
-                     *             "label": "Next &raquo;",
-                     *             "page": null,
-                     *             "active": false
-                     *           }
-                     *         ],
-                     *         "path": "https://api.usequeek.com/api/v1/merchant/collections",
-                     *         "per_page": 2,
-                     *         "to": 2,
-                     *         "total": 2
-                     *       }
+                     *       "has_more": true,
+                     *       "next_cursor": "eyJpZCI6MzEwOSwiX3BvaW50c1RvTmV4dEl0ZW1zIjp0cnVlfQ"
                      *     }
                      */
                     "application/json": Record<string, never>;
@@ -4602,6 +4598,9 @@ export interface operations {
     "posts.list": {
         parameters: {
             query?: {
+                /** @example 2 */
+                limit?: number | null;
+                starting_after?: string | null;
                 type?: "page" | "post" | "gallery" | null;
                 /** @example published */
                 status?: "draft" | "published" | null;
@@ -4696,56 +4695,15 @@ export interface operations {
                      *           "updated_at": "2026-08-30T12:10:00+01:00"
                      *         }
                      *       ],
-                     *       "links": {
-                     *         "first": "https://api.usequeek.com/api/v1/merchant/posts?page=1",
-                     *         "last": "https://api.usequeek.com/api/v1/merchant/posts?page=2",
-                     *         "prev": null,
-                     *         "next": "https://api.usequeek.com/api/v1/merchant/posts?page=2"
-                     *       },
-                     *       "meta": {
-                     *         "current_page": 1,
-                     *         "from": 1,
-                     *         "last_page": 2,
-                     *         "links": [
-                     *           {
-                     *             "url": null,
-                     *             "label": "&laquo; Previous",
-                     *             "page": null,
-                     *             "active": false
-                     *           },
-                     *           {
-                     *             "url": "https://api.usequeek.com/api/v1/merchant/posts?page=1",
-                     *             "label": "1",
-                     *             "page": 1,
-                     *             "active": true
-                     *           },
-                     *           {
-                     *             "url": "https://api.usequeek.com/api/v1/merchant/posts?page=2",
-                     *             "label": "2",
-                     *             "page": 2,
-                     *             "active": false
-                     *           },
-                     *           {
-                     *             "url": "https://api.usequeek.com/api/v1/merchant/posts?page=2",
-                     *             "label": "Next &raquo;",
-                     *             "page": 2,
-                     *             "active": false
-                     *           }
-                     *         ],
-                     *         "path": "https://api.usequeek.com/api/v1/merchant/posts",
-                     *         "per_page": 2,
-                     *         "to": 2,
-                     *         "total": 4,
-                     *         "currency": {
-                     *           "code": "NGN",
-                     *           "symbol": "₦"
-                     *         }
-                     *       },
-                     *       "status": "success",
-                     *       "message": "Storefront posts retrieved"
+                     *       "has_more": true,
+                     *       "next_cursor": "eyJpZCI6IjAxOWEyZDExLTVhNmItN2M3ZC04ZTlmLTBhMWIyYzNkNGUwMiIsIl9wb2ludHNUb05leHRJdGVtcyI6dHJ1ZX0"
                      *     }
                      */
-                    "application/json": Record<string, never>;
+                    "application/json": {
+                        data: string;
+                        has_more: boolean;
+                        next_cursor: string | null;
+                    };
                 };
             };
             /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
@@ -4836,9 +4794,8 @@ export interface operations {
         parameters: {
             query?: {
                 /** @example 1 */
-                page?: number | null;
-                /** @example 1 */
-                per_page?: number | null;
+                limit?: number | null;
+                starting_after?: string | null;
                 /** @example percentage */
                 discount_type?: string | null;
                 /** @example active */
@@ -4866,80 +4823,35 @@ export interface operations {
                 content: {
                     /**
                      * @example {
-                     *       "success": true,
-                     *       "data": {
-                     *         "current_page": 1,
-                     *         "data": [
-                     *           {
-                     *             "id": "019a2e91-0b1c-7d2e-8f3a-4b5c6d7e8f01",
-                     *             "code": "LEKKI10",
-                     *             "title": "Lekki Launch 10% Off",
-                     *             "description": "10% off your first order from our Lekki kitchen.",
-                     *             "discount_type": "percentage",
-                     *             "discount_value": "10.00",
-                     *             "applies_to": "all_products",
-                     *             "target_product_ids": [],
-                     *             "target_category_ids": [],
-                     *             "minimum_order_amount": "5000.00",
-                     *             "capped_amount": null,
-                     *             "capped_amount_per_user": null,
-                     *             "usage_limit": 500,
-                     *             "usage_limit_per_user": 1,
-                     *             "used_count": 37,
-                     *             "is_active": true,
-                     *             "is_valid": true,
-                     *             "is_expired": false,
-                     *             "image_url": null,
-                     *             "starts_at": "2026-08-30T11:45:00+01:00",
-                     *             "expires_at": null,
-                     *             "created_at": "2026-08-30T11:45:00+01:00",
-                     *             "updated_at": "2026-09-24T09:10:00+01:00"
-                     *           }
-                     *         ],
-                     *         "first_page_url": "https://api.usequeek.com/api/v1/merchant/coupons?page=1",
-                     *         "from": 1,
-                     *         "last_page": 3,
-                     *         "last_page_url": "https://api.usequeek.com/api/v1/merchant/coupons?page=3",
-                     *         "links": [
-                     *           {
-                     *             "url": null,
-                     *             "label": "&laquo; Previous",
-                     *             "page": null,
-                     *             "active": false
-                     *           },
-                     *           {
-                     *             "url": "https://api.usequeek.com/api/v1/merchant/coupons?page=1",
-                     *             "label": "1",
-                     *             "page": 1,
-                     *             "active": true
-                     *           },
-                     *           {
-                     *             "url": "https://api.usequeek.com/api/v1/merchant/coupons?page=2",
-                     *             "label": "2",
-                     *             "page": 2,
-                     *             "active": false
-                     *           },
-                     *           {
-                     *             "url": "https://api.usequeek.com/api/v1/merchant/coupons?page=3",
-                     *             "label": "3",
-                     *             "page": 3,
-                     *             "active": false
-                     *           },
-                     *           {
-                     *             "url": "https://api.usequeek.com/api/v1/merchant/coupons?page=2",
-                     *             "label": "Next &raquo;",
-                     *             "page": 2,
-                     *             "active": false
-                     *           }
-                     *         ],
-                     *         "next_page_url": "https://api.usequeek.com/api/v1/merchant/coupons?page=2",
-                     *         "path": "https://api.usequeek.com/api/v1/merchant/coupons",
-                     *         "per_page": 1,
-                     *         "prev_page_url": null,
-                     *         "to": 1,
-                     *         "total": 3
-                     *       },
-                     *       "message": "Coupons retrieved successfully"
+                     *       "data": [
+                     *         {
+                     *           "id": "019a2e91-0b1c-7d2e-8f3a-4b5c6d7e8f01",
+                     *           "code": "LEKKI10",
+                     *           "title": "Lekki Launch 10% Off",
+                     *           "description": "10% off your first order from our Lekki kitchen.",
+                     *           "discount_type": "percentage",
+                     *           "discount_value": "10.00",
+                     *           "applies_to": "all_products",
+                     *           "target_product_ids": [],
+                     *           "target_category_ids": [],
+                     *           "minimum_order_amount": "5000.00",
+                     *           "capped_amount": null,
+                     *           "capped_amount_per_user": null,
+                     *           "usage_limit": 500,
+                     *           "usage_limit_per_user": 1,
+                     *           "used_count": 37,
+                     *           "is_active": true,
+                     *           "is_valid": true,
+                     *           "is_expired": false,
+                     *           "image_url": null,
+                     *           "starts_at": "2026-08-30T11:45:00+01:00",
+                     *           "expires_at": null,
+                     *           "created_at": "2026-08-30T11:45:00+01:00",
+                     *           "updated_at": "2026-09-24T09:10:00+01:00"
+                     *         }
+                     *       ],
+                     *       "has_more": true,
+                     *       "next_cursor": "eyJpZCI6IjAxOWEyZTkxLTBiMWMtN2QyZS04ZjNhLTRiNWM2ZDdlOGYwMSIsIl9wb2ludHNUb05leHRJdGVtcyI6dHJ1ZX0"
                      *     }
                      */
                     "application/json": Record<string, never>;
@@ -4993,11 +4905,11 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "validation_failed",
-                     *         "message": "The per page field must be at least 1.",
-                     *         "field": "per_page",
+                     *         "message": "The limit field must be at least 1.",
+                     *         "field": "limit",
                      *         "errors": {
-                     *           "per_page": [
-                     *             "The per page field must be at least 1."
+                     *           "limit": [
+                     *             "The limit field must be at least 1."
                      *           ]
                      *         },
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
@@ -5210,6 +5122,9 @@ export interface operations {
     "customers.list": {
         parameters: {
             query?: {
+                /** @example 2 */
+                limit?: number | null;
+                starting_after?: string | null;
                 from_date?: string | null;
                 to_date?: string | null;
                 date_range?: "today" | "this_week" | "this_month" | null;
@@ -5262,60 +5177,15 @@ export interface operations {
                      *           "updated_at": "2026-09-24T12:58:00+01:00"
                      *         }
                      *       ],
-                     *       "links": {
-                     *         "first": "https://api.usequeek.com/api/v1/merchant/customers?page=1",
-                     *         "last": "https://api.usequeek.com/api/v1/merchant/customers?page=3",
-                     *         "prev": null,
-                     *         "next": "https://api.usequeek.com/api/v1/merchant/customers?page=2"
-                     *       },
-                     *       "meta": {
-                     *         "current_page": 1,
-                     *         "from": 1,
-                     *         "last_page": 3,
-                     *         "links": [
-                     *           {
-                     *             "url": null,
-                     *             "label": "&laquo; Previous",
-                     *             "page": null,
-                     *             "active": false
-                     *           },
-                     *           {
-                     *             "url": "https://api.usequeek.com/api/v1/merchant/customers?page=1",
-                     *             "label": "1",
-                     *             "page": 1,
-                     *             "active": true
-                     *           },
-                     *           {
-                     *             "url": "https://api.usequeek.com/api/v1/merchant/customers?page=2",
-                     *             "label": "2",
-                     *             "page": 2,
-                     *             "active": false
-                     *           },
-                     *           {
-                     *             "url": "https://api.usequeek.com/api/v1/merchant/customers?page=3",
-                     *             "label": "3",
-                     *             "page": 3,
-                     *             "active": false
-                     *           },
-                     *           {
-                     *             "url": "https://api.usequeek.com/api/v1/merchant/customers?page=2",
-                     *             "label": "Next &raquo;",
-                     *             "page": 2,
-                     *             "active": false
-                     *           }
-                     *         ],
-                     *         "path": "https://api.usequeek.com/api/v1/merchant/customers",
-                     *         "per_page": 2,
-                     *         "to": 2,
-                     *         "total": 6,
-                     *         "currency": {
-                     *           "code": "NGN",
-                     *           "symbol": "₦"
-                     *         }
-                     *       }
+                     *       "has_more": true,
+                     *       "next_cursor": "eyJpZCI6OTAzNDEsIl9wb2ludHNUb05leHRJdGVtcyI6dHJ1ZX0"
                      *     }
                      */
-                    "application/json": Record<string, never>;
+                    "application/json": {
+                        data: string;
+                        has_more: boolean;
+                        next_cursor: string | null;
+                    };
                 };
             };
             /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
@@ -5405,10 +5275,9 @@ export interface operations {
     "customers.list_followers": {
         parameters: {
             query?: {
-                /** @example 1 */
-                page?: number | null;
                 /** @example 2 */
-                per_page?: number | null;
+                limit?: number | null;
+                starting_after?: string | null;
                 search?: string | null;
             };
             header: {
@@ -5432,8 +5301,6 @@ export interface operations {
                 content: {
                     /**
                      * @example {
-                     *       "status": "success",
-                     *       "message": "Followers retrieved",
                      *       "data": [
                      *         {
                      *           "id": "019a2f33-1a2b-7c3d-8e4f-5a6b7c8d9e02",
@@ -5458,26 +5325,14 @@ export interface operations {
                      *           "followed_at": "2026-07-03T19:15:00+01:00"
                      *         }
                      *       ],
-                     *       "meta": {
-                     *         "total": 9,
-                     *         "per_page": 2,
-                     *         "current_page": 1,
-                     *         "last_page": 5
-                     *       }
+                     *       "has_more": true,
+                     *       "next_cursor": "eyJpZCI6IjAxOWEyZjMzLTFhMmItN2MzZC04ZTRmLTVhNmI3YzhkOWUwMSIsIl9wb2ludHNUb05leHRJdGVtcyI6dHJ1ZX0"
                      *     }
                      */
                     "application/json": {
-                        /** @constant */
-                        status: "success";
-                        /** @constant */
-                        message: "Followers retrieved";
-                        data: unknown[];
-                        meta: {
-                            total: number;
-                            per_page: number;
-                            current_page: number;
-                            last_page: number;
-                        };
+                        data: string;
+                        has_more: boolean;
+                        next_cursor: string | null;
                     };
                 };
             };
@@ -5529,11 +5384,11 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "validation_failed",
-                     *         "message": "The per page field must be at least 1.",
-                     *         "field": "per_page",
+                     *         "message": "The limit field must be at least 1.",
+                     *         "field": "limit",
                      *         "errors": {
-                     *           "per_page": [
-                     *             "The per page field must be at least 1."
+                     *           "limit": [
+                     *             "The limit field must be at least 1."
                      *           ]
                      *         },
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
@@ -5697,10 +5552,9 @@ export interface operations {
     "discounts.list": {
         parameters: {
             query?: {
-                /** @example 1 */
-                page?: number | null;
                 /** @example 2 */
-                per_page?: number | null;
+                limit?: number | null;
+                starting_after?: string | null;
                 type?: "percentage" | "fixed" | null;
                 /** @example active */
                 status?: "active" | "inactive" | null;
@@ -5789,57 +5643,8 @@ export interface operations {
                      *           "updated_at": "2026-09-01T09:00:00+01:00"
                      *         }
                      *       ],
-                     *       "links": {
-                     *         "first": "https://api.usequeek.com/api/v1/merchant/discounts?page=1",
-                     *         "last": "https://api.usequeek.com/api/v1/merchant/discounts?page=3",
-                     *         "prev": null,
-                     *         "next": "https://api.usequeek.com/api/v1/merchant/discounts?page=2"
-                     *       },
-                     *       "meta": {
-                     *         "current_page": 1,
-                     *         "from": 1,
-                     *         "last_page": 3,
-                     *         "links": [
-                     *           {
-                     *             "url": null,
-                     *             "label": "&laquo; Previous",
-                     *             "page": null,
-                     *             "active": false
-                     *           },
-                     *           {
-                     *             "url": "https://api.usequeek.com/api/v1/merchant/discounts?page=1",
-                     *             "label": "1",
-                     *             "page": 1,
-                     *             "active": true
-                     *           },
-                     *           {
-                     *             "url": "https://api.usequeek.com/api/v1/merchant/discounts?page=2",
-                     *             "label": "2",
-                     *             "page": 2,
-                     *             "active": false
-                     *           },
-                     *           {
-                     *             "url": "https://api.usequeek.com/api/v1/merchant/discounts?page=3",
-                     *             "label": "3",
-                     *             "page": 3,
-                     *             "active": false
-                     *           },
-                     *           {
-                     *             "url": "https://api.usequeek.com/api/v1/merchant/discounts?page=2",
-                     *             "label": "Next &raquo;",
-                     *             "page": 2,
-                     *             "active": false
-                     *           }
-                     *         ],
-                     *         "path": "https://api.usequeek.com/api/v1/merchant/discounts",
-                     *         "per_page": 2,
-                     *         "to": 2,
-                     *         "total": 5,
-                     *         "currency": {
-                     *           "code": "NGN",
-                     *           "symbol": "₦"
-                     *         }
-                     *       }
+                     *       "has_more": true,
+                     *       "next_cursor": "eyJpZCI6IjAxOWEyZTkwLTdhMWItN2MyZC05ZTNmLTRhNWI2YzdkOGUwMSIsIl9wb2ludHNUb05leHRJdGVtcyI6dHJ1ZX0"
                      *     }
                      */
                     "application/json": Record<string, never>;
@@ -5893,11 +5698,11 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "validation_failed",
-                     *         "message": "The per page field must not be greater than 100.",
-                     *         "field": "per_page",
+                     *         "message": "The limit field must not be greater than 100.",
+                     *         "field": "limit",
                      *         "errors": {
-                     *           "per_page": [
-                     *             "The per page field must not be greater than 100."
+                     *           "limit": [
+                     *             "The limit field must not be greater than 100."
                      *           ]
                      *         },
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
@@ -6548,7 +6353,11 @@ export interface operations {
     };
     "images.list": {
         parameters: {
-            query?: never;
+            query?: {
+                /** @example 2 */
+                limit?: number | null;
+                starting_after?: string | null;
+            };
             header: {
                 /**
                  * @description A private API key (`sk_live_…`, `sk_test_…` on a test store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
@@ -6573,8 +6382,6 @@ export interface operations {
                 content: {
                     /**
                      * @example {
-                     *       "status": "success",
-                     *       "message": "Product images",
                      *       "data": [
                      *         {
                      *           "id": 88214,
@@ -6658,7 +6465,9 @@ export interface operations {
                      *             }
                      *           }
                      *         }
-                     *       ]
+                     *       ],
+                     *       "has_more": true,
+                     *       "next_cursor": "eyJpZCI6ODgyMTUsIl9wb2ludHNUb05leHRJdGVtcyI6dHJ1ZX0"
                      *     }
                      */
                     "application/json": {
@@ -6668,6 +6477,10 @@ export interface operations {
                         message: "Product images";
                         data: string[];
                         meta: string;
+                    } | {
+                        data: unknown[];
+                        has_more: boolean;
+                        next_cursor: string | null;
                     };
                 };
             };
@@ -6721,6 +6534,31 @@ export interface operations {
                      *         "code": "not_found",
                      *         "message": "Product not found.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#not_found",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Validation failed — `error.errors` carries per-field detail. Switch on `error.code`. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "validation_failed",
+                     *         "message": "The limit field must be at least 1.",
+                     *         "field": "limit",
+                     *         "errors": {
+                     *           "limit": [
+                     *             "The limit field must be at least 1."
+                     *           ]
+                     *         },
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
@@ -7480,9 +7318,10 @@ export interface operations {
     "inventory.history": {
         parameters: {
             query?: {
-                type?: string | null;
                 /** @example 2 */
                 limit?: number | null;
+                starting_after?: string | null;
+                type?: string | null;
             };
             header: {
                 /**
@@ -7508,7 +7347,6 @@ export interface operations {
                 content: {
                     /**
                      * @example {
-                     *       "success": true,
                      *       "data": [
                      *         {
                      *           "id": "019a3a0e-6d21-7b54-8e90-2f4a6c8e0b11",
@@ -7557,10 +7395,16 @@ export interface operations {
                      *           },
                      *           "created_at": "2026-09-24T07:05:00+01:00"
                      *         }
-                     *       ]
+                     *       ],
+                     *       "has_more": true,
+                     *       "next_cursor": "eyJpZCI6IjAxOWEzYTBlLTZkMjEtN2I1NC04ZTkwLTJmNGE2YzhlMGIxMCIsIl9wb2ludHNUb05leHRJdGVtcyI6dHJ1ZX0"
                      *     }
                      */
-                    "application/json": Record<string, never>;
+                    "application/json": {
+                        data: string;
+                        has_more: boolean;
+                        next_cursor: string | null;
+                    };
                 };
             };
             /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
@@ -7669,10 +7513,9 @@ export interface operations {
     "inventory.list_adjustments": {
         parameters: {
             query?: {
-                /** @example 1 */
-                page?: number | null;
                 /** @example 2 */
-                per_page?: number | null;
+                limit?: number | null;
+                starting_after?: string | null;
                 type?: string | null;
                 product_id?: string | null;
                 /** @example 2026-09-24T00:00:00+01:00 */
@@ -7701,7 +7544,6 @@ export interface operations {
                 content: {
                     /**
                      * @example {
-                     *       "success": true,
                      *       "data": [
                      *         {
                      *           "id": "019a3a0e-6d21-7b54-8e90-2f4a6c8e0b12",
@@ -7757,21 +7599,14 @@ export interface operations {
                      *           "created_at": "2026-09-24T13:42:00+01:00"
                      *         }
                      *       ],
-                     *       "pagination": {
-                     *         "current_page": 1,
-                     *         "last_page": 6,
-                     *         "per_page": 2
-                     *       }
+                     *       "has_more": true,
+                     *       "next_cursor": "eyJpZCI6IjAxOWEzYTBlLTZkMjEtN2I1NC04ZTkwLTJmNGE2YzhlMGIxMSIsIl9wb2ludHNUb05leHRJdGVtcyI6dHJ1ZX0"
                      *     }
                      */
                     "application/json": {
-                        success: boolean;
-                        data: unknown[];
-                        pagination: {
-                            current_page: number;
-                            last_page: number;
-                            per_page: number;
-                        };
+                        data: string;
+                        has_more: boolean;
+                        next_cursor: string | null;
                     };
                 };
             };
@@ -7823,11 +7658,11 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "validation_failed",
-                     *         "message": "The per page field must be at least 1.",
-                     *         "field": "per_page",
+                     *         "message": "The limit field must be at least 1.",
+                     *         "field": "limit",
                      *         "errors": {
-                     *           "per_page": [
-                     *             "The per page field must be at least 1."
+                     *           "limit": [
+                     *             "The limit field must be at least 1."
                      *           ]
                      *         },
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
@@ -8041,6 +7876,9 @@ export interface operations {
     "metafields.list_definitions": {
         parameters: {
             query?: {
+                /** @example 2 */
+                limit?: number | null;
+                starting_after?: string | null;
                 owner_type?: string | null;
             };
             header: {
@@ -8064,8 +7902,6 @@ export interface operations {
                 content: {
                     /**
                      * @example {
-                     *       "status": "success",
-                     *       "message": "Metafield definitions",
                      *       "data": [
                      *         {
                      *           "p_id": 413,
@@ -8105,7 +7941,9 @@ export interface operations {
                      *           "created_at": "2026-08-02T10:00:00.000000Z",
                      *           "updated_at": "2026-08-02T10:00:00.000000Z"
                      *         }
-                     *       ]
+                     *       ],
+                     *       "has_more": true,
+                     *       "next_cursor": "eyJpZCI6NDEyLCJfcG9pbnRzVG9OZXh0SXRlbXMiOnRydWV9"
                      *     }
                      */
                     "application/json": {
@@ -8115,6 +7953,10 @@ export interface operations {
                         message: "Metafield definitions";
                         data: string[];
                         meta: string;
+                    } | {
+                        data: string;
+                        has_more: boolean;
+                        next_cursor: string | null;
                     };
                 };
             };
@@ -8393,7 +8235,11 @@ export interface operations {
     };
     "metaobjects.list_definitions": {
         parameters: {
-            query?: never;
+            query?: {
+                /** @example 2 */
+                limit?: number | null;
+                starting_after?: string | null;
+            };
             header: {
                 /**
                  * @description A private API key (`sk_live_…`, `sk_test_…` on a test store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
@@ -8415,8 +8261,6 @@ export interface operations {
                 content: {
                     /**
                      * @example {
-                     *       "status": "success",
-                     *       "message": "Metaobject definitions",
                      *       "data": [
                      *         {
                      *           "p_id": 61,
@@ -8455,7 +8299,9 @@ export interface operations {
                      *           "created_at": "2026-08-10T08:00:00.000000Z",
                      *           "updated_at": "2026-08-10T08:00:00.000000Z"
                      *         }
-                     *       ]
+                     *       ],
+                     *       "has_more": true,
+                     *       "next_cursor": "eyJpZCI6NjEsIl9wb2ludHNUb05leHRJdGVtcyI6dHJ1ZX0"
                      *     }
                      */
                     "application/json": {
@@ -8465,6 +8311,10 @@ export interface operations {
                         message: "Metaobject definitions";
                         data: string[];
                         meta: string;
+                    } | {
+                        data: string;
+                        has_more: boolean;
+                        next_cursor: string | null;
                     };
                 };
             };
@@ -8499,6 +8349,31 @@ export interface operations {
                      *         "code": "insufficient_scope",
                      *         "message": "This API key does not carry the 'merchant-metaobjects-read' scope it was called with.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Validation failed — `error.errors` carries per-field detail. Switch on `error.code`. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "validation_failed",
+                     *         "message": "The limit field must be at least 1.",
+                     *         "field": "limit",
+                     *         "errors": {
+                     *           "limit": [
+                     *             "The limit field must be at least 1."
+                     *           ]
+                     *         },
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
@@ -8744,10 +8619,9 @@ export interface operations {
     "metaobjects.list": {
         parameters: {
             query?: {
-                /** @example 1 */
-                page?: number | null;
                 /** @example 2 */
-                per_page?: number | null;
+                limit?: number | null;
+                starting_after?: string | null;
                 /** @example chef */
                 type?: string | null;
                 /** @example active */
@@ -8805,54 +8679,15 @@ export interface operations {
                      *           "updated_at": "2026-08-12T09:15:00.000000Z"
                      *         }
                      *       ],
-                     *       "links": {
-                     *         "first": "https://api.usequeek.com/api/v1/merchant/metaobjects?page=1",
-                     *         "last": "https://api.usequeek.com/api/v1/merchant/metaobjects?page=2",
-                     *         "prev": null,
-                     *         "next": "https://api.usequeek.com/api/v1/merchant/metaobjects?page=2"
-                     *       },
-                     *       "meta": {
-                     *         "current_page": 1,
-                     *         "from": 1,
-                     *         "last_page": 2,
-                     *         "links": [
-                     *           {
-                     *             "url": null,
-                     *             "label": "&laquo; Previous",
-                     *             "page": null,
-                     *             "active": false
-                     *           },
-                     *           {
-                     *             "url": "https://api.usequeek.com/api/v1/merchant/metaobjects?page=1",
-                     *             "label": "1",
-                     *             "page": 1,
-                     *             "active": true
-                     *           },
-                     *           {
-                     *             "url": "https://api.usequeek.com/api/v1/merchant/metaobjects?page=2",
-                     *             "label": "2",
-                     *             "page": 2,
-                     *             "active": false
-                     *           },
-                     *           {
-                     *             "url": "https://api.usequeek.com/api/v1/merchant/metaobjects?page=2",
-                     *             "label": "Next &raquo;",
-                     *             "page": 2,
-                     *             "active": false
-                     *           }
-                     *         ],
-                     *         "path": "https://api.usequeek.com/api/v1/merchant/metaobjects",
-                     *         "per_page": 2,
-                     *         "to": 2,
-                     *         "total": 4,
-                     *         "currency": {
-                     *           "code": "NGN",
-                     *           "symbol": "₦"
-                     *         }
-                     *       }
+                     *       "has_more": true,
+                     *       "next_cursor": "eyJpZCI6MTIwMiwiX3BvaW50c1RvTmV4dEl0ZW1zIjp0cnVlfQ"
                      *     }
                      */
-                    "application/json": Record<string, never>;
+                    "application/json": Record<string, never> | {
+                        data: string;
+                        has_more: boolean;
+                        next_cursor: string | null;
+                    };
                 };
             };
             /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
@@ -8903,11 +8738,11 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "validation_failed",
-                     *         "message": "The per page field must be at least 1.",
-                     *         "field": "per_page",
+                     *         "message": "The limit field must be at least 1.",
+                     *         "field": "limit",
                      *         "errors": {
-                     *           "per_page": [
-                     *             "The per page field must be at least 1."
+                     *           "limit": [
+                     *             "The limit field must be at least 1."
                      *           ]
                      *         },
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
@@ -9125,6 +8960,9 @@ export interface operations {
                 sort_by?: "created_at" | "updated_at" | "status" | "payment_status" | "total" | null;
                 /** @example desc */
                 sort_order?: "asc" | "desc" | null;
+                /** @example 2 */
+                limit?: number | null;
+                starting_after?: string | null;
             };
             header: {
                 /**
@@ -9152,7 +8990,7 @@ export interface operations {
                      *           "id": 58214,
                      *           "uid": "019a3a0e-1c2d-7e3f-8a4b-5c6d7e8f9a02",
                      *           "order_number": "26-0924-58214",
-                     *           "status": "pending_payment",
+                     *           "status": "pending",
                      *           "payment_status": "paid",
                      *           "payment_method": "online",
                      *           "fulfillment_status": "unfulfilled",
@@ -9164,7 +9002,7 @@ export interface operations {
                      *           "external_ref": "CD-7F3K2Q",
                      *           "delivery_method": "delivery",
                      *           "currency": "NGN",
-                     *           "subtotal": "6500.00",
+                     *           "subtotal": "5000.00",
                      *           "discount_total": "0.00",
                      *           "shipping_total": "1500.00",
                      *           "tax_total": "0.00",
@@ -9254,66 +9092,15 @@ export interface operations {
                      *           "fulfilled_at": null
                      *         }
                      *       ],
-                     *       "links": {
-                     *         "first": "https://api.usequeek.com/api/v1/merchant/orders?page=1",
-                     *         "last": "https://api.usequeek.com/api/v1/merchant/orders?page=4",
-                     *         "prev": null,
-                     *         "next": "https://api.usequeek.com/api/v1/merchant/orders?page=2"
-                     *       },
-                     *       "meta": {
-                     *         "current_page": 1,
-                     *         "from": 1,
-                     *         "last_page": 4,
-                     *         "links": [
-                     *           {
-                     *             "url": null,
-                     *             "label": "&laquo; Previous",
-                     *             "page": null,
-                     *             "active": false
-                     *           },
-                     *           {
-                     *             "url": "https://api.usequeek.com/api/v1/merchant/orders?page=1",
-                     *             "label": "1",
-                     *             "page": 1,
-                     *             "active": true
-                     *           },
-                     *           {
-                     *             "url": "https://api.usequeek.com/api/v1/merchant/orders?page=2",
-                     *             "label": "2",
-                     *             "page": 2,
-                     *             "active": false
-                     *           },
-                     *           {
-                     *             "url": "https://api.usequeek.com/api/v1/merchant/orders?page=3",
-                     *             "label": "3",
-                     *             "page": 3,
-                     *             "active": false
-                     *           },
-                     *           {
-                     *             "url": "https://api.usequeek.com/api/v1/merchant/orders?page=4",
-                     *             "label": "4",
-                     *             "page": 4,
-                     *             "active": false
-                     *           },
-                     *           {
-                     *             "url": "https://api.usequeek.com/api/v1/merchant/orders?page=2",
-                     *             "label": "Next &raquo;",
-                     *             "page": 2,
-                     *             "active": false
-                     *           }
-                     *         ],
-                     *         "path": "https://api.usequeek.com/api/v1/merchant/orders",
-                     *         "per_page": 2,
-                     *         "to": 2,
-                     *         "total": 8,
-                     *         "currency": {
-                     *           "code": "NGN",
-                     *           "symbol": "₦"
-                     *         }
-                     *       }
+                     *       "has_more": true,
+                     *       "next_cursor": "eyJpZCI6NTgyMTMsIl9wb2ludHNUb05leHRJdGVtcyI6dHJ1ZX0"
                      *     }
                      */
-                    "application/json": Record<string, never>;
+                    "application/json": {
+                        data: string;
+                        has_more: boolean;
+                        next_cursor: string | null;
+                    };
                 };
             };
             /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
@@ -9866,7 +9653,7 @@ export interface operations {
                      *         "id": 58214,
                      *         "uid": "019a3a0e-1c2d-7e3f-8a4b-5c6d7e8f9a02",
                      *         "order_number": "26-0924-58214",
-                     *         "status": "pending_payment",
+                     *         "status": "pending",
                      *         "payment_status": "paid",
                      *         "payment_method": "online",
                      *         "fulfillment_status": "unfulfilled",
@@ -9878,7 +9665,7 @@ export interface operations {
                      *         "external_ref": "CD-7F3K2Q",
                      *         "delivery_method": "delivery",
                      *         "currency": "NGN",
-                     *         "subtotal": "6500.00",
+                     *         "subtotal": "5000.00",
                      *         "discount_total": "0.00",
                      *         "shipping_total": "1500.00",
                      *         "tax_total": "0.00",
@@ -9936,7 +9723,7 @@ export interface operations {
                      *         "id": 58214,
                      *         "uid": "019a3a0e-1c2d-7e3f-8a4b-5c6d7e8f9a02",
                      *         "order_number": "26-0924-58214",
-                     *         "status": "pending_payment",
+                     *         "status": "pending",
                      *         "payment_status": "paid",
                      *         "payment_method": "online",
                      *         "fulfillment_status": "unfulfilled",
@@ -9948,7 +9735,7 @@ export interface operations {
                      *         "external_ref": "CD-7F3K2Q",
                      *         "delivery_method": "delivery",
                      *         "currency": "NGN",
-                     *         "subtotal": "6500.00",
+                     *         "subtotal": "5000.00",
                      *         "discount_total": "0.00",
                      *         "shipping_total": "1500.00",
                      *         "tax_total": "0.00",
@@ -10778,10 +10565,9 @@ export interface operations {
     "products.list": {
         parameters: {
             query?: {
-                /** @example 1 */
-                page?: number | null;
                 /** @example 2 */
-                per_page?: number | null;
+                limit?: number | null;
+                starting_after?: string | null;
                 /** @example created_at */
                 sort_by?: "created_at" | "updated_at" | "title" | "price" | "stock" | "published" | null;
                 /** @example desc */
@@ -11017,72 +10803,15 @@ export interface operations {
                      *           "deleted_at": null
                      *         }
                      *       ],
-                     *       "links": {
-                     *         "first": "https://api.usequeek.com/api/v1/merchant/products?page=1",
-                     *         "last": "https://api.usequeek.com/api/v1/merchant/products?page=5",
-                     *         "prev": null,
-                     *         "next": "https://api.usequeek.com/api/v1/merchant/products?page=2"
-                     *       },
-                     *       "meta": {
-                     *         "current_page": 1,
-                     *         "from": 1,
-                     *         "last_page": 5,
-                     *         "links": [
-                     *           {
-                     *             "url": null,
-                     *             "label": "&laquo; Previous",
-                     *             "page": null,
-                     *             "active": false
-                     *           },
-                     *           {
-                     *             "url": "https://api.usequeek.com/api/v1/merchant/products?page=1",
-                     *             "label": "1",
-                     *             "page": 1,
-                     *             "active": true
-                     *           },
-                     *           {
-                     *             "url": "https://api.usequeek.com/api/v1/merchant/products?page=2",
-                     *             "label": "2",
-                     *             "page": 2,
-                     *             "active": false
-                     *           },
-                     *           {
-                     *             "url": "https://api.usequeek.com/api/v1/merchant/products?page=3",
-                     *             "label": "3",
-                     *             "page": 3,
-                     *             "active": false
-                     *           },
-                     *           {
-                     *             "url": "https://api.usequeek.com/api/v1/merchant/products?page=4",
-                     *             "label": "4",
-                     *             "page": 4,
-                     *             "active": false
-                     *           },
-                     *           {
-                     *             "url": "https://api.usequeek.com/api/v1/merchant/products?page=5",
-                     *             "label": "5",
-                     *             "page": 5,
-                     *             "active": false
-                     *           },
-                     *           {
-                     *             "url": "https://api.usequeek.com/api/v1/merchant/products?page=2",
-                     *             "label": "Next &raquo;",
-                     *             "page": 2,
-                     *             "active": false
-                     *           }
-                     *         ],
-                     *         "path": "https://api.usequeek.com/api/v1/merchant/products",
-                     *         "per_page": 2,
-                     *         "to": 2,
-                     *         "total": 9,
-                     *         "currency": {
-                     *           "code": "NGN",
-                     *           "symbol": "₦"
-                     *         }
-                     *       }
+                     *       "has_more": true,
+                     *       "next_cursor": "eyJpZCI6MjA0MTcsIl9wb2ludHNUb05leHRJdGVtcyI6dHJ1ZX0"
                      *     }
                      */
-                    "application/json": Record<string, never>;
+                    "application/json": {
+                        data: string;
+                        has_more: boolean;
+                        next_cursor: string | null;
+                    };
                 };
             };
             /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
@@ -11133,11 +10862,11 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "validation_failed",
-                     *         "message": "sort_by must be one of: created_at, updated_at, title, price, stock, published.",
-                     *         "field": "sort_by",
+                     *         "message": "The starting after cursor is invalid.",
+                     *         "field": "starting_after",
                      *         "errors": {
-                     *           "sort_by": [
-                     *             "sort_by must be one of: created_at, updated_at, title, price, stock, published."
+                     *           "starting_after": [
+                     *             "The starting after cursor is invalid."
                      *           ]
                      *         },
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
@@ -12169,7 +11898,11 @@ export interface operations {
     };
     "shipping_zones.list": {
         parameters: {
-            query?: never;
+            query?: {
+                /** @example 2 */
+                limit?: number | null;
+                starting_after?: string | null;
+            };
             header: {
                 /**
                  * @description A private API key (`sk_live_…`, `sk_test_…` on a test store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
@@ -12191,8 +11924,6 @@ export interface operations {
                 content: {
                     /**
                      * @example {
-                     *       "status": "success",
-                     *       "message": "Shipping zones retrieved",
                      *       "data": [
                      *         {
                      *           "id": "019a2c5d-3e4f-7a5b-8c6d-7e8f9a0b1c21",
@@ -12236,16 +11967,15 @@ export interface operations {
                      *           "created_at": "2026-07-05T10:05:00+01:00",
                      *           "updated_at": "2026-09-10T14:32:00+01:00"
                      *         }
-                     *       ]
+                     *       ],
+                     *       "has_more": true,
+                     *       "next_cursor": "eyJpZCI6IjAxOWEyYzVkLTNlNGYtN2E1Yi04YzZkLTdlOGY5YTBiMWMyMiIsIl9wb2ludHNUb05leHRJdGVtcyI6dHJ1ZX0"
                      *     }
                      */
                     "application/json": {
-                        /** @constant */
-                        status: "success";
-                        /** @constant */
-                        message: "Shipping zones retrieved";
-                        data: string[];
-                        meta: string;
+                        data: string;
+                        has_more: boolean;
+                        next_cursor: string | null;
                     };
                 };
             };
@@ -12280,6 +12010,31 @@ export interface operations {
                      *         "code": "insufficient_scope",
                      *         "message": "This API key does not carry the 'merchant-shipping-read' scope it was called with.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Validation failed — `error.errors` carries per-field detail. Switch on `error.code`. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "validation_failed",
+                     *         "message": "The limit field must be at least 1.",
+                     *         "field": "limit",
+                     *         "errors": {
+                     *           "limit": [
+                     *             "The limit field must be at least 1."
+                     *           ]
+                     *         },
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
@@ -12892,7 +12647,11 @@ export interface operations {
     };
     "variants.list": {
         parameters: {
-            query?: never;
+            query?: {
+                /** @example 2 */
+                limit?: number | null;
+                starting_after?: string | null;
+            };
             header: {
                 /**
                  * @description A private API key (`sk_live_…`, `sk_test_…` on a test store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
@@ -12917,8 +12676,6 @@ export interface operations {
                 content: {
                     /**
                      * @example {
-                     *       "status": "success",
-                     *       "message": "Product variants",
                      *       "data": [
                      *         {
                      *           "id": 7731,
@@ -12966,7 +12723,9 @@ export interface operations {
                      *           "created_at": "2026-07-15T11:30:00+01:00",
                      *           "updated_at": "2026-09-22T16:05:00+01:00"
                      *         }
-                     *       ]
+                     *       ],
+                     *       "has_more": true,
+                     *       "next_cursor": "eyJpZCI6NzczMiwiX3BvaW50c1RvTmV4dEl0ZW1zIjp0cnVlfQ"
                      *     }
                      */
                     "application/json": {
@@ -12976,6 +12735,10 @@ export interface operations {
                         message: "Product variants";
                         data: string[];
                         meta: string;
+                    } | {
+                        data: string;
+                        has_more: boolean;
+                        next_cursor: string | null;
                     };
                 };
             };
@@ -13029,6 +12792,31 @@ export interface operations {
                      *         "code": "not_found",
                      *         "message": "Product not found.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#not_found",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Validation failed — `error.errors` carries per-field detail. Switch on `error.code`. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "validation_failed",
+                     *         "message": "The limit field must be at least 1.",
+                     *         "field": "limit",
+                     *         "errors": {
+                     *           "limit": [
+                     *             "The limit field must be at least 1."
+                     *           ]
+                     *         },
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }

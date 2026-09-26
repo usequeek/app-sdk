@@ -12,10 +12,10 @@ import { spawnSync } from "node:child_process";
  *   php artisan scramble:export --api=merchant --path=/tmp/merchant.json  # in queek_backend
  *   pnpm gen:merchant /tmp/merchant.json
  *
- * — NOT production (production is behind until the A3b backend deploys, so
- * the live https://api.usequeek.com/docs/merchant.json is STALE for the
- * import v2 contract). After the backend deploy, re-run against production
- * and diff: the snapshot MUST be re-checked, then this comment updated.
+ * — or production once the backend has deployed: 2026-09-26 the snapshot was
+ * re-pulled from https://api.usequeek.com/docs/merchant.json after the S11
+ * cursor-pagination deploy ({data, has_more, next_cursor}; `starting_after`).
+ * Always diff the snapshot before committing.
  *
  * Inputs:  openapi/merchant.json (committed snapshot, the reviewed contract)
  * Outputs: src/merchant-schema.ts (committed generated types)
