@@ -1308,20 +1308,21 @@ export interface components {
         };
         /**
          * ImportThirdPartyOrderRequest
-         * @description Third-party order import (POST orders/import, merchant API, key-called).
+         * @description Import an order a sales channel (Chowdeck, Glovo) already charged for.
          *
-         *     The payload is the outside platform's receipt, recorded as charged: item
-         *     unit prices, fees, discount and total are integers in the codebase's money
-         *     unit (minor units, e.g. kobo). Each item names its `product` (p_id, UUID or
-         *     slug, resolved IN the key's store) and, for a variant, its `variant` (p_id
-         *     or UUID of one of THAT product's variants) — products.p_id and
-         *     product_variants.p_id are separate sequences, so one ambiguous `ref` could
-         *     resolve to the wrong row and is refused outright. A product from another
-         *     store fails the import with a named 422, never a cross-store sale.
+         *     The payload is the platform's receipt, recorded as charged. Item unit
+         *     prices, delivery fee, discount and total are amounts in naira with at most
+         *     2 decimals (6500 or "6500.00"), like every Merchant API amount, and they
+         *     must add up: the sum of unit_price × quantity, plus delivery_fee, minus
+         *     discount, equals total. Each item names its `product` (p_id, UUID or slug
+         *     of a product in this store)
+         *     and, for a variant, its `variant` (p_id or UUID of one of THAT product's
+         *     variants). The old single `ref` is refused: product and variant p_ids are
+         *     separate sequences, so one number could name two rows. A product from
+         *     another store fails the import with a named 422, never a cross-store sale.
          *
-         *     Data minimisation: the customer travels as name + phone only. No customer
-         *     record is ever created: the shared guest user stands in and the contact is
-         *     the order's recipient (Order::recipientContact), masked like every contact.
+         *     The customer travels as name + phone only and becomes the order's
+         *     `shipping_address` recipient; no customer record is created.
          */
         ImportThirdPartyOrderRequest: {
             /** @enum {string} */
@@ -1343,6 +1344,11 @@ export interface components {
                 product: string;
                 variant?: string | null;
                 quantity: number;
+                /**
+                 * @description Naira, at most 2 decimals — the Merchant API's one money rule
+                 *     (MerchantShippingZoneRequest's rates): a kobo figure is off by
+                 *     100x and runs past these caps instead of posing as naira.
+                 */
                 unit_price: number;
             }[];
             delivery_fee: number;
@@ -2829,6 +2835,21 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "status": "incomplete",
+                 *       "items": [
+                 *         {
+                 *           "key": "webhook_url",
+                 *           "label": "Chowdeck webhook URL",
+                 *           "value": "https://apps.usequeek.com/chowdeck/hooks/1095",
+                 *           "sensitive": false,
+                 *           "copyable": true,
+                 *           "instructions": "Paste this into Chowdeck Vendor Portal → Settings → Webhooks."
+                 *         }
+                 *       ]
+                 *     }
+                 */
                 "application/json": components["schemas"]["UpdateAppSetupNoticeRequest"];
             };
         };
@@ -2855,7 +2876,7 @@ export interface operations {
                      *               "instructions": "Paste this into Chowdeck Vendor Portal → Settings → Webhooks."
                      *             }
                      *           ],
-                     *           "updated_at": "2025-09-24T12:00:00+01:00"
+                     *           "updated_at": "2026-09-24T12:00:00+01:00"
                      *         }
                      *       }
                      *     }
@@ -2882,7 +2903,7 @@ export interface operations {
                      *         "code": "invalid_client_key",
                      *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -2899,9 +2920,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "insufficient_scope",
-                     *         "message": "This API key does not carry the `merchant-app_setup-update` scope it was called with.",
+                     *         "message": "This API key does not carry the 'merchant-app_setup-update' scope it was called with.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -2918,9 +2939,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "idempotency_key_reuse",
-                     *         "message": "This Idempotency-Key was already used with a different body. Mint a fresh key for a new write.",
+                     *         "message": "This Idempotency-Key was already used for a different request body. Use a new key for a new request.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#idempotency_key_reuse",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -2937,15 +2958,15 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "validation_failed",
-                     *         "message": "The request failed validation.",
-                     *         "field": "per_page",
+                     *         "message": "The selected status is invalid.",
+                     *         "field": "status",
                      *         "errors": {
-                     *           "per_page": [
-                     *             "The per page must not be greater than 100."
+                     *           "status": [
+                     *             "The selected status is invalid."
                      *           ]
                      *         },
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -2962,9 +2983,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "too_many_requests",
-                     *         "message": "Too many requests. Slow down and retry later.",
+                     *         "message": "Too Many Attempts.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -2992,6 +3013,14 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "severity": "warning",
+                 *       "title": "Chowdeck menu out of sync",
+                 *       "message": "Two items on Chowdeck no longer match a product in your store. Open the app to relink them.",
+                 *       "dedupe_key": "menu-sync-1095"
+                 *     }
+                 */
                 "application/json": components["schemas"]["SendAppAlertRequest"];
             };
         };
@@ -3035,7 +3064,7 @@ export interface operations {
                      *         "code": "invalid_client_key",
                      *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -3052,9 +3081,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "insufficient_scope",
-                     *         "message": "This API key does not carry the `merchant-app_alerts-create` scope it was called with.",
+                     *         "message": "This API key does not carry the 'merchant-app_alerts-create' scope it was called with.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -3071,9 +3100,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "idempotency_key_reuse",
-                     *         "message": "This Idempotency-Key was already used with a different body. Mint a fresh key for a new write.",
+                     *         "message": "This Idempotency-Key was already used for a different request body. Use a new key for a new request.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#idempotency_key_reuse",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -3090,15 +3119,15 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "validation_failed",
-                     *         "message": "The request failed validation.",
-                     *         "field": "per_page",
+                     *         "message": "The selected severity is invalid.",
+                     *         "field": "severity",
                      *         "errors": {
-                     *           "per_page": [
-                     *             "The per page must not be greater than 100."
+                     *           "severity": [
+                     *             "The selected severity is invalid."
                      *           ]
                      *         },
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -3115,9 +3144,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "too_many_requests",
-                     *         "message": "Too many requests. Slow down and retry later.",
+                     *         "message": "Too Many Attempts.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -3163,7 +3192,7 @@ export interface operations {
                      *           "has_pages": false,
                      *           "data_class": "collected",
                      *           "entry_cap_override": null,
-                     *           "retention_days": 365,
+                     *           "retention_days": null,
                      *           "fields": [
                      *             {
                      *               "key": "name",
@@ -3187,8 +3216,8 @@ export interface operations {
                      *               "validations": []
                      *             }
                      *           ],
-                     *           "created_at": "2025-09-15T09:00:00.000000Z",
-                     *           "updated_at": "2025-09-15T09:00:00.000000Z"
+                     *           "created_at": "2026-09-15T09:00:00.000000Z",
+                     *           "updated_at": "2026-09-15T09:00:00.000000Z"
                      *         }
                      *       ]
                      *     }
@@ -3212,7 +3241,7 @@ export interface operations {
                      *         "code": "invalid_client_key",
                      *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -3229,9 +3258,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "insufficient_scope",
-                     *         "message": "This API key does not carry the `merchant-collected-definitions-manage` scope it was called with.",
+                     *         "message": "This API key does not carry the 'merchant-collected-definitions-manage' scope it was called with.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -3248,9 +3277,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "too_many_requests",
-                     *         "message": "Too many requests. Slow down and retry later.",
+                     *         "message": "Too Many Attempts.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -3278,6 +3307,34 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "type": "app_forms_12_catering_enquiry",
+                 *       "name": "Catering enquiry",
+                 *       "description": "Enquiries from the catering form.",
+                 *       "display_field": "name",
+                 *       "fields": [
+                 *         {
+                 *           "key": "name",
+                 *           "name": "Name",
+                 *           "type": "single_line_text",
+                 *           "required": true
+                 *         },
+                 *         {
+                 *           "key": "event_date",
+                 *           "name": "Event date",
+                 *           "type": "date",
+                 *           "required": true
+                 *         },
+                 *         {
+                 *           "key": "guests",
+                 *           "name": "Guests",
+                 *           "type": "integer",
+                 *           "required": true
+                 *         }
+                 *       ]
+                 *     }
+                 */
                 "application/json": components["schemas"]["CollectedDefinitionRequest"];
             };
         };
@@ -3301,7 +3358,7 @@ export interface operations {
                      *         "has_pages": false,
                      *         "data_class": "collected",
                      *         "entry_cap_override": null,
-                     *         "retention_days": 365,
+                     *         "retention_days": null,
                      *         "fields": [
                      *           {
                      *             "key": "name",
@@ -3325,8 +3382,8 @@ export interface operations {
                      *             "validations": []
                      *           }
                      *         ],
-                     *         "created_at": "2025-09-15T09:00:00.000000Z",
-                     *         "updated_at": "2025-09-15T09:00:00.000000Z"
+                     *         "created_at": "2026-09-15T09:00:00.000000Z",
+                     *         "updated_at": "2026-09-15T09:00:00.000000Z"
                      *       }
                      *     }
                      */
@@ -3349,7 +3406,7 @@ export interface operations {
                      *         "code": "invalid_client_key",
                      *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -3366,9 +3423,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "insufficient_scope",
-                     *         "message": "This API key does not carry the `merchant-collected-definitions-manage` scope it was called with.",
+                     *         "message": "This API key does not carry the 'merchant-collected-definitions-manage' scope it was called with.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -3385,9 +3442,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "idempotency_key_reuse",
-                     *         "message": "This Idempotency-Key was already used with a different body. Mint a fresh key for a new write.",
+                     *         "message": "This Idempotency-Key was already used for a different request body. Use a new key for a new request.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#idempotency_key_reuse",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -3404,15 +3461,15 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "validation_failed",
-                     *         "message": "The request failed validation.",
-                     *         "field": "per_page",
+                     *         "message": "The fields field is required.",
+                     *         "field": "fields",
                      *         "errors": {
-                     *           "per_page": [
-                     *             "The per page must not be greater than 100."
+                     *           "fields": [
+                     *             "The fields field is required."
                      *           ]
                      *         },
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -3429,9 +3486,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "too_many_requests",
-                     *         "message": "Too many requests. Slow down and retry later.",
+                     *         "message": "Too Many Attempts.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -3455,12 +3512,18 @@ export interface operations {
                 "Idempotency-Key"?: string;
             };
             path: {
+                /** @example 74 */
                 definition: string;
             };
             cookie?: never;
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "description": "Enquiries from the catering form on adeyemifoods.com."
+                 *     }
+                 */
                 "application/json": components["schemas"]["CollectedDefinitionRequest"];
             };
         };
@@ -3478,13 +3541,13 @@ export interface operations {
                      *         "p_id": 74,
                      *         "type": "app_forms_12_catering_enquiry",
                      *         "name": "Catering enquiry",
-                     *         "description": "Enquiries from the catering form.",
+                     *         "description": "Enquiries from the catering form on adeyemifoods.com.",
                      *         "display_field": "name",
                      *         "storefront_visible": false,
                      *         "has_pages": false,
                      *         "data_class": "collected",
                      *         "entry_cap_override": null,
-                     *         "retention_days": 365,
+                     *         "retention_days": null,
                      *         "fields": [
                      *           {
                      *             "key": "name",
@@ -3508,8 +3571,8 @@ export interface operations {
                      *             "validations": []
                      *           }
                      *         ],
-                     *         "created_at": "2025-09-15T09:00:00.000000Z",
-                     *         "updated_at": "2025-09-15T09:00:00.000000Z"
+                     *         "created_at": "2026-09-15T09:00:00.000000Z",
+                     *         "updated_at": "2026-09-24T15:40:00.000000Z"
                      *       }
                      *     }
                      */
@@ -3532,7 +3595,7 @@ export interface operations {
                      *         "code": "invalid_client_key",
                      *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -3549,9 +3612,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "insufficient_scope",
-                     *         "message": "This API key does not carry the `merchant-collected-definitions-manage` scope it was called with.",
+                     *         "message": "This API key does not carry the 'merchant-collected-definitions-manage' scope it was called with.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -3568,9 +3631,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "not_found",
-                     *         "message": "The requested resource does not exist.",
+                     *         "message": "Collected definition not found",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#not_found",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -3587,9 +3650,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "idempotency_key_reuse",
-                     *         "message": "This Idempotency-Key was already used with a different body. Mint a fresh key for a new write.",
+                     *         "message": "This Idempotency-Key was already used for a different request body. Use a new key for a new request.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#idempotency_key_reuse",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -3606,15 +3669,15 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "validation_failed",
-                     *         "message": "The request failed validation.",
-                     *         "field": "per_page",
+                     *         "message": "A definition's type is immutable — delete and recreate it instead.",
+                     *         "field": "type",
                      *         "errors": {
-                     *           "per_page": [
-                     *             "The per page must not be greater than 100."
+                     *           "type": [
+                     *             "A definition's type is immutable — delete and recreate it instead."
                      *           ]
                      *         },
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -3631,9 +3694,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "too_many_requests",
-                     *         "message": "Too many requests. Slow down and retry later.",
+                     *         "message": "Too Many Attempts.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -3661,6 +3724,16 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "definition": "app_forms_12_catering_enquiry",
+                 *       "values": {
+                 *         "name": "Funmilayo Ogunleye",
+                 *         "event_date": "2026-11-22",
+                 *         "guests": 250
+                 *       }
+                 *     }
+                 */
                 "application/json": components["schemas"]["CollectedRecordSubmitRequest"];
             };
         };
@@ -3680,14 +3753,14 @@ export interface operations {
                      *         "type": "app_forms_12_catering_enquiry",
                      *         "status": "new",
                      *         "source": "app",
-                     *         "submitted_at": "2025-09-24T14:20:00.000000Z",
+                     *         "submitted_at": "2026-09-24T14:20:00.000000Z",
                      *         "values": {
                      *           "name": "Funmilayo Ogunleye",
-                     *           "event_date": "2025-11-22",
+                     *           "event_date": "2026-11-22",
                      *           "guests": 250
                      *         },
-                     *         "created_at": "2025-09-24T14:20:00.000000Z",
-                     *         "updated_at": "2025-09-24T14:20:00.000000Z"
+                     *         "created_at": "2026-09-24T14:20:00.000000Z",
+                     *         "updated_at": "2026-09-24T14:20:00.000000Z"
                      *       }
                      *     }
                      */
@@ -3710,7 +3783,7 @@ export interface operations {
                      *         "code": "invalid_client_key",
                      *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -3727,9 +3800,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "insufficient_scope",
-                     *         "message": "This API key does not carry the `merchant-collected-records-submit` scope it was called with.",
+                     *         "message": "This API key does not carry the 'merchant-collected-records-submit' scope it was called with.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -3746,9 +3819,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "idempotency_key_reuse",
-                     *         "message": "This Idempotency-Key was already used with a different body. Mint a fresh key for a new write.",
+                     *         "message": "This Idempotency-Key was already used for a different request body. Use a new key for a new request.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#idempotency_key_reuse",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -3765,15 +3838,15 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "validation_failed",
-                     *         "message": "The request failed validation.",
-                     *         "field": "per_page",
+                     *         "message": "The values field must be an array.",
+                     *         "field": "values",
                      *         "errors": {
-                     *           "per_page": [
-                     *             "The per page must not be greater than 100."
+                     *           "values": [
+                     *             "The values field must be an array."
                      *           ]
                      *         },
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -3790,9 +3863,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "too_many_requests",
-                     *         "message": "Too many requests. Slow down and retry later.",
+                     *         "message": "Too Many Attempts.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -3804,8 +3877,11 @@ export interface operations {
     "collections.list": {
         parameters: {
             query?: {
+                /** @example 1 */
                 page?: number | null;
+                /** @example 2 */
                 per_page?: number | null;
+                /** @example all */
                 collection_mode?: string | null;
                 search?: string | null;
                 sort_by?: string | null;
@@ -3847,8 +3923,8 @@ export interface operations {
                      *           "parent_uid": null,
                      *           "products_count": 6,
                      *           "children": [],
-                     *           "created_at": "2025-07-01T12:00:00+01:00",
-                     *           "updated_at": "2025-09-20T09:15:00+01:00"
+                     *           "created_at": "2026-07-01T12:00:00+01:00",
+                     *           "updated_at": "2026-09-20T09:15:00+01:00"
                      *         },
                      *         {
                      *           "id": 3109,
@@ -3864,8 +3940,8 @@ export interface operations {
                      *           "parent_uid": null,
                      *           "products_count": 3,
                      *           "children": [],
-                     *           "created_at": "2025-07-01T12:00:00+01:00",
-                     *           "updated_at": "2025-09-20T09:15:00+01:00"
+                     *           "created_at": "2026-07-01T12:00:00+01:00",
+                     *           "updated_at": "2026-09-20T09:15:00+01:00"
                      *         }
                      *       ],
                      *       "links": {
@@ -3920,7 +3996,7 @@ export interface operations {
                      *         "code": "invalid_client_key",
                      *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -3937,9 +4013,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "insufficient_scope",
-                     *         "message": "This API key does not carry the `merchant-collections-read` scope it was called with.",
+                     *         "message": "This API key does not carry the 'merchant-collections-read' scope it was called with.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -3956,15 +4032,15 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "validation_failed",
-                     *         "message": "The request failed validation.",
-                     *         "field": "per_page",
+                     *         "message": "The selected sort order is invalid.",
+                     *         "field": "sort_order",
                      *         "errors": {
-                     *           "per_page": [
-                     *             "The per page must not be greater than 100."
+                     *           "sort_order": [
+                     *             "The selected sort order is invalid."
                      *           ]
                      *         },
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -3981,9 +4057,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "too_many_requests",
-                     *         "message": "Too many requests. Slow down and retry later.",
+                     *         "message": "Too Many Attempts.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -4011,6 +4087,17 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "collections": [
+                 *         {
+                 *           "name": "Drinks",
+                 *           "description": "Chapman, zobo and fresh juices.",
+                 *           "collection_mode": "smart"
+                 *         }
+                 *       ]
+                 *     }
+                 */
                 "application/json": components["schemas"]["BulkCreateVendorCollectionsRequest"];
             };
         };
@@ -4037,8 +4124,8 @@ export interface operations {
                      *           "parent_uid": null,
                      *           "products_count": 3,
                      *           "children": [],
-                     *           "created_at": "2025-07-01T12:00:00+01:00",
-                     *           "updated_at": "2025-09-20T09:15:00+01:00"
+                     *           "created_at": "2026-07-01T12:00:00+01:00",
+                     *           "updated_at": "2026-07-01T12:00:00+01:00"
                      *         }
                      *       ],
                      *       "success": true,
@@ -4060,7 +4147,7 @@ export interface operations {
                      *         "code": "invalid_client_key",
                      *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -4077,9 +4164,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "insufficient_scope",
-                     *         "message": "This API key does not carry the `merchant-collections-create` scope it was called with.",
+                     *         "message": "This API key does not carry the 'merchant-collections-create' scope it was called with.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -4096,9 +4183,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "idempotency_key_reuse",
-                     *         "message": "This Idempotency-Key was already used with a different body. Mint a fresh key for a new write.",
+                     *         "message": "This Idempotency-Key was already used for a different request body. Use a new key for a new request.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#idempotency_key_reuse",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -4115,15 +4202,15 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "validation_failed",
-                     *         "message": "The request failed validation.",
-                     *         "field": "per_page",
+                     *         "message": "The collections field is required.",
+                     *         "field": "collections",
                      *         "errors": {
-                     *           "per_page": [
-                     *             "The per page must not be greater than 100."
+                     *           "collections": [
+                     *             "The collections field is required."
                      *           ]
                      *         },
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -4140,9 +4227,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "too_many_requests",
-                     *         "message": "Too many requests. Slow down and retry later.",
+                     *         "message": "Too Many Attempts.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -4166,12 +4253,19 @@ export interface operations {
                 "Idempotency-Key"?: string;
             };
             path: {
+                /** @example 3108 */
                 collection: string;
             };
             cookie?: never;
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "product_id": "019a1d52-3c8e-7f41-b0d2-6a3e9c1f4b21",
+                 *       "pinned": true
+                 *     }
+                 */
                 "application/json": components["schemas"]["PinCollectionProductRequest"];
             };
         };
@@ -4214,7 +4308,7 @@ export interface operations {
                      *         "code": "invalid_client_key",
                      *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -4231,9 +4325,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "insufficient_scope",
-                     *         "message": "This API key does not carry the `merchant-collections-update` scope it was called with.",
+                     *         "message": "This API key does not carry the 'merchant-collections-update' scope it was called with.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -4250,9 +4344,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "not_found",
-                     *         "message": "The requested resource does not exist.",
+                     *         "message": "Collection not found",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#not_found",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -4269,9 +4363,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "idempotency_key_reuse",
-                     *         "message": "This Idempotency-Key was already used with a different body. Mint a fresh key for a new write.",
+                     *         "message": "This Idempotency-Key was already used for a different request body. Use a new key for a new request.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#idempotency_key_reuse",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -4288,15 +4382,15 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "validation_failed",
-                     *         "message": "The request failed validation.",
-                     *         "field": "per_page",
+                     *         "message": "The product id field is required.",
+                     *         "field": "product_id",
                      *         "errors": {
-                     *           "per_page": [
-                     *             "The per page must not be greater than 100."
+                     *           "product_id": [
+                     *             "The product id field is required."
                      *           ]
                      *         },
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -4313,9 +4407,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "too_many_requests",
-                     *         "message": "Too many requests. Slow down and retry later.",
+                     *         "message": "Too Many Attempts.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -4339,12 +4433,21 @@ export interface operations {
                 "Idempotency-Key"?: string;
             };
             path: {
+                /** @example 3108 */
                 collection: string;
             };
             cookie?: never;
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "product_ids": [
+                 *         "019a1d52-3c8e-7f41-b0d2-6a3e9c1f4b21",
+                 *         "019a1d52-3c8e-7f41-b0d2-6a3e9c1f4b23"
+                 *       ]
+                 *     }
+                 */
                 "application/json": components["schemas"]["ReorderCollectionProductsRequest"];
             };
         };
@@ -4386,7 +4489,7 @@ export interface operations {
                      *         "code": "invalid_client_key",
                      *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -4403,9 +4506,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "insufficient_scope",
-                     *         "message": "This API key does not carry the `merchant-collections-update` scope it was called with.",
+                     *         "message": "This API key does not carry the 'merchant-collections-update' scope it was called with.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -4422,9 +4525,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "not_found",
-                     *         "message": "The requested resource does not exist.",
+                     *         "message": "Collection not found",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#not_found",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -4441,9 +4544,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "idempotency_key_reuse",
-                     *         "message": "This Idempotency-Key was already used with a different body. Mint a fresh key for a new write.",
+                     *         "message": "This Idempotency-Key was already used for a different request body. Use a new key for a new request.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#idempotency_key_reuse",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -4460,15 +4563,15 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "validation_failed",
-                     *         "message": "The request failed validation.",
-                     *         "field": "per_page",
+                     *         "message": "The product ids field is required.",
+                     *         "field": "product_ids",
                      *         "errors": {
-                     *           "per_page": [
-                     *             "The per page must not be greater than 100."
+                     *           "product_ids": [
+                     *             "The product ids field is required."
                      *           ]
                      *         },
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -4485,9 +4588,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "too_many_requests",
-                     *         "message": "Too many requests. Slow down and retry later.",
+                     *         "message": "Too Many Attempts.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -4500,6 +4603,7 @@ export interface operations {
         parameters: {
             query?: {
                 type?: "page" | "post" | "gallery" | null;
+                /** @example published */
                 status?: "draft" | "published" | null;
             };
             header: {
@@ -4555,9 +4659,9 @@ export interface operations {
                      *           "is_home": false,
                      *           "chrome": "full",
                      *           "show_page_title": true,
-                     *           "published_at": "2025-09-12T08:00:00+01:00",
-                     *           "created_at": "2025-09-10T16:20:00+01:00",
-                     *           "updated_at": "2025-09-12T08:00:00+01:00"
+                     *           "published_at": "2026-09-12T08:00:00+01:00",
+                     *           "created_at": "2026-09-10T16:20:00+01:00",
+                     *           "updated_at": "2026-09-12T08:00:00+01:00"
                      *         },
                      *         {
                      *           "id": "019a2d11-5a6b-7c7d-8e9f-0a1b2c3d4e02",
@@ -4587,9 +4691,9 @@ export interface operations {
                      *           "is_home": false,
                      *           "chrome": "full",
                      *           "show_page_title": true,
-                     *           "published_at": "2025-07-20T10:00:00+01:00",
-                     *           "created_at": "2025-07-19T18:00:00+01:00",
-                     *           "updated_at": "2025-08-30T12:10:00+01:00"
+                     *           "published_at": "2026-07-20T10:00:00+01:00",
+                     *           "created_at": "2026-07-19T18:00:00+01:00",
+                     *           "updated_at": "2026-08-30T12:10:00+01:00"
                      *         }
                      *       ],
                      *       "links": {
@@ -4656,7 +4760,7 @@ export interface operations {
                      *         "code": "invalid_client_key",
                      *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -4673,9 +4777,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "insufficient_scope",
-                     *         "message": "This API key does not carry the `merchant-posts-read` scope it was called with.",
+                     *         "message": "This API key does not carry the 'merchant-posts-read' scope it was called with.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -4692,15 +4796,15 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "validation_failed",
-                     *         "message": "The request failed validation.",
-                     *         "field": "per_page",
+                     *         "message": "The selected type is invalid.",
+                     *         "field": "type",
                      *         "errors": {
-                     *           "per_page": [
-                     *             "The per page must not be greater than 100."
+                     *           "type": [
+                     *             "The selected type is invalid."
                      *           ]
                      *         },
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -4717,9 +4821,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "too_many_requests",
-                     *         "message": "Too many requests. Slow down and retry later.",
+                     *         "message": "Too Many Attempts.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -4731,9 +4835,13 @@ export interface operations {
     "coupons.list": {
         parameters: {
             query?: {
+                /** @example 1 */
                 page?: number | null;
+                /** @example 1 */
                 per_page?: number | null;
+                /** @example percentage */
                 discount_type?: string | null;
+                /** @example active */
                 status?: string | null;
                 search?: string | null;
             };
@@ -4773,7 +4881,7 @@ export interface operations {
                      *             "target_product_ids": [],
                      *             "target_category_ids": [],
                      *             "minimum_order_amount": "5000.00",
-                     *             "capped_amount": "3000.00",
+                     *             "capped_amount": null,
                      *             "capped_amount_per_user": null,
                      *             "usage_limit": 500,
                      *             "usage_limit_per_user": 1,
@@ -4782,10 +4890,10 @@ export interface operations {
                      *             "is_valid": true,
                      *             "is_expired": false,
                      *             "image_url": null,
-                     *             "starts_at": "2025-09-01T00:00:00+01:00",
+                     *             "starts_at": "2026-08-30T11:45:00+01:00",
                      *             "expires_at": null,
-                     *             "created_at": "2025-08-30T11:45:00+01:00",
-                     *             "updated_at": "2025-09-24T09:10:00+01:00"
+                     *             "created_at": "2026-08-30T11:45:00+01:00",
+                     *             "updated_at": "2026-09-24T09:10:00+01:00"
                      *           }
                      *         ],
                      *         "first_page_url": "https://api.usequeek.com/api/v1/merchant/coupons?page=1",
@@ -4849,7 +4957,7 @@ export interface operations {
                      *         "code": "invalid_client_key",
                      *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -4866,9 +4974,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "insufficient_scope",
-                     *         "message": "This API key does not carry the `merchant-coupons-read` scope it was called with.",
+                     *         "message": "This API key does not carry the 'merchant-coupons-read' scope it was called with.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -4885,15 +4993,15 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "validation_failed",
-                     *         "message": "The request failed validation.",
+                     *         "message": "The per page field must be at least 1.",
                      *         "field": "per_page",
                      *         "errors": {
                      *           "per_page": [
-                     *             "The per page must not be greater than 100."
+                     *             "The per page field must be at least 1."
                      *           ]
                      *         },
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -4910,9 +5018,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "too_many_requests",
-                     *         "message": "Too many requests. Slow down and retry later.",
+                     *         "message": "Too Many Attempts.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -4940,6 +5048,19 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "title": "Lekki Launch 10% Off",
+                 *       "description": "10% off your first order from our Lekki kitchen.",
+                 *       "code": "LEKKI10",
+                 *       "discount_type": "percentage",
+                 *       "discount_value": 10,
+                 *       "minimum_order_amount": "5000.00",
+                 *       "applies_to": "all_products",
+                 *       "usage_limit": 500,
+                 *       "usage_limit_per_user": 1
+                 *     }
+                 */
                 "application/json": components["schemas"]["StoreCouponRequest"];
             };
         };
@@ -4963,19 +5084,19 @@ export interface operations {
                      *         "target_product_ids": [],
                      *         "target_category_ids": [],
                      *         "minimum_order_amount": "5000.00",
-                     *         "capped_amount": "3000.00",
+                     *         "capped_amount": null,
                      *         "capped_amount_per_user": null,
                      *         "usage_limit": 500,
                      *         "usage_limit_per_user": 1,
-                     *         "used_count": 37,
+                     *         "used_count": 0,
                      *         "is_active": true,
                      *         "is_valid": true,
                      *         "is_expired": false,
                      *         "image_url": null,
-                     *         "starts_at": "2025-09-01T00:00:00+01:00",
+                     *         "starts_at": "2026-08-30T11:45:00+01:00",
                      *         "expires_at": null,
-                     *         "created_at": "2025-08-30T11:45:00+01:00",
-                     *         "updated_at": "2025-09-24T09:10:00+01:00"
+                     *         "created_at": "2026-08-30T11:45:00+01:00",
+                     *         "updated_at": "2026-08-30T11:45:00+01:00"
                      *       },
                      *       "message": "Coupon created successfully"
                      *     }
@@ -4995,7 +5116,7 @@ export interface operations {
                      *         "code": "invalid_client_key",
                      *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -5012,9 +5133,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "insufficient_scope",
-                     *         "message": "This API key does not carry the `merchant-coupons-create` scope it was called with.",
+                     *         "message": "This API key does not carry the 'merchant-coupons-create' scope it was called with.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -5031,9 +5152,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "idempotency_key_reuse",
-                     *         "message": "This Idempotency-Key was already used with a different body. Mint a fresh key for a new write.",
+                     *         "message": "This Idempotency-Key was already used for a different request body. Use a new key for a new request.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#idempotency_key_reuse",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -5050,15 +5171,15 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "validation_failed",
-                     *         "message": "The request failed validation.",
-                     *         "field": "per_page",
+                     *         "message": "The selected discount type is invalid.",
+                     *         "field": "discount_type",
                      *         "errors": {
-                     *           "per_page": [
-                     *             "The per page must not be greater than 100."
+                     *           "discount_type": [
+                     *             "The selected discount type is invalid."
                      *           ]
                      *         },
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -5075,9 +5196,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "too_many_requests",
-                     *         "message": "Too many requests. Slow down and retry later.",
+                     *         "message": "Too Many Attempts.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -5093,7 +5214,9 @@ export interface operations {
                 to_date?: string | null;
                 date_range?: "today" | "this_week" | "this_month" | null;
                 search?: string | null;
+                /** @example created_at */
                 sort_by?: "created_at" | "updated_at" | "joined_date" | "name" | "email" | "phone" | "p_id" | "customer_orders_count" | null;
+                /** @example desc */
                 sort_order?: "asc" | "desc" | null;
             };
             header: {
@@ -5125,8 +5248,8 @@ export interface operations {
                      *           "email": "tunde.bakare@yahoo.com",
                      *           "phone": "+2348059876543",
                      *           "avatar": null,
-                     *           "created_at": "2025-08-11T08:40:00+01:00",
-                     *           "updated_at": "2025-09-18T20:02:00+01:00"
+                     *           "created_at": "2026-08-11T08:40:00+01:00",
+                     *           "updated_at": "2026-09-18T20:02:00+01:00"
                      *         },
                      *         {
                      *           "id": 90341,
@@ -5135,8 +5258,8 @@ export interface operations {
                      *           "email": "chiamaka.obi@gmail.com",
                      *           "phone": "+2348031234567",
                      *           "avatar": null,
-                     *           "created_at": "2025-07-03T19:12:00+01:00",
-                     *           "updated_at": "2025-09-24T12:58:00+01:00"
+                     *           "created_at": "2026-07-03T19:12:00+01:00",
+                     *           "updated_at": "2026-09-24T12:58:00+01:00"
                      *         }
                      *       ],
                      *       "links": {
@@ -5207,7 +5330,7 @@ export interface operations {
                      *         "code": "invalid_client_key",
                      *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -5224,9 +5347,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "insufficient_scope",
-                     *         "message": "This API key does not carry the `merchant-customers-read` scope it was called with.",
+                     *         "message": "This API key does not carry the 'merchant-customers-read' scope it was called with.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -5243,15 +5366,15 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "validation_failed",
-                     *         "message": "The request failed validation.",
-                     *         "field": "per_page",
+                     *         "message": "The selected date range is invalid.",
+                     *         "field": "date_range",
                      *         "errors": {
-                     *           "per_page": [
-                     *             "The per page must not be greater than 100."
+                     *           "date_range": [
+                     *             "The selected date range is invalid."
                      *           ]
                      *         },
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -5268,9 +5391,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "too_many_requests",
-                     *         "message": "Too many requests. Slow down and retry later.",
+                     *         "message": "Too Many Attempts.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -5282,7 +5405,9 @@ export interface operations {
     "customers.list_followers": {
         parameters: {
             query?: {
+                /** @example 1 */
                 page?: number | null;
+                /** @example 2 */
                 per_page?: number | null;
                 search?: string | null;
             };
@@ -5319,7 +5444,7 @@ export interface operations {
                      *           "avatar": "https://media.usequeek.com/uploads/avatars/ngozi-eze.jpg",
                      *           "shared_contact": true,
                      *           "is_customer": false,
-                     *           "followed_at": "2025-09-21T11:30:00+01:00"
+                     *           "followed_at": "2026-09-21T11:30:00+01:00"
                      *         },
                      *         {
                      *           "id": "019a2f33-1a2b-7c3d-8e4f-5a6b7c8d9e01",
@@ -5330,7 +5455,7 @@ export interface operations {
                      *           "avatar": "https://media.usequeek.com/uploads/avatars/chiamaka-obi.jpg",
                      *           "shared_contact": false,
                      *           "is_customer": true,
-                     *           "followed_at": "2025-07-03T19:15:00+01:00"
+                     *           "followed_at": "2026-07-03T19:15:00+01:00"
                      *         }
                      *       ],
                      *       "meta": {
@@ -5368,7 +5493,7 @@ export interface operations {
                      *         "code": "invalid_client_key",
                      *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -5385,9 +5510,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "insufficient_scope",
-                     *         "message": "This API key does not carry the `merchant-customers-read` scope it was called with.",
+                     *         "message": "This API key does not carry the 'merchant-customers-read' scope it was called with.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -5404,15 +5529,15 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "validation_failed",
-                     *         "message": "The request failed validation.",
+                     *         "message": "The per page field must be at least 1.",
                      *         "field": "per_page",
                      *         "errors": {
                      *           "per_page": [
-                     *             "The per page must not be greater than 100."
+                     *             "The per page field must be at least 1."
                      *           ]
                      *         },
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -5429,9 +5554,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "too_many_requests",
-                     *         "message": "Too many requests. Slow down and retry later.",
+                     *         "message": "Too Many Attempts.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -5453,6 +5578,7 @@ export interface operations {
                 "X-Request-Id"?: string;
             };
             path: {
+                /** @example 90341 */
                 customer: string;
             };
             cookie?: never;
@@ -5475,8 +5601,8 @@ export interface operations {
                      *         "email": "chiamaka.obi@gmail.com",
                      *         "phone": "+2348031234567",
                      *         "avatar": null,
-                     *         "created_at": "2025-07-03T19:12:00+01:00",
-                     *         "updated_at": "2025-09-24T12:58:00+01:00"
+                     *         "created_at": "2026-07-03T19:12:00+01:00",
+                     *         "updated_at": "2026-09-24T12:58:00+01:00"
                      *       }
                      *     }
                      */
@@ -5502,7 +5628,7 @@ export interface operations {
                      *         "code": "invalid_client_key",
                      *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -5519,9 +5645,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "insufficient_scope",
-                     *         "message": "This API key does not carry the `merchant-customers-detail` scope it was called with.",
+                     *         "message": "This API key does not carry the 'merchant-customers-detail' scope it was called with.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -5538,9 +5664,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "not_found",
-                     *         "message": "The requested resource does not exist.",
+                     *         "message": "Customer not found",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#not_found",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -5557,9 +5683,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "too_many_requests",
-                     *         "message": "Too many requests. Slow down and retry later.",
+                     *         "message": "Too Many Attempts.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -5571,9 +5697,12 @@ export interface operations {
     "discounts.list": {
         parameters: {
             query?: {
+                /** @example 1 */
                 page?: number | null;
+                /** @example 2 */
                 per_page?: number | null;
                 type?: "percentage" | "fixed" | null;
+                /** @example active */
                 status?: "active" | "inactive" | null;
                 is_published?: boolean | null;
                 search?: string | null;
@@ -5624,11 +5753,11 @@ export interface operations {
                      *           "is_active": true,
                      *           "is_published": false,
                      *           "image_url": null,
-                     *           "valid_from": "2025-12-01T00:00:00+01:00",
-                     *           "valid_until": "2025-12-31T23:59:00+01:00",
+                     *           "valid_from": "2026-12-01T00:00:00+01:00",
+                     *           "valid_until": "2026-12-31T23:59:00+01:00",
                      *           "published_at": null,
-                     *           "created_at": "2025-09-24T10:00:00+01:00",
-                     *           "updated_at": "2025-09-24T10:00:00+01:00"
+                     *           "created_at": "2026-09-24T10:00:00+01:00",
+                     *           "updated_at": "2026-09-24T10:00:00+01:00"
                      *         },
                      *         {
                      *           "id": "019a2e90-7a1b-7c2d-9e3f-4a5b6c7d8e01",
@@ -5653,11 +5782,11 @@ export interface operations {
                      *           "is_active": true,
                      *           "is_published": true,
                      *           "image_url": "https://media.usequeek.com/uploads/stores/1095/discounts/party-pack-season.jpg",
-                     *           "valid_from": "2025-09-01T00:00:00+01:00",
-                     *           "valid_until": "2025-12-31T23:59:00+01:00",
-                     *           "published_at": "2025-09-01T09:00:00+01:00",
-                     *           "created_at": "2025-08-29T15:20:00+01:00",
-                     *           "updated_at": "2025-09-01T09:00:00+01:00"
+                     *           "valid_from": "2026-09-01T00:00:00+01:00",
+                     *           "valid_until": "2026-12-31T23:59:00+01:00",
+                     *           "published_at": "2026-09-01T09:00:00+01:00",
+                     *           "created_at": "2026-08-29T15:20:00+01:00",
+                     *           "updated_at": "2026-09-01T09:00:00+01:00"
                      *         }
                      *       ],
                      *       "links": {
@@ -5728,7 +5857,7 @@ export interface operations {
                      *         "code": "invalid_client_key",
                      *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -5745,9 +5874,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "insufficient_scope",
-                     *         "message": "This API key does not carry the `merchant-discounts-read` scope it was called with.",
+                     *         "message": "This API key does not carry the 'merchant-discounts-read' scope it was called with.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -5764,15 +5893,15 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "validation_failed",
-                     *         "message": "The request failed validation.",
+                     *         "message": "The per page field must not be greater than 100.",
                      *         "field": "per_page",
                      *         "errors": {
                      *           "per_page": [
-                     *             "The per page must not be greater than 100."
+                     *             "The per page field must not be greater than 100."
                      *           ]
                      *         },
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -5789,9 +5918,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "too_many_requests",
-                     *         "message": "Too many requests. Slow down and retry later.",
+                     *         "message": "Too Many Attempts.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -5819,6 +5948,25 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "title": "Detty December ₦2,000 Off",
+                 *       "description": "₦2,000 off party packs through December.",
+                 *       "type": "fixed",
+                 *       "value": "2000.00",
+                 *       "product_ids": [
+                 *         "019a1d52-3c8e-7f41-b0d2-6a3e9c1f4b21"
+                 *       ],
+                 *       "minimum_order_amount": "15000.00",
+                 *       "minimum_quantity": 1,
+                 *       "max_usage_per_user": 2,
+                 *       "valid_from": "2026-12-01T00:00:00+01:00",
+                 *       "valid_until": "2026-12-31T23:59:00+01:00",
+                 *       "is_active": true,
+                 *       "is_published": false,
+                 *       "auto_apply": false
+                 *     }
+                 */
                 "application/json": components["schemas"]["StoreDiscountRequest"];
             };
         };
@@ -5855,11 +6003,11 @@ export interface operations {
                      *         "is_active": true,
                      *         "is_published": false,
                      *         "image_url": null,
-                     *         "valid_from": "2025-12-01T00:00:00+01:00",
-                     *         "valid_until": "2025-12-31T23:59:00+01:00",
+                     *         "valid_from": "2026-12-01T00:00:00+01:00",
+                     *         "valid_until": "2026-12-31T23:59:00+01:00",
                      *         "published_at": null,
-                     *         "created_at": "2025-09-24T10:00:00+01:00",
-                     *         "updated_at": "2025-09-24T10:00:00+01:00"
+                     *         "created_at": "2026-09-24T10:00:00+01:00",
+                     *         "updated_at": "2026-09-24T10:00:00+01:00"
                      *       }
                      *     }
                      */
@@ -5878,7 +6026,7 @@ export interface operations {
                      *         "code": "invalid_client_key",
                      *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -5895,9 +6043,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "insufficient_scope",
-                     *         "message": "This API key does not carry the `merchant-discounts-create` scope it was called with.",
+                     *         "message": "This API key does not carry the 'merchant-discounts-create' scope it was called with.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -5914,9 +6062,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "idempotency_key_reuse",
-                     *         "message": "This Idempotency-Key was already used with a different body. Mint a fresh key for a new write.",
+                     *         "message": "This Idempotency-Key was already used for a different request body. Use a new key for a new request.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#idempotency_key_reuse",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -5933,15 +6081,15 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "validation_failed",
-                     *         "message": "The request failed validation.",
-                     *         "field": "per_page",
+                     *         "message": "Discount type must be either percentage or fixed",
+                     *         "field": "type",
                      *         "errors": {
-                     *           "per_page": [
-                     *             "The per page must not be greater than 100."
+                     *           "type": [
+                     *             "Discount type must be either percentage or fixed"
                      *           ]
                      *         },
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -5958,9 +6106,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "too_many_requests",
-                     *         "message": "Too many requests. Slow down and retry later.",
+                     *         "message": "Too Many Attempts.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -5982,6 +6130,7 @@ export interface operations {
                 "X-Request-Id"?: string;
             };
             path: {
+                /** @example 019a2e90-7a1b-7c2d-9e3f-4a5b6c7d8e01 */
                 discount: string;
             };
             cookie?: never;
@@ -6020,11 +6169,11 @@ export interface operations {
                      *         "is_active": true,
                      *         "is_published": true,
                      *         "image_url": "https://media.usequeek.com/uploads/stores/1095/discounts/party-pack-season.jpg",
-                     *         "valid_from": "2025-09-01T00:00:00+01:00",
-                     *         "valid_until": "2025-12-31T23:59:00+01:00",
-                     *         "published_at": "2025-09-01T09:00:00+01:00",
-                     *         "created_at": "2025-08-29T15:20:00+01:00",
-                     *         "updated_at": "2025-09-01T09:00:00+01:00"
+                     *         "valid_from": "2026-09-01T00:00:00+01:00",
+                     *         "valid_until": "2026-12-31T23:59:00+01:00",
+                     *         "published_at": "2026-09-01T09:00:00+01:00",
+                     *         "created_at": "2026-08-29T15:20:00+01:00",
+                     *         "updated_at": "2026-09-01T09:00:00+01:00"
                      *       }
                      *     }
                      */
@@ -6043,7 +6192,7 @@ export interface operations {
                      *         "code": "invalid_client_key",
                      *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -6060,9 +6209,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "insufficient_scope",
-                     *         "message": "This API key does not carry the `merchant-discounts-detail` scope it was called with.",
+                     *         "message": "This API key does not carry the 'merchant-discounts-detail' scope it was called with.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -6079,9 +6228,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "not_found",
-                     *         "message": "The requested resource does not exist.",
+                     *         "message": "Discount not found",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#not_found",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -6098,9 +6247,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "too_many_requests",
-                     *         "message": "Too many requests. Slow down and retry later.",
+                     *         "message": "Too Many Attempts.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -6124,6 +6273,7 @@ export interface operations {
                 "Idempotency-Key"?: string;
             };
             path: {
+                /** @example 019a2e90-7a1b-7c2d-9e3f-4a5b6c7d8e01 */
                 discount: string;
             };
             cookie?: never;
@@ -6141,7 +6291,7 @@ export interface operations {
                      *       "message": "Discount published successfully",
                      *       "data": {
                      *         "is_published": true,
-                     *         "published_at": "2025-09-01T09:00:00+01:00"
+                     *         "published_at": "2026-09-01T09:00:00+01:00"
                      *       }
                      *     }
                      */
@@ -6167,7 +6317,7 @@ export interface operations {
                      *         "code": "invalid_client_key",
                      *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -6184,9 +6334,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "insufficient_scope",
-                     *         "message": "This API key does not carry the `merchant-discounts-update` scope it was called with.",
+                     *         "message": "This API key does not carry the 'merchant-discounts-update' scope it was called with.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -6203,9 +6353,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "not_found",
-                     *         "message": "The requested resource does not exist.",
+                     *         "message": "Discount not found",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#not_found",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -6222,9 +6372,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "idempotency_key_reuse",
-                     *         "message": "This Idempotency-Key was already used with a different body. Mint a fresh key for a new write.",
+                     *         "message": "This Idempotency-Key was already used for a different request body. Use a new key for a new request.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#idempotency_key_reuse",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -6241,9 +6391,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "too_many_requests",
-                     *         "message": "Too many requests. Slow down and retry later.",
+                     *         "message": "Too Many Attempts.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -6267,6 +6417,7 @@ export interface operations {
                 "Idempotency-Key"?: string;
             };
             path: {
+                /** @example 019a2e90-7a1b-7c2d-9e3f-4a5b6c7d8e01 */
                 discount: string;
             };
             cookie?: never;
@@ -6310,7 +6461,7 @@ export interface operations {
                      *         "code": "invalid_client_key",
                      *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -6327,9 +6478,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "insufficient_scope",
-                     *         "message": "This API key does not carry the `merchant-discounts-update` scope it was called with.",
+                     *         "message": "This API key does not carry the 'merchant-discounts-update' scope it was called with.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -6346,9 +6497,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "not_found",
-                     *         "message": "The requested resource does not exist.",
+                     *         "message": "Discount not found",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#not_found",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -6365,9 +6516,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "idempotency_key_reuse",
-                     *         "message": "This Idempotency-Key was already used with a different body. Mint a fresh key for a new write.",
+                     *         "message": "This Idempotency-Key was already used for a different request body. Use a new key for a new request.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#idempotency_key_reuse",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -6384,9 +6535,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "too_many_requests",
-                     *         "message": "Too many requests. Slow down and retry later.",
+                     *         "message": "Too Many Attempts.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -6408,6 +6559,7 @@ export interface operations {
                 "X-Request-Id"?: string;
             };
             path: {
+                /** @example 20417 */
                 product: string;
             };
             cookie?: never;
@@ -6531,7 +6683,7 @@ export interface operations {
                      *         "code": "invalid_client_key",
                      *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -6548,9 +6700,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "insufficient_scope",
-                     *         "message": "This API key does not carry the `merchant-items-detail` scope it was called with.",
+                     *         "message": "This API key does not carry the 'merchant-items-detail' scope it was called with.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -6567,9 +6719,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "not_found",
-                     *         "message": "The requested resource does not exist.",
+                     *         "message": "Product not found.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#not_found",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -6586,9 +6738,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "too_many_requests",
-                     *         "message": "Too many requests. Slow down and retry later.",
+                     *         "message": "Too Many Attempts.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -6612,12 +6764,19 @@ export interface operations {
                 "Idempotency-Key"?: string;
             };
             path: {
+                /** @example 20417 */
                 product: string;
             };
             cookie?: never;
         };
         requestBody?: {
             content: {
+                /**
+                 * @example {
+                 *       "url": "https://adeyemifoods.com/images/jollof-rice-party-pack-sides.jpg",
+                 *       "primary": false
+                 *     }
+                 */
                 "application/json": components["schemas"]["StoreProductImageRequest"];
             };
         };
@@ -6744,7 +6903,7 @@ export interface operations {
                      *         "code": "invalid_client_key",
                      *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -6761,9 +6920,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "insufficient_scope",
-                     *         "message": "This API key does not carry the `merchant-items-update` scope it was called with.",
+                     *         "message": "This API key does not carry the 'merchant-items-update' scope it was called with.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -6780,9 +6939,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "not_found",
-                     *         "message": "The requested resource does not exist.",
+                     *         "message": "Product not found.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#not_found",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -6799,9 +6958,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "idempotency_key_reuse",
-                     *         "message": "This Idempotency-Key was already used with a different body. Mint a fresh key for a new write.",
+                     *         "message": "This Idempotency-Key was already used for a different request body. Use a new key for a new request.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#idempotency_key_reuse",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -6818,15 +6977,15 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "validation_failed",
-                     *         "message": "The request failed validation.",
-                     *         "field": "per_page",
+                     *         "message": "The media id field must be an integer.",
+                     *         "field": "media_id",
                      *         "errors": {
-                     *           "per_page": [
-                     *             "The per page must not be greater than 100."
+                     *           "media_id": [
+                     *             "The media id field must be an integer."
                      *           ]
                      *         },
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -6843,9 +7002,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "too_many_requests",
-                     *         "message": "Too many requests. Slow down and retry later.",
+                     *         "message": "Too Many Attempts.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -6869,7 +7028,9 @@ export interface operations {
                 "Idempotency-Key"?: string;
             };
             path: {
+                /** @example 20417 */
                 product: string;
+                /** @example 88215 */
                 image: string;
             };
             cookie?: never;
@@ -6885,7 +7046,10 @@ export interface operations {
                      * @example {
                      *       "status": "success",
                      *       "message": "Image removed",
-                     *       "data": []
+                     *       "data": {
+                     *         "id": 88215,
+                     *         "deleted": true
+                     *       }
                      *     }
                      */
                     "application/json": {
@@ -6910,7 +7074,7 @@ export interface operations {
                      *         "code": "invalid_client_key",
                      *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -6927,9 +7091,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "insufficient_scope",
-                     *         "message": "This API key does not carry the `merchant-items-update` scope it was called with.",
+                     *         "message": "This API key does not carry the 'merchant-items-update' scope it was called with.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -6946,9 +7110,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "not_found",
-                     *         "message": "The requested resource does not exist.",
+                     *         "message": "Image not found on this product.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#not_found",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -6965,9 +7129,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "idempotency_key_reuse",
-                     *         "message": "This Idempotency-Key was already used with a different body. Mint a fresh key for a new write.",
+                     *         "message": "This Idempotency-Key was already used for a different request body. Use a new key for a new request.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#idempotency_key_reuse",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -6984,9 +7148,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "too_many_requests",
-                     *         "message": "Too many requests. Slow down and retry later.",
+                     *         "message": "Too Many Attempts.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -7010,13 +7174,20 @@ export interface operations {
                 "Idempotency-Key"?: string;
             };
             path: {
+                /** @example 20417 */
                 product: string;
+                /** @example 88214 */
                 image: string;
             };
             cookie?: never;
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "primary": true
+                 *     }
+                 */
                 "application/json": components["schemas"]["UpdateProductImageRequest"];
             };
         };
@@ -7095,7 +7266,7 @@ export interface operations {
                      *         "code": "invalid_client_key",
                      *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -7112,9 +7283,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "insufficient_scope",
-                     *         "message": "This API key does not carry the `merchant-items-update` scope it was called with.",
+                     *         "message": "This API key does not carry the 'merchant-items-update' scope it was called with.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -7131,9 +7302,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "not_found",
-                     *         "message": "The requested resource does not exist.",
+                     *         "message": "Image not found on this product.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#not_found",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -7150,9 +7321,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "idempotency_key_reuse",
-                     *         "message": "This Idempotency-Key was already used with a different body. Mint a fresh key for a new write.",
+                     *         "message": "This Idempotency-Key was already used for a different request body. Use a new key for a new request.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#idempotency_key_reuse",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -7169,15 +7340,15 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "validation_failed",
-                     *         "message": "The request failed validation.",
-                     *         "field": "per_page",
+                     *         "message": "The primary field must be accepted.",
+                     *         "field": "primary",
                      *         "errors": {
-                     *           "per_page": [
-                     *             "The per page must not be greater than 100."
+                     *           "primary": [
+                     *             "The primary field must be accepted."
                      *           ]
                      *         },
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -7194,9 +7365,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "too_many_requests",
-                     *         "message": "Too many requests. Slow down and retry later.",
+                     *         "message": "Too Many Attempts.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -7259,7 +7430,7 @@ export interface operations {
                      *         "code": "invalid_client_key",
                      *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -7276,9 +7447,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "insufficient_scope",
-                     *         "message": "This API key does not carry the `merchant-inventory-read` scope it was called with.",
+                     *         "message": "This API key does not carry the 'merchant-inventory-read' scope it was called with.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -7295,9 +7466,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "too_many_requests",
-                     *         "message": "Too many requests. Slow down and retry later.",
+                     *         "message": "Too Many Attempts.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -7310,6 +7481,7 @@ export interface operations {
         parameters: {
             query?: {
                 type?: string | null;
+                /** @example 2 */
                 limit?: number | null;
             };
             header: {
@@ -7322,6 +7494,7 @@ export interface operations {
                 "X-Request-Id"?: string;
             };
             path: {
+                /** @example 20417 */
                 product: string;
             };
             cookie?: never;
@@ -7343,7 +7516,7 @@ export interface operations {
                      *           "quantity_before": 44,
                      *           "quantity_change": -2,
                      *           "quantity_after": 42,
-                     *           "reason": "Order 25-0924-58213",
+                     *           "reason": "Order 26-0924-58213",
                      *           "scope": "product",
                      *           "product": {
                      *             "id": 20417,
@@ -7360,7 +7533,7 @@ export interface operations {
                      *             "captured": false,
                      *             "quantity": 0
                      *           },
-                     *           "created_at": "2025-09-24T13:42:00+01:00"
+                     *           "created_at": "2026-09-24T13:42:00+01:00"
                      *         },
                      *         {
                      *           "id": "019a3a0e-6d21-7b54-8e90-2f4a6c8e0b10",
@@ -7382,7 +7555,7 @@ export interface operations {
                      *             "captured": false,
                      *             "quantity": 0
                      *           },
-                     *           "created_at": "2025-09-24T07:05:00+01:00"
+                     *           "created_at": "2026-09-24T07:05:00+01:00"
                      *         }
                      *       ]
                      *     }
@@ -7402,7 +7575,7 @@ export interface operations {
                      *         "code": "invalid_client_key",
                      *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -7419,9 +7592,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "insufficient_scope",
-                     *         "message": "This API key does not carry the `merchant-inventory-detail` scope it was called with.",
+                     *         "message": "This API key does not carry the 'merchant-inventory-detail' scope it was called with.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -7438,9 +7611,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "not_found",
-                     *         "message": "The requested resource does not exist.",
+                     *         "message": "Product not found or not owned by your vendor",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#not_found",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -7457,15 +7630,15 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "validation_failed",
-                     *         "message": "The request failed validation.",
-                     *         "field": "per_page",
+                     *         "message": "The limit field must be at least 1.",
+                     *         "field": "limit",
                      *         "errors": {
-                     *           "per_page": [
-                     *             "The per page must not be greater than 100."
+                     *           "limit": [
+                     *             "The limit field must be at least 1."
                      *           ]
                      *         },
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -7482,9 +7655,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "too_many_requests",
-                     *         "message": "Too many requests. Slow down and retry later.",
+                     *         "message": "Too Many Attempts.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -7496,11 +7669,15 @@ export interface operations {
     "inventory.list_adjustments": {
         parameters: {
             query?: {
+                /** @example 1 */
                 page?: number | null;
+                /** @example 2 */
                 per_page?: number | null;
                 type?: string | null;
                 product_id?: string | null;
+                /** @example 2026-09-24T00:00:00+01:00 */
                 date_from?: string | null;
+                /** @example 2026-09-24T23:59:59+01:00 */
                 date_to?: string | null;
             };
             header: {
@@ -7552,7 +7729,7 @@ export interface operations {
                      *             "captured": false,
                      *             "quantity": 0
                      *           },
-                     *           "created_at": "2025-09-24T15:30:00+01:00"
+                     *           "created_at": "2026-09-24T15:30:00+01:00"
                      *         },
                      *         {
                      *           "id": "019a3a0e-6d21-7b54-8e90-2f4a6c8e0b11",
@@ -7560,7 +7737,7 @@ export interface operations {
                      *           "quantity_before": 44,
                      *           "quantity_change": -2,
                      *           "quantity_after": 42,
-                     *           "reason": "Order 25-0924-58213",
+                     *           "reason": "Order 26-0924-58213",
                      *           "scope": "product",
                      *           "product": {
                      *             "id": 20417,
@@ -7577,7 +7754,7 @@ export interface operations {
                      *             "captured": false,
                      *             "quantity": 0
                      *           },
-                     *           "created_at": "2025-09-24T13:42:00+01:00"
+                     *           "created_at": "2026-09-24T13:42:00+01:00"
                      *         }
                      *       ],
                      *       "pagination": {
@@ -7610,7 +7787,7 @@ export interface operations {
                      *         "code": "invalid_client_key",
                      *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -7627,9 +7804,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "insufficient_scope",
-                     *         "message": "This API key does not carry the `merchant-stock_adjustments-read` scope it was called with.",
+                     *         "message": "This API key does not carry the 'merchant-stock_adjustments-read' scope it was called with.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -7646,15 +7823,15 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "validation_failed",
-                     *         "message": "The request failed validation.",
+                     *         "message": "The per page field must be at least 1.",
                      *         "field": "per_page",
                      *         "errors": {
                      *           "per_page": [
-                     *             "The per page must not be greater than 100."
+                     *             "The per page field must be at least 1."
                      *           ]
                      *         },
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -7671,9 +7848,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "too_many_requests",
-                     *         "message": "Too many requests. Slow down and retry later.",
+                     *         "message": "Too Many Attempts.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -7701,6 +7878,17 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "product_ids": [
+                 *         "019a1d52-3c8e-7f41-b0d2-6a3e9c1f4b22"
+                 *       ],
+                 *       "variant_id": "019a1d52-5f10-7a02-8c61-0b2d4e6f8a31",
+                 *       "quantity_change": 24,
+                 *       "type": "restock",
+                 *       "reason": "Afternoon batch"
+                 *     }
+                 */
                 "application/json": components["schemas"]["AdjustStockRequest"];
             };
         };
@@ -7740,7 +7928,7 @@ export interface operations {
                      *           "captured": false,
                      *           "quantity": 0
                      *         },
-                     *         "created_at": "2025-09-24T15:30:00+01:00"
+                     *         "created_at": "2026-09-24T15:30:00+01:00"
                      *       }
                      *     }
                      */
@@ -7759,7 +7947,7 @@ export interface operations {
                      *         "code": "invalid_client_key",
                      *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -7776,9 +7964,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "insufficient_scope",
-                     *         "message": "This API key does not carry the `merchant-inventory-update` scope it was called with.",
+                     *         "message": "This API key does not carry the 'merchant-inventory-update' scope it was called with.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -7795,9 +7983,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "idempotency_key_reuse",
-                     *         "message": "This Idempotency-Key was already used with a different body. Mint a fresh key for a new write.",
+                     *         "message": "This Idempotency-Key was already used for a different request body. Use a new key for a new request.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#idempotency_key_reuse",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -7814,15 +8002,15 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "validation_failed",
-                     *         "message": "The request failed validation.",
-                     *         "field": "per_page",
+                     *         "message": "The selected type is invalid.",
+                     *         "field": "type",
                      *         "errors": {
-                     *           "per_page": [
-                     *             "The per page must not be greater than 100."
+                     *           "type": [
+                     *             "The selected type is invalid."
                      *           ]
                      *         },
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -7839,9 +8027,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "too_many_requests",
-                     *         "message": "Too many requests. Slow down and retry later.",
+                     *         "message": "Too Many Attempts.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -7892,8 +8080,8 @@ export interface operations {
                      *           "name": "Event date",
                      *           "description": "The day a party order is for.",
                      *           "validations": {},
-                     *           "created_at": "2025-08-02T10:05:00.000000Z",
-                     *           "updated_at": "2025-08-02T10:05:00.000000Z"
+                     *           "created_at": "2026-08-02T10:05:00.000000Z",
+                     *           "updated_at": "2026-08-02T10:05:00.000000Z"
                      *         },
                      *         {
                      *           "p_id": 412,
@@ -7914,8 +8102,8 @@ export interface operations {
                      *               "hot"
                      *             ]
                      *           },
-                     *           "created_at": "2025-08-02T10:00:00.000000Z",
-                     *           "updated_at": "2025-08-02T10:00:00.000000Z"
+                     *           "created_at": "2026-08-02T10:00:00.000000Z",
+                     *           "updated_at": "2026-08-02T10:00:00.000000Z"
                      *         }
                      *       ]
                      *     }
@@ -7942,7 +8130,7 @@ export interface operations {
                      *         "code": "invalid_client_key",
                      *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -7959,9 +8147,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "insufficient_scope",
-                     *         "message": "This API key does not carry the `merchant-metafields-read` scope it was called with.",
+                     *         "message": "This API key does not carry the 'merchant-metafields-read' scope it was called with.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -7978,15 +8166,15 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "validation_failed",
-                     *         "message": "The request failed validation.",
-                     *         "field": "per_page",
+                     *         "message": "The owner type field must be a string.",
+                     *         "field": "owner_type",
                      *         "errors": {
-                     *           "per_page": [
-                     *             "The per page must not be greater than 100."
+                     *           "owner_type": [
+                     *             "The owner type field must be a string."
                      *           ]
                      *         },
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -8003,9 +8191,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "too_many_requests",
-                     *         "message": "Too many requests. Slow down and retry later.",
+                     *         "message": "Too Many Attempts.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -8033,6 +8221,26 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "owner_type": "product",
+                 *       "namespace": "custom",
+                 *       "key": "spice_level",
+                 *       "type": "single_line_text",
+                 *       "name": "Spice level",
+                 *       "description": "How hot the dish is: mild, medium or hot.",
+                 *       "storefront_visible": true,
+                 *       "pinned": true,
+                 *       "pinned_position": 1,
+                 *       "validations": {
+                 *         "choices": [
+                 *           "mild",
+                 *           "medium",
+                 *           "hot"
+                 *         ]
+                 *       }
+                 *     }
+                 */
                 "application/json": components["schemas"]["MetafieldDefinitionRequest"];
             };
         };
@@ -8065,8 +8273,8 @@ export interface operations {
                      *             "hot"
                      *           ]
                      *         },
-                     *         "created_at": "2025-08-02T10:00:00.000000Z",
-                     *         "updated_at": "2025-08-02T10:00:00.000000Z"
+                     *         "created_at": "2026-08-02T10:00:00.000000Z",
+                     *         "updated_at": "2026-08-02T10:00:00.000000Z"
                      *       }
                      *     }
                      */
@@ -8092,7 +8300,7 @@ export interface operations {
                      *         "code": "invalid_client_key",
                      *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -8109,9 +8317,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "insufficient_scope",
-                     *         "message": "This API key does not carry the `merchant-metafields-create` scope it was called with.",
+                     *         "message": "This API key does not carry the 'merchant-metafields-create' scope it was called with.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -8128,9 +8336,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "idempotency_key_reuse",
-                     *         "message": "This Idempotency-Key was already used with a different body. Mint a fresh key for a new write.",
+                     *         "message": "This Idempotency-Key was already used for a different request body. Use a new key for a new request.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#idempotency_key_reuse",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -8147,15 +8355,15 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "validation_failed",
-                     *         "message": "The request failed validation.",
-                     *         "field": "per_page",
+                     *         "message": "The selected type is invalid.",
+                     *         "field": "type",
                      *         "errors": {
-                     *           "per_page": [
-                     *             "The per page must not be greater than 100."
+                     *           "type": [
+                     *             "The selected type is invalid."
                      *           ]
                      *         },
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -8172,9 +8380,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "too_many_requests",
-                     *         "message": "Too many requests. Slow down and retry later.",
+                     *         "message": "Too Many Attempts.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -8244,8 +8452,8 @@ export interface operations {
                      *               "validations": []
                      *             }
                      *           ],
-                     *           "created_at": "2025-08-10T08:00:00.000000Z",
-                     *           "updated_at": "2025-08-10T08:00:00.000000Z"
+                     *           "created_at": "2026-08-10T08:00:00.000000Z",
+                     *           "updated_at": "2026-08-10T08:00:00.000000Z"
                      *         }
                      *       ]
                      *     }
@@ -8272,7 +8480,7 @@ export interface operations {
                      *         "code": "invalid_client_key",
                      *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -8289,9 +8497,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "insufficient_scope",
-                     *         "message": "This API key does not carry the `merchant-metaobjects-read` scope it was called with.",
+                     *         "message": "This API key does not carry the 'merchant-metaobjects-read' scope it was called with.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -8308,9 +8516,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "too_many_requests",
-                     *         "message": "Too many requests. Slow down and retry later.",
+                     *         "message": "Too Many Attempts.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -8338,6 +8546,36 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "type": "chef",
+                 *       "name": "Chef",
+                 *       "description": "The chefs behind our dishes.",
+                 *       "display_field": "name",
+                 *       "storefront_visible": true,
+                 *       "has_pages": true,
+                 *       "fields": [
+                 *         {
+                 *           "key": "name",
+                 *           "name": "Name",
+                 *           "type": "single_line_text",
+                 *           "required": true
+                 *         },
+                 *         {
+                 *           "key": "speciality",
+                 *           "name": "Speciality",
+                 *           "type": "single_line_text",
+                 *           "required": false
+                 *         },
+                 *         {
+                 *           "key": "bio",
+                 *           "name": "Bio",
+                 *           "type": "multi_line_text",
+                 *           "required": false
+                 *         }
+                 *       ]
+                 *     }
+                 */
                 "application/json": components["schemas"]["MetaobjectDefinitionRequest"];
             };
         };
@@ -8385,8 +8623,8 @@ export interface operations {
                      *             "validations": []
                      *           }
                      *         ],
-                     *         "created_at": "2025-08-10T08:00:00.000000Z",
-                     *         "updated_at": "2025-08-10T08:00:00.000000Z"
+                     *         "created_at": "2026-08-10T08:00:00.000000Z",
+                     *         "updated_at": "2026-08-10T08:00:00.000000Z"
                      *       }
                      *     }
                      */
@@ -8412,7 +8650,7 @@ export interface operations {
                      *         "code": "invalid_client_key",
                      *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -8429,9 +8667,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "insufficient_scope",
-                     *         "message": "This API key does not carry the `merchant-metaobjects-create` scope it was called with.",
+                     *         "message": "This API key does not carry the 'merchant-metaobjects-create' scope it was called with.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -8448,9 +8686,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "idempotency_key_reuse",
-                     *         "message": "This Idempotency-Key was already used with a different body. Mint a fresh key for a new write.",
+                     *         "message": "This Idempotency-Key was already used for a different request body. Use a new key for a new request.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#idempotency_key_reuse",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -8467,15 +8705,15 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "validation_failed",
-                     *         "message": "The request failed validation.",
-                     *         "field": "per_page",
+                     *         "message": "A type is lowercase letters, digits and underscores, starting with a letter (e.g. designer).",
+                     *         "field": "type",
                      *         "errors": {
-                     *           "per_page": [
-                     *             "The per page must not be greater than 100."
+                     *           "type": [
+                     *             "A type is lowercase letters, digits and underscores, starting with a letter (e.g. designer)."
                      *           ]
                      *         },
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -8492,9 +8730,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "too_many_requests",
-                     *         "message": "Too many requests. Slow down and retry later.",
+                     *         "message": "Too Many Attempts.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -8506,9 +8744,13 @@ export interface operations {
     "metaobjects.list": {
         parameters: {
             query?: {
+                /** @example 1 */
                 page?: number | null;
+                /** @example 2 */
                 per_page?: number | null;
+                /** @example chef */
                 type?: string | null;
+                /** @example active */
                 status?: string | null;
                 search?: string | null;
             };
@@ -8545,8 +8787,8 @@ export interface operations {
                      *             "speciality": "Party jollof and ofada",
                      *             "bio": "Twenty years of Lagos owambe kitchens."
                      *           },
-                     *           "created_at": "2025-08-10T08:30:00.000000Z",
-                     *           "updated_at": "2025-09-02T16:45:00.000000Z"
+                     *           "created_at": "2026-08-10T08:30:00.000000Z",
+                     *           "updated_at": "2026-09-02T16:45:00.000000Z"
                      *         },
                      *         {
                      *           "p_id": 1202,
@@ -8559,8 +8801,8 @@ export interface operations {
                      *             "speciality": "Suya and grills",
                      *             "bio": "Kano-born grill master."
                      *           },
-                     *           "created_at": "2025-08-12T09:15:00.000000Z",
-                     *           "updated_at": "2025-08-12T09:15:00.000000Z"
+                     *           "created_at": "2026-08-12T09:15:00.000000Z",
+                     *           "updated_at": "2026-08-12T09:15:00.000000Z"
                      *         }
                      *       ],
                      *       "links": {
@@ -8625,7 +8867,7 @@ export interface operations {
                      *         "code": "invalid_client_key",
                      *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -8642,9 +8884,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "insufficient_scope",
-                     *         "message": "This API key does not carry the `merchant-metaobjects-read` scope it was called with.",
+                     *         "message": "This API key does not carry the 'merchant-metaobjects-read' scope it was called with.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -8661,15 +8903,15 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "validation_failed",
-                     *         "message": "The request failed validation.",
+                     *         "message": "The per page field must be at least 1.",
                      *         "field": "per_page",
                      *         "errors": {
                      *           "per_page": [
-                     *             "The per page must not be greater than 100."
+                     *             "The per page field must be at least 1."
                      *           ]
                      *         },
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -8686,9 +8928,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "too_many_requests",
-                     *         "message": "Too many requests. Slow down and retry later.",
+                     *         "message": "Too Many Attempts.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -8716,6 +8958,18 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "type": "chef",
+                 *       "handle": "chef-kemi",
+                 *       "status": "active",
+                 *       "fields": {
+                 *         "name": "Chef Kemi Adeyemi",
+                 *         "speciality": "Party jollof and ofada",
+                 *         "bio": "Twenty years of Lagos owambe kitchens."
+                 *       }
+                 *     }
+                 */
                 "application/json": components["schemas"]["MetaobjectRequest"];
             };
         };
@@ -8740,8 +8994,8 @@ export interface operations {
                      *           "speciality": "Party jollof and ofada",
                      *           "bio": "Twenty years of Lagos owambe kitchens."
                      *         },
-                     *         "created_at": "2025-08-10T08:30:00.000000Z",
-                     *         "updated_at": "2025-09-02T16:45:00.000000Z"
+                     *         "created_at": "2026-08-10T08:30:00.000000Z",
+                     *         "updated_at": "2026-08-10T08:30:00.000000Z"
                      *       }
                      *     }
                      */
@@ -8767,7 +9021,7 @@ export interface operations {
                      *         "code": "invalid_client_key",
                      *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -8784,9 +9038,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "insufficient_scope",
-                     *         "message": "This API key does not carry the `merchant-metaobjects-create` scope it was called with.",
+                     *         "message": "This API key does not carry the 'merchant-metaobjects-create' scope it was called with.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -8803,9 +9057,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "idempotency_key_reuse",
-                     *         "message": "This Idempotency-Key was already used with a different body. Mint a fresh key for a new write.",
+                     *         "message": "This Idempotency-Key was already used for a different request body. Use a new key for a new request.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#idempotency_key_reuse",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -8822,15 +9076,15 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "validation_failed",
-                     *         "message": "The request failed validation.",
-                     *         "field": "per_page",
+                     *         "message": "The type field is required.",
+                     *         "field": "type",
                      *         "errors": {
-                     *           "per_page": [
-                     *             "The per page must not be greater than 100."
+                     *           "type": [
+                     *             "The type field is required."
                      *           ]
                      *         },
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -8847,9 +9101,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "too_many_requests",
-                     *         "message": "Too many requests. Slow down and retry later.",
+                     *         "message": "Too Many Attempts.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -8861,11 +9115,15 @@ export interface operations {
     "orders.list": {
         parameters: {
             query?: {
+                /** @example paid */
                 payment_status?: "paid" | "unpaid" | "refunded" | "partial" | "pending" | "awaiting_confirmation" | null;
+                /** @example delivery */
                 delivery_method?: "delivery" | "pickup" | "instore" | "shipping" | null;
                 registry_id?: string | null;
                 "metafield[]"?: string[] | null;
+                /** @example created_at */
                 sort_by?: "created_at" | "updated_at" | "status" | "payment_status" | "total" | null;
+                /** @example desc */
                 sort_order?: "asc" | "desc" | null;
             };
             header: {
@@ -8893,8 +9151,8 @@ export interface operations {
                      *         {
                      *           "id": 58214,
                      *           "uid": "019a3a0e-1c2d-7e3f-8a4b-5c6d7e8f9a02",
-                     *           "order_number": "25-0924-58214",
-                     *           "status": "pending",
+                     *           "order_number": "26-0924-58214",
+                     *           "status": "pending_payment",
                      *           "payment_status": "paid",
                      *           "payment_method": "online",
                      *           "fulfillment_status": "unfulfilled",
@@ -8906,7 +9164,7 @@ export interface operations {
                      *           "external_ref": "CD-7F3K2Q",
                      *           "delivery_method": "delivery",
                      *           "currency": "NGN",
-                     *           "subtotal": "5000.00",
+                     *           "subtotal": "6500.00",
                      *           "discount_total": "0.00",
                      *           "shipping_total": "1500.00",
                      *           "tax_total": "0.00",
@@ -8935,14 +9193,14 @@ export interface operations {
                      *           "note": null,
                      *           "metafields": {},
                      *           "metadata": {},
-                     *           "created_at": "2025-09-24T14:05:00+01:00",
-                     *           "updated_at": "2025-09-24T14:05:00+01:00",
+                     *           "created_at": "2026-09-24T14:05:00+01:00",
+                     *           "updated_at": "2026-09-24T14:05:00+01:00",
                      *           "fulfilled_at": null
                      *         },
                      *         {
                      *           "id": 58213,
                      *           "uid": "019a3a0e-1c2d-7e3f-8a4b-5c6d7e8f9a01",
-                     *           "order_number": "25-0924-58213",
+                     *           "order_number": "26-0924-58213",
                      *           "status": "processing",
                      *           "payment_status": "paid",
                      *           "payment_method": "online",
@@ -8991,8 +9249,8 @@ export interface operations {
                      *           "metadata": {
                      *             "erp_id": "SO-104882"
                      *           },
-                     *           "created_at": "2025-09-24T13:40:00+01:00",
-                     *           "updated_at": "2025-09-24T13:52:00+01:00",
+                     *           "created_at": "2026-09-24T13:40:00+01:00",
+                     *           "updated_at": "2026-09-24T13:52:00+01:00",
                      *           "fulfilled_at": null
                      *         }
                      *       ],
@@ -9070,7 +9328,7 @@ export interface operations {
                      *         "code": "invalid_client_key",
                      *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -9087,9 +9345,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "insufficient_scope",
-                     *         "message": "This API key does not carry the `merchant-orders-read` scope it was called with.",
+                     *         "message": "This API key does not carry the 'merchant-orders-read' scope it was called with.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -9106,15 +9364,15 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "validation_failed",
-                     *         "message": "The request failed validation.",
-                     *         "field": "per_page",
+                     *         "message": "sort_by must be one of: created_at, updated_at, status, payment_status, total.",
+                     *         "field": "sort_by",
                      *         "errors": {
-                     *           "per_page": [
-                     *             "The per page must not be greater than 100."
+                     *           "sort_by": [
+                     *             "sort_by must be one of: created_at, updated_at, status, payment_status, total."
                      *           ]
                      *         },
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -9131,9 +9389,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "too_many_requests",
-                     *         "message": "Too many requests. Slow down and retry later.",
+                     *         "message": "Too Many Attempts.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -9155,6 +9413,7 @@ export interface operations {
                 "X-Request-Id"?: string;
             };
             path: {
+                /** @example 58213 */
                 order: string;
             };
             cookie?: never;
@@ -9173,7 +9432,7 @@ export interface operations {
                      *       "data": {
                      *         "id": 58213,
                      *         "uid": "019a3a0e-1c2d-7e3f-8a4b-5c6d7e8f9a01",
-                     *         "order_number": "25-0924-58213",
+                     *         "order_number": "26-0924-58213",
                      *         "status": "processing",
                      *         "payment_status": "paid",
                      *         "payment_method": "online",
@@ -9222,8 +9481,8 @@ export interface operations {
                      *         "metadata": {
                      *           "erp_id": "SO-104882"
                      *         },
-                     *         "created_at": "2025-09-24T13:40:00+01:00",
-                     *         "updated_at": "2025-09-24T13:52:00+01:00",
+                     *         "created_at": "2026-09-24T13:40:00+01:00",
+                     *         "updated_at": "2026-09-24T13:52:00+01:00",
                      *         "fulfilled_at": null
                      *       }
                      *     }
@@ -9250,7 +9509,7 @@ export interface operations {
                      *         "code": "invalid_client_key",
                      *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -9267,9 +9526,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "insufficient_scope",
-                     *         "message": "This API key does not carry the `merchant-orders-read` scope it was called with.",
+                     *         "message": "This API key does not carry the 'merchant-orders-read' scope it was called with.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -9286,9 +9545,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "not_found",
-                     *         "message": "The requested resource does not exist.",
+                     *         "message": "Order not found",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#not_found",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -9305,9 +9564,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "too_many_requests",
-                     *         "message": "Too many requests. Slow down and retry later.",
+                     *         "message": "Too Many Attempts.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -9331,12 +9590,20 @@ export interface operations {
                 "Idempotency-Key"?: string;
             };
             path: {
+                /** @example 58213 */
                 order: string;
             };
             cookie?: never;
         };
         requestBody?: {
             content: {
+                /**
+                 * @example {
+                 *       "metadata": {
+                 *         "erp_id": "SO-104882"
+                 *       }
+                 *     }
+                 */
                 "application/json": components["schemas"]["VendorOrderExtensionRequest"];
             };
         };
@@ -9353,7 +9620,7 @@ export interface operations {
                      *       "data": {
                      *         "id": 58213,
                      *         "uid": "019a3a0e-1c2d-7e3f-8a4b-5c6d7e8f9a01",
-                     *         "order_number": "25-0924-58213",
+                     *         "order_number": "26-0924-58213",
                      *         "status": "processing",
                      *         "payment_status": "paid",
                      *         "payment_method": "online",
@@ -9402,8 +9669,8 @@ export interface operations {
                      *         "metadata": {
                      *           "erp_id": "SO-104882"
                      *         },
-                     *         "created_at": "2025-09-24T13:40:00+01:00",
-                     *         "updated_at": "2025-09-24T13:52:00+01:00",
+                     *         "created_at": "2026-09-24T13:40:00+01:00",
+                     *         "updated_at": "2026-09-24T13:52:00+01:00",
                      *         "fulfilled_at": null
                      *       }
                      *     }
@@ -9430,7 +9697,7 @@ export interface operations {
                      *         "code": "invalid_client_key",
                      *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -9447,9 +9714,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "insufficient_scope",
-                     *         "message": "This API key does not carry the `merchant-orders-update` scope it was called with.",
+                     *         "message": "This API key does not carry the 'merchant-orders-update' scope it was called with.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -9466,9 +9733,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "not_found",
-                     *         "message": "The requested resource does not exist.",
+                     *         "message": "Order not found",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#not_found",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -9485,9 +9752,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "idempotency_key_reuse",
-                     *         "message": "This Idempotency-Key was already used with a different body. Mint a fresh key for a new write.",
+                     *         "message": "This Idempotency-Key was already used for a different request body. Use a new key for a new request.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#idempotency_key_reuse",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -9504,15 +9771,15 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "validation_failed",
-                     *         "message": "The request failed validation.",
-                     *         "field": "per_page",
+                     *         "message": "The metadata field must be an array.",
+                     *         "field": "metadata",
                      *         "errors": {
-                     *           "per_page": [
-                     *             "The per page must not be greater than 100."
+                     *           "metadata": [
+                     *             "The metadata field must be an array."
                      *           ]
                      *         },
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -9529,9 +9796,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "too_many_requests",
-                     *         "message": "Too many requests. Slow down and retry later.",
+                     *         "message": "Too Many Attempts.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -9559,6 +9826,29 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "channel": "chowdeck",
+                 *       "external_ref": "CD-7F3K2Q",
+                 *       "placed_at": "2026-09-24T13:05:00Z",
+                 *       "customer": {
+                 *         "name": "Ifeoma Adebayo",
+                 *         "phone": "+2348091112233"
+                 *       },
+                 *       "items": [
+                 *         {
+                 *           "product": "20418",
+                 *           "variant": "7731",
+                 *           "quantity": 2,
+                 *           "unit_price": 2500
+                 *         }
+                 *       ],
+                 *       "delivery_fee": 1500,
+                 *       "discount": 0,
+                 *       "total": 6500,
+                 *       "fulfilment": "delivery"
+                 *     }
+                 */
                 "application/json": components["schemas"]["ImportThirdPartyOrderRequest"];
             };
         };
@@ -9575,8 +9865,8 @@ export interface operations {
                      *       "data": {
                      *         "id": 58214,
                      *         "uid": "019a3a0e-1c2d-7e3f-8a4b-5c6d7e8f9a02",
-                     *         "order_number": "25-0924-58214",
-                     *         "status": "pending",
+                     *         "order_number": "26-0924-58214",
+                     *         "status": "pending_payment",
                      *         "payment_status": "paid",
                      *         "payment_method": "online",
                      *         "fulfillment_status": "unfulfilled",
@@ -9588,7 +9878,7 @@ export interface operations {
                      *         "external_ref": "CD-7F3K2Q",
                      *         "delivery_method": "delivery",
                      *         "currency": "NGN",
-                     *         "subtotal": "5000.00",
+                     *         "subtotal": "6500.00",
                      *         "discount_total": "0.00",
                      *         "shipping_total": "1500.00",
                      *         "tax_total": "0.00",
@@ -9617,8 +9907,8 @@ export interface operations {
                      *         "note": null,
                      *         "metafields": {},
                      *         "metadata": {},
-                     *         "created_at": "2025-09-24T14:05:00+01:00",
-                     *         "updated_at": "2025-09-24T14:05:00+01:00",
+                     *         "created_at": "2026-09-24T14:05:00+01:00",
+                     *         "updated_at": "2026-09-24T14:05:00+01:00",
                      *         "fulfilled_at": null
                      *       }
                      *     }
@@ -9645,8 +9935,8 @@ export interface operations {
                      *       "data": {
                      *         "id": 58214,
                      *         "uid": "019a3a0e-1c2d-7e3f-8a4b-5c6d7e8f9a02",
-                     *         "order_number": "25-0924-58214",
-                     *         "status": "pending",
+                     *         "order_number": "26-0924-58214",
+                     *         "status": "pending_payment",
                      *         "payment_status": "paid",
                      *         "payment_method": "online",
                      *         "fulfillment_status": "unfulfilled",
@@ -9658,7 +9948,7 @@ export interface operations {
                      *         "external_ref": "CD-7F3K2Q",
                      *         "delivery_method": "delivery",
                      *         "currency": "NGN",
-                     *         "subtotal": "5000.00",
+                     *         "subtotal": "6500.00",
                      *         "discount_total": "0.00",
                      *         "shipping_total": "1500.00",
                      *         "tax_total": "0.00",
@@ -9687,8 +9977,8 @@ export interface operations {
                      *         "note": null,
                      *         "metafields": {},
                      *         "metadata": {},
-                     *         "created_at": "2025-09-24T14:05:00+01:00",
-                     *         "updated_at": "2025-09-24T14:05:00+01:00",
+                     *         "created_at": "2026-09-24T14:05:00+01:00",
+                     *         "updated_at": "2026-09-24T14:05:00+01:00",
                      *         "fulfilled_at": null
                      *       }
                      *     }
@@ -9714,7 +10004,7 @@ export interface operations {
                      *         "code": "invalid_client_key",
                      *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -9731,9 +10021,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "insufficient_scope",
-                     *         "message": "This API key does not carry the `merchant-orders-import` scope it was called with.",
+                     *         "message": "This API key does not carry the 'merchant-orders-import' scope it was called with.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -9750,16 +10040,16 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "idempotency_key_reuse",
-                     *         "message": "This Idempotency-Key was already used with a different body. Mint a fresh key for a new write.",
+                     *         "message": "This Idempotency-Key was already used for a different request body. Use a new key for a new request.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#idempotency_key_reuse",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
                     "application/json": components["schemas"]["QueekError"];
                 };
             };
-            /** @description Validation failed — `error.errors` carries per-field detail. Switch on `error.code`. */
+            /** @description Validation failed — `error.errors` carries per-field detail. Switch on `error.code`. An item naming no product or variant of this store answers `unknown_product_ref` or `unknown_variant_ref` instead, with the reference in the message. */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -9769,15 +10059,15 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "validation_failed",
-                     *         "message": "The request failed validation.",
-                     *         "field": "per_page",
+                     *         "message": "The items.0.quantity field must be at least 1.",
+                     *         "field": "items.0.quantity",
                      *         "errors": {
-                     *           "per_page": [
-                     *             "The per page must not be greater than 100."
+                     *           "items.0.quantity": [
+                     *             "The items.0.quantity field must be at least 1."
                      *           ]
                      *         },
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -9794,9 +10084,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "too_many_requests",
-                     *         "message": "Too many requests. Slow down and retry later.",
+                     *         "message": "Too Many Attempts.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -9820,12 +10110,18 @@ export interface operations {
                 "Idempotency-Key"?: string;
             };
             path: {
+                /** @example 58213 */
                 order: string;
             };
             cookie?: never;
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "status": "accept"
+                 *     }
+                 */
                 "application/json": components["schemas"]["UpdateVendorOrderStatusRequest"];
             };
         };
@@ -9842,7 +10138,7 @@ export interface operations {
                      *       "data": {
                      *         "id": 58213,
                      *         "uid": "019a3a0e-1c2d-7e3f-8a4b-5c6d7e8f9a01",
-                     *         "order_number": "25-0924-58213",
+                     *         "order_number": "26-0924-58213",
                      *         "status": "processing",
                      *         "payment_status": "paid",
                      *         "payment_method": "online",
@@ -9891,8 +10187,8 @@ export interface operations {
                      *         "metadata": {
                      *           "erp_id": "SO-104882"
                      *         },
-                     *         "created_at": "2025-09-24T13:40:00+01:00",
-                     *         "updated_at": "2025-09-24T13:52:00+01:00",
+                     *         "created_at": "2026-09-24T13:40:00+01:00",
+                     *         "updated_at": "2026-09-24T13:52:00+01:00",
                      *         "fulfilled_at": null
                      *       }
                      *     }
@@ -9912,7 +10208,7 @@ export interface operations {
                      *         "code": "invalid_client_key",
                      *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -9929,9 +10225,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "insufficient_scope",
-                     *         "message": "This API key does not carry the `merchant-orders-status-update` scope it was called with.",
+                     *         "message": "This API key does not carry the 'merchant-orders-status-update' scope it was called with.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -9948,9 +10244,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "not_found",
-                     *         "message": "The requested resource does not exist.",
+                     *         "message": "Order not found",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#not_found",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -9967,9 +10263,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "idempotency_key_reuse",
-                     *         "message": "This Idempotency-Key was already used with a different body. Mint a fresh key for a new write.",
+                     *         "message": "This Idempotency-Key was already used for a different request body. Use a new key for a new request.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#idempotency_key_reuse",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -9986,15 +10282,15 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "validation_failed",
-                     *         "message": "The request failed validation.",
-                     *         "field": "per_page",
+                     *         "message": "The selected status is invalid.",
+                     *         "field": "status",
                      *         "errors": {
-                     *           "per_page": [
-                     *             "The per page must not be greater than 100."
+                     *           "status": [
+                     *             "The selected status is invalid."
                      *           ]
                      *         },
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -10011,9 +10307,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "too_many_requests",
-                     *         "message": "Too many requests. Slow down and retry later.",
+                     *         "message": "Too Many Attempts.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -10037,12 +10333,18 @@ export interface operations {
                 "Idempotency-Key"?: string;
             };
             path: {
+                /** @example 58213 */
                 order: string;
             };
             cookie?: never;
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "rider_id": "019a2b7c-4e11-7d90-a3b5-6c8d0e2f4a70"
+                 *     }
+                 */
                 "application/json": components["schemas"]["AssignOrderRiderRequest"];
             };
         };
@@ -10059,7 +10361,7 @@ export interface operations {
                      *       "data": {
                      *         "id": 58213,
                      *         "uid": "019a3a0e-1c2d-7e3f-8a4b-5c6d7e8f9a01",
-                     *         "order_number": "25-0924-58213",
+                     *         "order_number": "26-0924-58213",
                      *         "status": "processing",
                      *         "payment_status": "paid",
                      *         "payment_method": "online",
@@ -10108,8 +10410,8 @@ export interface operations {
                      *         "metadata": {
                      *           "erp_id": "SO-104882"
                      *         },
-                     *         "created_at": "2025-09-24T13:40:00+01:00",
-                     *         "updated_at": "2025-09-24T13:52:00+01:00",
+                     *         "created_at": "2026-09-24T13:40:00+01:00",
+                     *         "updated_at": "2026-09-24T13:52:00+01:00",
                      *         "fulfilled_at": null
                      *       }
                      *     }
@@ -10129,7 +10431,7 @@ export interface operations {
                      *         "code": "invalid_client_key",
                      *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -10146,9 +10448,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "insufficient_scope",
-                     *         "message": "This API key does not carry the `merchant-orders-status-update` scope it was called with.",
+                     *         "message": "This API key does not carry the 'merchant-orders-status-update' scope it was called with.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -10165,9 +10467,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "not_found",
-                     *         "message": "The requested resource does not exist.",
+                     *         "message": "Order not found",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#not_found",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -10184,9 +10486,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "idempotency_key_reuse",
-                     *         "message": "This Idempotency-Key was already used with a different body. Mint a fresh key for a new write.",
+                     *         "message": "This Idempotency-Key was already used for a different request body. Use a new key for a new request.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#idempotency_key_reuse",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -10203,15 +10505,15 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "validation_failed",
-                     *         "message": "The request failed validation.",
-                     *         "field": "per_page",
+                     *         "message": "The rider id field is required.",
+                     *         "field": "rider_id",
                      *         "errors": {
-                     *           "per_page": [
-                     *             "The per page must not be greater than 100."
+                     *           "rider_id": [
+                     *             "The rider id field is required."
                      *           ]
                      *         },
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -10228,9 +10530,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "too_many_requests",
-                     *         "message": "Too many requests. Slow down and retry later.",
+                     *         "message": "Too Many Attempts.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -10254,12 +10556,23 @@ export interface operations {
                 "Idempotency-Key"?: string;
             };
             path: {
+                /** @example 58190 */
                 order: string;
             };
             cookie?: never;
         };
         requestBody?: {
             content: {
+                /**
+                 * @example {
+                 *       "carrier_name": "GIG Logistics",
+                 *       "tracking_number": "GIG-2026-0924-7719",
+                 *       "tracking_url": "https://giglogistics.com/track/GIG-2026-0924-7719",
+                 *       "status": "on_transit",
+                 *       "shipped_at": "2026-09-24T16:10:00+01:00",
+                 *       "estimated_delivery_at": "2026-09-26T18:00:00+01:00"
+                 *     }
+                 */
                 "application/json": components["schemas"]["UpdateShipmentRequest"];
             };
         };
@@ -10276,7 +10589,7 @@ export interface operations {
                      *       "data": {
                      *         "id": 58190,
                      *         "uid": "019a3a0e-1c2d-7e3f-8a4b-5c6d7e8f9a03",
-                     *         "order_number": "25-0923-58190",
+                     *         "order_number": "26-0923-58190",
                      *         "status": "on_transit",
                      *         "payment_status": "paid",
                      *         "payment_method": "online",
@@ -10309,11 +10622,11 @@ export interface operations {
                      *         },
                      *         "shipment": {
                      *           "carrier_name": "GIG Logistics",
-                     *           "tracking_number": "GIG-2025-0924-7719",
-                     *           "tracking_url": "https://giglogistics.com/track/GIG-2025-0924-7719",
+                     *           "tracking_number": "GIG-2026-0924-7719",
+                     *           "tracking_url": "https://giglogistics.com/track/GIG-2026-0924-7719",
                      *           "zone_name": "Nationwide",
-                     *           "shipped_at": "2025-09-24T16:10:00+01:00",
-                     *           "estimated_delivery_at": "2025-09-26T18:00:00+01:00",
+                     *           "shipped_at": "2026-09-24T16:10:00+01:00",
+                     *           "estimated_delivery_at": "2026-09-26T18:00:00+01:00",
                      *           "delivered_at": null
                      *         },
                      *         "line_items": [
@@ -10331,8 +10644,8 @@ export interface operations {
                      *         "note": null,
                      *         "metafields": {},
                      *         "metadata": {},
-                     *         "created_at": "2025-09-23T18:22:00+01:00",
-                     *         "updated_at": "2025-09-24T16:10:00+01:00",
+                     *         "created_at": "2026-09-23T18:22:00+01:00",
+                     *         "updated_at": "2026-09-24T16:10:00+01:00",
                      *         "fulfilled_at": null
                      *       }
                      *     }
@@ -10352,7 +10665,7 @@ export interface operations {
                      *         "code": "invalid_client_key",
                      *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -10369,9 +10682,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "insufficient_scope",
-                     *         "message": "This API key does not carry the `merchant-orders-update` scope it was called with.",
+                     *         "message": "This API key does not carry the 'merchant-orders-update' scope it was called with.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -10388,9 +10701,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "not_found",
-                     *         "message": "The requested resource does not exist.",
+                     *         "message": "Order not found.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#not_found",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -10407,9 +10720,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "idempotency_key_reuse",
-                     *         "message": "This Idempotency-Key was already used with a different body. Mint a fresh key for a new write.",
+                     *         "message": "This Idempotency-Key was already used for a different request body. Use a new key for a new request.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#idempotency_key_reuse",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -10426,15 +10739,15 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "validation_failed",
-                     *         "message": "The request failed validation.",
-                     *         "field": "per_page",
+                     *         "message": "The tracking url field must be a valid URL.",
+                     *         "field": "tracking_url",
                      *         "errors": {
-                     *           "per_page": [
-                     *             "The per page must not be greater than 100."
+                     *           "tracking_url": [
+                     *             "The tracking url field must be a valid URL."
                      *           ]
                      *         },
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -10451,9 +10764,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "too_many_requests",
-                     *         "message": "Too many requests. Slow down and retry later.",
+                     *         "message": "Too Many Attempts.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -10465,14 +10778,19 @@ export interface operations {
     "products.list": {
         parameters: {
             query?: {
+                /** @example 1 */
                 page?: number | null;
+                /** @example 2 */
                 per_page?: number | null;
+                /** @example created_at */
                 sort_by?: "created_at" | "updated_at" | "title" | "price" | "stock" | "published" | null;
+                /** @example desc */
                 sort_order?: string | null;
                 search?: string | null;
                 category_id?: string | null;
                 taxonomy_category_id?: string | null;
                 collection_category_id?: string | null;
+                /** @example in_stock */
                 stock_status?: string | null;
                 import_id?: string | null;
                 batch_id?: string | null;
@@ -10547,8 +10865,8 @@ export interface operations {
                      *               "backorder_ready_date": null,
                      *               "weight": 0.55,
                      *               "position": 0,
-                     *               "created_at": "2025-07-15T11:30:00+01:00",
-                     *               "updated_at": "2025-09-22T16:05:00+01:00"
+                     *               "created_at": "2026-07-15T11:30:00+01:00",
+                     *               "updated_at": "2026-09-22T16:05:00+01:00"
                      *             },
                      *             {
                      *               "id": 7732,
@@ -10570,8 +10888,8 @@ export interface operations {
                      *               "backorder_ready_date": null,
                      *               "weight": 1.05,
                      *               "position": 1,
-                     *               "created_at": "2025-07-15T11:30:00+01:00",
-                     *               "updated_at": "2025-09-22T16:05:00+01:00"
+                     *               "created_at": "2026-07-15T11:30:00+01:00",
+                     *               "updated_at": "2026-09-22T16:05:00+01:00"
                      *             }
                      *           ],
                      *           "images": [
@@ -10619,8 +10937,8 @@ export interface operations {
                      *           ],
                      *           "metafields": {},
                      *           "metadata": {},
-                     *           "created_at": "2025-07-15T11:30:00+01:00",
-                     *           "updated_at": "2025-09-22T16:05:00+01:00",
+                     *           "created_at": "2026-07-15T11:30:00+01:00",
+                     *           "updated_at": "2026-09-22T16:05:00+01:00",
                      *           "deleted_at": null
                      *         },
                      *         {
@@ -10694,8 +11012,8 @@ export interface operations {
                      *           "metadata": {
                      *             "erp_id": "ERP-20417"
                      *           },
-                     *           "created_at": "2025-07-14T10:20:00+01:00",
-                     *           "updated_at": "2025-09-22T16:05:00+01:00",
+                     *           "created_at": "2026-07-14T10:20:00+01:00",
+                     *           "updated_at": "2026-09-22T16:05:00+01:00",
                      *           "deleted_at": null
                      *         }
                      *       ],
@@ -10779,7 +11097,7 @@ export interface operations {
                      *         "code": "invalid_client_key",
                      *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -10796,9 +11114,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "insufficient_scope",
-                     *         "message": "This API key does not carry the `merchant-items-read` scope it was called with.",
+                     *         "message": "This API key does not carry the 'merchant-items-read' scope it was called with.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -10815,15 +11133,15 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "validation_failed",
-                     *         "message": "The request failed validation.",
-                     *         "field": "per_page",
+                     *         "message": "sort_by must be one of: created_at, updated_at, title, price, stock, published.",
+                     *         "field": "sort_by",
                      *         "errors": {
-                     *           "per_page": [
-                     *             "The per page must not be greater than 100."
+                     *           "sort_by": [
+                     *             "sort_by must be one of: created_at, updated_at, title, price, stock, published."
                      *           ]
                      *         },
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -10840,9 +11158,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "too_many_requests",
-                     *         "message": "Too many requests. Slow down and retry later.",
+                     *         "message": "Too Many Attempts.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -10870,6 +11188,21 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "title": "Jollof Rice Party Pack",
+                 *       "price": "18500.00",
+                 *       "excerpt": "Smoky party jollof for 10, with fried plantain and grilled chicken.",
+                 *       "description": "Firewood-smoked party jollof cooked to order, served with dodo and six pieces of grilled chicken. Feeds 10.",
+                 *       "barcode": "6154000102417",
+                 *       "stock": 42,
+                 *       "track_inventory": true,
+                 *       "metadata": {
+                 *         "erp_id": "ERP-20417"
+                 *       },
+                 *       "image_url": "https://adeyemifoods.com/images/jollof-rice-party-pack.jpg"
+                 *     }
+                 */
                 "multipart/form-data": components["schemas"]["ProductRequest"];
             };
         };
@@ -10954,8 +11287,8 @@ export interface operations {
                      *         "metadata": {
                      *           "erp_id": "ERP-20417"
                      *         },
-                     *         "created_at": "2025-07-14T10:20:00+01:00",
-                     *         "updated_at": "2025-09-22T16:05:00+01:00",
+                     *         "created_at": "2026-07-14T10:20:00+01:00",
+                     *         "updated_at": "2026-07-14T10:20:00+01:00",
                      *         "deleted_at": null
                      *       }
                      *     }
@@ -10975,7 +11308,7 @@ export interface operations {
                      *         "code": "invalid_client_key",
                      *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -10992,9 +11325,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "insufficient_scope",
-                     *         "message": "This API key does not carry the `merchant-items-create` scope it was called with.",
+                     *         "message": "This API key does not carry the 'merchant-items-create' scope it was called with.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -11011,9 +11344,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "idempotency_key_reuse",
-                     *         "message": "This Idempotency-Key was already used with a different body. Mint a fresh key for a new write.",
+                     *         "message": "This Idempotency-Key was already used for a different request body. Use a new key for a new request.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#idempotency_key_reuse",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -11030,15 +11363,15 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "validation_failed",
-                     *         "message": "The request failed validation.",
-                     *         "field": "per_page",
+                     *         "message": "The title field is required.",
+                     *         "field": "title",
                      *         "errors": {
-                     *           "per_page": [
-                     *             "The per page must not be greater than 100."
+                     *           "title": [
+                     *             "The title field is required."
                      *           ]
                      *         },
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -11055,9 +11388,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "too_many_requests",
-                     *         "message": "Too many requests. Slow down and retry later.",
+                     *         "message": "Too Many Attempts.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -11079,6 +11412,7 @@ export interface operations {
                 "X-Request-Id"?: string;
             };
             path: {
+                /** @example 20417 */
                 product: string;
             };
             cookie?: never;
@@ -11165,8 +11499,8 @@ export interface operations {
                      *         "metadata": {
                      *           "erp_id": "ERP-20417"
                      *         },
-                     *         "created_at": "2025-07-14T10:20:00+01:00",
-                     *         "updated_at": "2025-09-22T16:05:00+01:00",
+                     *         "created_at": "2026-07-14T10:20:00+01:00",
+                     *         "updated_at": "2026-09-22T16:05:00+01:00",
                      *         "deleted_at": null
                      *       }
                      *     }
@@ -11193,7 +11527,7 @@ export interface operations {
                      *         "code": "invalid_client_key",
                      *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -11210,9 +11544,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "insufficient_scope",
-                     *         "message": "This API key does not carry the `merchant-items-detail` scope it was called with.",
+                     *         "message": "This API key does not carry the 'merchant-items-detail' scope it was called with.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -11229,9 +11563,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "not_found",
-                     *         "message": "The requested resource does not exist.",
+                     *         "message": "product not found",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#not_found",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -11248,9 +11582,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "too_many_requests",
-                     *         "message": "Too many requests. Slow down and retry later.",
+                     *         "message": "Too Many Attempts.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -11274,12 +11608,27 @@ export interface operations {
                 "Idempotency-Key"?: string;
             };
             path: {
+                /** @example 20417 */
                 product: string;
             };
             cookie?: never;
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "title": "Jollof Rice Party Pack",
+                 *       "price": "18500.00",
+                 *       "excerpt": "Smoky party jollof for 10, with fried plantain and grilled chicken.",
+                 *       "description": "Firewood-smoked party jollof cooked to order, served with dodo and six pieces of grilled chicken. Feeds 10.",
+                 *       "barcode": "6154000102417",
+                 *       "stock": 42,
+                 *       "track_inventory": true,
+                 *       "metadata": {
+                 *         "erp_id": "ERP-20417"
+                 *       }
+                 *     }
+                 */
                 "multipart/form-data": components["schemas"]["ProductRequest"];
             };
         };
@@ -11364,8 +11713,8 @@ export interface operations {
                      *         "metadata": {
                      *           "erp_id": "ERP-20417"
                      *         },
-                     *         "created_at": "2025-07-14T10:20:00+01:00",
-                     *         "updated_at": "2025-09-22T16:05:00+01:00",
+                     *         "created_at": "2026-07-14T10:20:00+01:00",
+                     *         "updated_at": "2026-09-22T16:05:00+01:00",
                      *         "deleted_at": null
                      *       }
                      *     }
@@ -11385,7 +11734,7 @@ export interface operations {
                      *         "code": "invalid_client_key",
                      *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -11402,9 +11751,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "insufficient_scope",
-                     *         "message": "This API key does not carry the `merchant-items-update` scope it was called with.",
+                     *         "message": "This API key does not carry the 'merchant-items-update' scope it was called with.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -11421,9 +11770,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "not_found",
-                     *         "message": "The requested resource does not exist.",
+                     *         "message": "Product not found.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#not_found",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -11440,9 +11789,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "idempotency_key_reuse",
-                     *         "message": "This Idempotency-Key was already used with a different body. Mint a fresh key for a new write.",
+                     *         "message": "This Idempotency-Key was already used for a different request body. Use a new key for a new request.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#idempotency_key_reuse",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -11459,15 +11808,15 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "validation_failed",
-                     *         "message": "The request failed validation.",
-                     *         "field": "per_page",
+                     *         "message": "The stock field must be at least 0.",
+                     *         "field": "stock",
                      *         "errors": {
-                     *           "per_page": [
-                     *             "The per page must not be greater than 100."
+                     *           "stock": [
+                     *             "The stock field must be at least 0."
                      *           ]
                      *         },
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -11484,9 +11833,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "too_many_requests",
-                     *         "message": "Too many requests. Slow down and retry later.",
+                     *         "message": "Too Many Attempts.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -11510,6 +11859,7 @@ export interface operations {
                 "Idempotency-Key"?: string;
             };
             path: {
+                /** @example 20417 */
                 product: string;
             };
             cookie?: never;
@@ -11527,7 +11877,8 @@ export interface operations {
                      *       "message": "Product deleted successfully",
                      *       "data": {
                      *         "id": "019a1d52-3c8e-7f41-b0d2-6a3e9c1f4b21",
-                     *         "p_id": 20417
+                     *         "p_id": 20417,
+                     *         "deleted": true
                      *       }
                      *     }
                      */
@@ -11553,7 +11904,7 @@ export interface operations {
                      *         "code": "invalid_client_key",
                      *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -11570,9 +11921,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "insufficient_scope",
-                     *         "message": "This API key does not carry the `merchant-items-delete` scope it was called with.",
+                     *         "message": "This API key does not carry the 'merchant-items-delete' scope it was called with.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -11589,9 +11940,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "not_found",
-                     *         "message": "The requested resource does not exist.",
+                     *         "message": "Product not found",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#not_found",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -11608,9 +11959,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "idempotency_key_reuse",
-                     *         "message": "This Idempotency-Key was already used with a different body. Mint a fresh key for a new write.",
+                     *         "message": "This Idempotency-Key was already used for a different request body. Use a new key for a new request.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#idempotency_key_reuse",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -11627,9 +11978,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "too_many_requests",
-                     *         "message": "Too many requests. Slow down and retry later.",
+                     *         "message": "Too Many Attempts.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -11657,6 +12008,15 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "ids": [
+                 *         "019a1d52-3c8e-7f41-b0d2-6a3e9c1f4b21",
+                 *         "019a1d52-3c8e-7f41-b0d2-6a3e9c1f4b22"
+                 *       ],
+                 *       "published": true
+                 *     }
+                 */
                 "application/json": components["schemas"]["BulkUpdatePublishRequest"];
             };
         };
@@ -11697,7 +12057,7 @@ export interface operations {
                      *         "code": "invalid_client_key",
                      *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -11714,9 +12074,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "insufficient_scope",
-                     *         "message": "This API key does not carry the `merchant-items-update` scope it was called with.",
+                     *         "message": "This API key does not carry the 'merchant-items-update' scope it was called with.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -11733,9 +12093,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "idempotency_key_reuse",
-                     *         "message": "This Idempotency-Key was already used with a different body. Mint a fresh key for a new write.",
+                     *         "message": "This Idempotency-Key was already used for a different request body. Use a new key for a new request.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#idempotency_key_reuse",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -11752,15 +12112,15 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "validation_failed",
-                     *         "message": "The request failed validation.",
-                     *         "field": "per_page",
+                     *         "message": "The ids field is required.",
+                     *         "field": "ids",
                      *         "errors": {
-                     *           "per_page": [
-                     *             "The per page must not be greater than 100."
+                     *           "ids": [
+                     *             "The ids field is required."
                      *           ]
                      *         },
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -11777,9 +12137,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "too_many_requests",
-                     *         "message": "Too many requests. Slow down and retry later.",
+                     *         "message": "Too Many Attempts.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -11798,7 +12158,7 @@ export interface operations {
                      *         "code": "server_error",
                      *         "message": "An unexpected error occurred.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#server_error",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -11852,8 +12212,8 @@ export interface operations {
                      *           "max_days": 1,
                      *           "active": true,
                      *           "position": 1,
-                     *           "created_at": "2025-07-05T10:00:00+01:00",
-                     *           "updated_at": "2025-09-10T14:30:00+01:00"
+                     *           "created_at": "2026-07-05T10:00:00+01:00",
+                     *           "updated_at": "2026-09-10T14:30:00+01:00"
                      *         },
                      *         {
                      *           "id": "019a2c5d-3e4f-7a5b-8c6d-7e8f9a0b1c22",
@@ -11873,8 +12233,8 @@ export interface operations {
                      *           "max_days": 5,
                      *           "active": true,
                      *           "position": 2,
-                     *           "created_at": "2025-07-05T10:05:00+01:00",
-                     *           "updated_at": "2025-09-10T14:32:00+01:00"
+                     *           "created_at": "2026-07-05T10:05:00+01:00",
+                     *           "updated_at": "2026-09-10T14:32:00+01:00"
                      *         }
                      *       ]
                      *     }
@@ -11901,7 +12261,7 @@ export interface operations {
                      *         "code": "invalid_client_key",
                      *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -11918,9 +12278,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "insufficient_scope",
-                     *         "message": "This API key does not carry the `merchant-shipping-read` scope it was called with.",
+                     *         "message": "This API key does not carry the 'merchant-shipping-read' scope it was called with.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -11937,9 +12297,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "too_many_requests",
-                     *         "message": "Too many requests. Slow down and retry later.",
+                     *         "message": "Too Many Attempts.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -11967,6 +12327,23 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "name": "Nationwide",
+                 *       "zone_type": "national",
+                 *       "countries": [
+                 *         "NG"
+                 *       ],
+                 *       "base_rate": "3500.00",
+                 *       "per_kg_rate": "500.00",
+                 *       "min_weight_kg": 0.5,
+                 *       "max_weight_kg": 30,
+                 *       "min_days": 2,
+                 *       "max_days": 5,
+                 *       "active": true,
+                 *       "sort_order": 2
+                 *     }
+                 */
                 "application/json": components["schemas"]["MerchantShippingZoneRequest"];
             };
         };
@@ -11998,8 +12375,8 @@ export interface operations {
                      *         "max_days": 5,
                      *         "active": true,
                      *         "position": 2,
-                     *         "created_at": "2025-07-05T10:05:00+01:00",
-                     *         "updated_at": "2025-09-10T14:32:00+01:00"
+                     *         "created_at": "2026-07-05T10:05:00+01:00",
+                     *         "updated_at": "2026-07-05T10:05:00+01:00"
                      *       }
                      *     }
                      */
@@ -12025,7 +12402,7 @@ export interface operations {
                      *         "code": "invalid_client_key",
                      *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -12042,9 +12419,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "insufficient_scope",
-                     *         "message": "This API key does not carry the `merchant-shipping-create` scope it was called with.",
+                     *         "message": "This API key does not carry the 'merchant-shipping-create' scope it was called with.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -12061,9 +12438,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "idempotency_key_reuse",
-                     *         "message": "This Idempotency-Key was already used with a different body. Mint a fresh key for a new write.",
+                     *         "message": "This Idempotency-Key was already used for a different request body. Use a new key for a new request.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#idempotency_key_reuse",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -12080,15 +12457,15 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "validation_failed",
-                     *         "message": "The request failed validation.",
-                     *         "field": "per_page",
+                     *         "message": "The selected zone type is invalid.",
+                     *         "field": "zone_type",
                      *         "errors": {
-                     *           "per_page": [
-                     *             "The per page must not be greater than 100."
+                     *           "zone_type": [
+                     *             "The selected zone type is invalid."
                      *           ]
                      *         },
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -12105,9 +12482,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "too_many_requests",
-                     *         "message": "Too many requests. Slow down and retry later.",
+                     *         "message": "Too Many Attempts.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -12131,12 +12508,27 @@ export interface operations {
                 "Idempotency-Key"?: string;
             };
             path: {
+                /** @example 019a2c5d-3e4f-7a5b-8c6d-7e8f9a0b1c21 */
                 zone: string;
             };
             cookie?: never;
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "name": "Lagos Island",
+                 *       "zone_type": "local",
+                 *       "countries": [
+                 *         "NG"
+                 *       ],
+                 *       "base_rate": "1500.00",
+                 *       "min_days": 1,
+                 *       "max_days": 1,
+                 *       "active": true,
+                 *       "sort_order": 1
+                 *     }
+                 */
                 "application/json": components["schemas"]["MerchantShippingZoneRequest"];
             };
         };
@@ -12168,8 +12560,8 @@ export interface operations {
                      *         "max_days": 1,
                      *         "active": true,
                      *         "position": 1,
-                     *         "created_at": "2025-07-05T10:00:00+01:00",
-                     *         "updated_at": "2025-09-10T14:30:00+01:00"
+                     *         "created_at": "2026-07-05T10:00:00+01:00",
+                     *         "updated_at": "2026-09-10T14:30:00+01:00"
                      *       }
                      *     }
                      */
@@ -12195,7 +12587,7 @@ export interface operations {
                      *         "code": "invalid_client_key",
                      *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -12212,9 +12604,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "insufficient_scope",
-                     *         "message": "This API key does not carry the `merchant-shipping-update` scope it was called with.",
+                     *         "message": "This API key does not carry the 'merchant-shipping-update' scope it was called with.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -12231,9 +12623,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "not_found",
-                     *         "message": "The requested resource does not exist.",
+                     *         "message": "Vendor shipping zone not found.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#not_found",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -12250,9 +12642,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "idempotency_key_reuse",
-                     *         "message": "This Idempotency-Key was already used with a different body. Mint a fresh key for a new write.",
+                     *         "message": "This Idempotency-Key was already used for a different request body. Use a new key for a new request.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#idempotency_key_reuse",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -12269,15 +12661,15 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "validation_failed",
-                     *         "message": "The request failed validation.",
-                     *         "field": "per_page",
+                     *         "message": "The base rate field must be at least 0.",
+                     *         "field": "base_rate",
                      *         "errors": {
-                     *           "per_page": [
-                     *             "The per page must not be greater than 100."
+                     *           "base_rate": [
+                     *             "The base rate field must be at least 0."
                      *           ]
                      *         },
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -12294,9 +12686,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "too_many_requests",
-                     *         "message": "Too many requests. Slow down and retry later.",
+                     *         "message": "Too Many Attempts.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -12384,8 +12776,8 @@ export interface operations {
                      *             "pickup_enabled": true,
                      *             "instore_order": false
                      *           },
-                     *           "created_at": "2025-06-02T08:00:00+01:00",
-                     *           "updated_at": "2025-09-24T18:30:00+01:00"
+                     *           "created_at": "2026-06-02T08:00:00+01:00",
+                     *           "updated_at": "2026-09-24T18:30:00+01:00"
                      *         }
                      *       }
                      *     }
@@ -12413,7 +12805,7 @@ export interface operations {
                      *         "code": "invalid_client_key",
                      *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -12430,9 +12822,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "insufficient_scope",
-                     *         "message": "This API key does not carry the `merchant-business_profile-read` scope it was called with.",
+                     *         "message": "This API key does not carry the 'merchant-business_profile-read' scope it was called with.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -12451,7 +12843,7 @@ export interface operations {
                      *         "code": "not_found",
                      *         "message": "This store no longer exists.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#not_found",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -12468,9 +12860,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "too_many_requests",
-                     *         "message": "Too many requests. Slow down and retry later.",
+                     *         "message": "Too Many Attempts.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -12489,7 +12881,7 @@ export interface operations {
                      *         "code": "server_error",
                      *         "message": "The store could not be read. Retry shortly.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#server_error",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -12511,6 +12903,7 @@ export interface operations {
                 "X-Request-Id"?: string;
             };
             path: {
+                /** @example 20418 */
                 product: string;
             };
             cookie?: never;
@@ -12547,8 +12940,8 @@ export interface operations {
                      *           "backorder_ready_date": null,
                      *           "weight": 0.55,
                      *           "position": 0,
-                     *           "created_at": "2025-07-15T11:30:00+01:00",
-                     *           "updated_at": "2025-09-22T16:05:00+01:00"
+                     *           "created_at": "2026-07-15T11:30:00+01:00",
+                     *           "updated_at": "2026-09-22T16:05:00+01:00"
                      *         },
                      *         {
                      *           "id": 7732,
@@ -12570,8 +12963,8 @@ export interface operations {
                      *           "backorder_ready_date": null,
                      *           "weight": 1.05,
                      *           "position": 1,
-                     *           "created_at": "2025-07-15T11:30:00+01:00",
-                     *           "updated_at": "2025-09-22T16:05:00+01:00"
+                     *           "created_at": "2026-07-15T11:30:00+01:00",
+                     *           "updated_at": "2026-09-22T16:05:00+01:00"
                      *         }
                      *       ]
                      *     }
@@ -12598,7 +12991,7 @@ export interface operations {
                      *         "code": "invalid_client_key",
                      *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -12615,9 +13008,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "insufficient_scope",
-                     *         "message": "This API key does not carry the `merchant-items-detail` scope it was called with.",
+                     *         "message": "This API key does not carry the 'merchant-items-detail' scope it was called with.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -12634,9 +13027,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "not_found",
-                     *         "message": "The requested resource does not exist.",
+                     *         "message": "Product not found.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#not_found",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -12653,9 +13046,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "too_many_requests",
-                     *         "message": "Too many requests. Slow down and retry later.",
+                     *         "message": "Too Many Attempts.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -12679,12 +13072,25 @@ export interface operations {
                 "Idempotency-Key"?: string;
             };
             path: {
+                /** @example 20418 */
                 product: string;
             };
             cookie?: never;
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "option_values": {
+                 *         "Size": "1 litre"
+                 *       },
+                 *       "sku": "ADF-CHP-1L",
+                 *       "price": "4200.00",
+                 *       "stock": 24,
+                 *       "weight": 1.05,
+                 *       "position": 1
+                 *     }
+                 */
                 "application/json": components["schemas"]["StoreProductVariantRequest"];
             };
         };
@@ -12718,8 +13124,8 @@ export interface operations {
                      *         "backorder_ready_date": null,
                      *         "weight": 1.05,
                      *         "position": 1,
-                     *         "created_at": "2025-07-15T11:30:00+01:00",
-                     *         "updated_at": "2025-09-22T16:05:00+01:00"
+                     *         "created_at": "2026-07-15T11:30:00+01:00",
+                     *         "updated_at": "2026-07-15T11:30:00+01:00"
                      *       }
                      *     }
                      */
@@ -12745,7 +13151,7 @@ export interface operations {
                      *         "code": "invalid_client_key",
                      *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -12762,9 +13168,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "insufficient_scope",
-                     *         "message": "This API key does not carry the `merchant-items-update` scope it was called with.",
+                     *         "message": "This API key does not carry the 'merchant-items-update' scope it was called with.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -12781,9 +13187,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "not_found",
-                     *         "message": "The requested resource does not exist.",
+                     *         "message": "Product not found.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#not_found",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -12800,9 +13206,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "idempotency_key_reuse",
-                     *         "message": "This Idempotency-Key was already used with a different body. Mint a fresh key for a new write.",
+                     *         "message": "This Idempotency-Key was already used for a different request body. Use a new key for a new request.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#idempotency_key_reuse",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -12819,15 +13225,15 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "validation_failed",
-                     *         "message": "The request failed validation.",
-                     *         "field": "per_page",
+                     *         "message": "The price field must be at least 0.",
+                     *         "field": "price",
                      *         "errors": {
-                     *           "per_page": [
-                     *             "The per page must not be greater than 100."
+                     *           "price": [
+                     *             "The price field must be at least 0."
                      *           ]
                      *         },
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -12844,9 +13250,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "too_many_requests",
-                     *         "message": "Too many requests. Slow down and retry later.",
+                     *         "message": "Too Many Attempts.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -12870,7 +13276,9 @@ export interface operations {
                 "Idempotency-Key"?: string;
             };
             path: {
+                /** @example 20418 */
                 product: string;
+                /** @example 7731 */
                 variant: string;
             };
             cookie?: never;
@@ -12886,7 +13294,11 @@ export interface operations {
                      * @example {
                      *       "status": "success",
                      *       "message": "Variant deleted",
-                     *       "data": []
+                     *       "data": {
+                     *         "id": 7731,
+                     *         "uid": "019a1d52-5f10-7a02-8c61-0b2d4e6f8a31",
+                     *         "deleted": true
+                     *       }
                      *     }
                      */
                     "application/json": {
@@ -12911,7 +13323,7 @@ export interface operations {
                      *         "code": "invalid_client_key",
                      *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -12928,9 +13340,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "insufficient_scope",
-                     *         "message": "This API key does not carry the `merchant-items-update` scope it was called with.",
+                     *         "message": "This API key does not carry the 'merchant-items-update' scope it was called with.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -12947,9 +13359,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "not_found",
-                     *         "message": "The requested resource does not exist.",
+                     *         "message": "Variant not found.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#not_found",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -12966,9 +13378,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "idempotency_key_reuse",
-                     *         "message": "This Idempotency-Key was already used with a different body. Mint a fresh key for a new write.",
+                     *         "message": "This Idempotency-Key was already used for a different request body. Use a new key for a new request.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#idempotency_key_reuse",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -12985,9 +13397,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "too_many_requests",
-                     *         "message": "Too many requests. Slow down and retry later.",
+                     *         "message": "Too Many Attempts.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -13011,13 +13423,21 @@ export interface operations {
                 "Idempotency-Key"?: string;
             };
             path: {
+                /** @example 20418 */
                 product: string;
+                /** @example 7732 */
                 variant: string;
             };
             cookie?: never;
         };
         requestBody?: {
             content: {
+                /**
+                 * @example {
+                 *       "price": "4200.00",
+                 *       "stock": 24
+                 *     }
+                 */
                 "application/json": components["schemas"]["UpdateProductVariantRequest"];
             };
         };
@@ -13051,8 +13471,8 @@ export interface operations {
                      *         "backorder_ready_date": null,
                      *         "weight": 1.05,
                      *         "position": 1,
-                     *         "created_at": "2025-07-15T11:30:00+01:00",
-                     *         "updated_at": "2025-09-22T16:05:00+01:00"
+                     *         "created_at": "2026-07-15T11:30:00+01:00",
+                     *         "updated_at": "2026-09-22T16:05:00+01:00"
                      *       }
                      *     }
                      */
@@ -13078,7 +13498,7 @@ export interface operations {
                      *         "code": "invalid_client_key",
                      *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -13095,9 +13515,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "insufficient_scope",
-                     *         "message": "This API key does not carry the `merchant-items-update` scope it was called with.",
+                     *         "message": "This API key does not carry the 'merchant-items-update' scope it was called with.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -13114,9 +13534,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "not_found",
-                     *         "message": "The requested resource does not exist.",
+                     *         "message": "Variant not found.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#not_found",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -13133,9 +13553,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "idempotency_key_reuse",
-                     *         "message": "This Idempotency-Key was already used with a different body. Mint a fresh key for a new write.",
+                     *         "message": "This Idempotency-Key was already used for a different request body. Use a new key for a new request.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#idempotency_key_reuse",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -13152,15 +13572,15 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "validation_failed",
-                     *         "message": "The request failed validation.",
-                     *         "field": "per_page",
+                     *         "message": "The price field must be a number.",
+                     *         "field": "price",
                      *         "errors": {
-                     *           "per_page": [
-                     *             "The per page must not be greater than 100."
+                     *           "price": [
+                     *             "The price field must be a number."
                      *           ]
                      *         },
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
@@ -13177,9 +13597,9 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "too_many_requests",
-                     *         "message": "Too many requests. Slow down and retry later.",
+                     *         "message": "Too Many Attempts.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
-                     *         "request_id": "req_7f3a2b1c9d4e"
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
                      */
