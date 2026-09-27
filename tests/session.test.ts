@@ -130,6 +130,9 @@ describe("verifySessionToken", () => {
   });
 
   it("refuses none-alg and foreign-alg tokens against the HS256 pin", async () => {
+    // Exact pins: the header pre-check fails closed with wrong_algorithm
+    // before jose runs, so neither the none header nor the RS256 key-type
+    // TypeError underneath can hide behind a disjunction.
     const now = Math.floor(Date.now() / 1000);
     const b64url = (raw: string): string => Buffer.from(raw).toString("base64url");
     const payload = b64url(
@@ -146,7 +149,10 @@ describe("verifySessionToken", () => {
       }),
     );
     const noneToken = `${b64url(JSON.stringify({ alg: "none", typ: "JWT" }))}.${payload}.`;
-    expect((await verifySessionTokenDetailed(noneToken, OPTIONS)).ok).toBe(false);
+    expect(await verifySessionTokenDetailed(noneToken, OPTIONS)).toEqual({
+      ok: false,
+      reason: "wrong_algorithm",
+    });
 
     const { privateKey } = await generateKeyPair("RS256");
     const rs256 = await new SignJWT({ sub: "u", sid: "s", jti: "j", ...BINDING })
@@ -157,9 +163,10 @@ describe("verifySessionToken", () => {
       .setIssuer(ISSUER)
       .setAudience(AUDIENCE)
       .sign(privateKey);
-    const rs256Result = await verifySessionTokenDetailed(rs256, OPTIONS);
-    expect(rs256Result.ok).toBe(false);
-    expect(["wrong_algorithm", "invalid_signature"]).toContain(rs256Result.ok ? "" : rs256Result.reason);
+    expect(await verifySessionTokenDetailed(rs256, OPTIONS)).toEqual({
+      ok: false,
+      reason: "wrong_algorithm",
+    });
   });
 
   it("refuses a valid-shaped token signed by the wrong secret", async () => {
