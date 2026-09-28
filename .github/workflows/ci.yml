@@ -1,0 +1,89 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: verify (sqlite)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Tests (sqlite)
+        run: npm test
+
+      # Fails when the committed Merchant API snapshot drifts from the live
+      # contract (refresh with `npm run gen:merchant` before an SDK release).
+      # A network failure is a WARNING inside the script, not a failure, so
+      # this stays green offline.
+      - name: Merchant snapshot check
+        run: npm run check:merchant-snapshot
+
+      - name: Build
+        run: npm run build
+
+      - name: Pre-publish guard
+        run: npm run check:publish
+
+      # Packs the CURRENT SOURCE and consumes it from a sandbox, so a broken
+      # package fails here instead of after publishing.
+      - name: Package is consumable from outside this repo
+        run: npm run verify-package
+
+  postgres:
+    name: tests (postgres)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: queek_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/queek_test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Tests (postgres service)
+        run: npm test

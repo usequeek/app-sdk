@@ -1,0 +1,66 @@
+name: Publish
+
+# Tags are the release: `git tag v0.4.0 && git push origin main --tags`.
+# The workflow re-runs every gate, then publishes the exact source it verified.
+# Requires the NPM_TOKEN secret (an npm access token with publish rights on
+# @usequeek/app-sdk) — the founder owns that secret.
+
+on:
+  push:
+    tags: ['v*']
+
+jobs:
+  publish:
+    name: publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Tests
+        run: npm test
+
+      - name: Merchant snapshot check
+        run: npm run check:merchant-snapshot
+
+      - name: Build
+        run: npm run build
+
+      - name: Pre-publish guard
+        run: npm run check:publish
+
+      - name: Package is consumable from outside this repo
+        run: npm run verify-package
+
+      - name: Tag matches package.json
+        run: |
+          tag_version="${GITHUB_REF_NAME#v}"
+          pkg_version="$(node -p "require('./package.json').version")"
+          if [ "$tag_version" != "$pkg_version" ]; then
+            echo "::error::tag is v${tag_version} but package.json says ${pkg_version} — bump, commit, re-tag."
+            exit 1
+          fi
+
+      - name: Publish
+        run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

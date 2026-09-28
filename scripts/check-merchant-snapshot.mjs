@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Fail when the committed Merchant API snapshot drifts from the live
- * contract — refresh with `pnpm --filter @usequeek/app-sdk gen:merchant`
+ * contract — refresh with `npm run gen:merchant`
  * before an SDK release, then commit both files.
  *
  * A NETWORK failure is a WARNING, not a failure (exit 0), so CI stays
@@ -150,5 +150,5 @@ if (unexpected.length === 0) {
 
 console.error(`error: ${snapshotPath} differs from ${LIVE_URL} outside declared drift.`);
 for (const line of unexpected.slice(0, 20)) console.error(`  ${line}`);
-console.error("Refresh with: pnpm --filter @usequeek/app-sdk gen:merchant");
+console.error("Refresh with: npm run gen:merchant");
 process.exit(1);

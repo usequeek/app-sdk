@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Pre-publish guard for @usequeek/app-sdk. Run locally
- * (`pnpm --filter @usequeek/app-sdk check:publish`) and in CI before every
+ * (`npm run check:publish`) and in CI before every
  * publish: `npm pack --dry-run` must list ONLY the intended files, and the
  * packed contents must hold no secret VALUES, no `.agent-` files, and no
  * non-public hostnames.
@@ -14,9 +14,10 @@
  * packed FILE paths (brief files live at the repo root and must never be
  * packed), and hostnames fail only when internal (localhost, IPs,
  * .test/.local, tunnels) or a non-public usequeek host: api.usequeek.com,
- * docs.usequeek.com (backend-generated descriptions link it) and
- * *.apps.usequeek.com may appear; public links (github.com, npmjs.com)
- * are fine.
+ * docs.usequeek.com (backend-generated descriptions link it),
+ * apps.usequeek.com + *.apps.usequeek.com, and media.usequeek.com (public
+ * media CDN examples inside openapi/merchant.json) may appear; public links
+ * (github.com, npmjs.com) are fine.
  */
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
@@ -60,7 +61,8 @@ function badHost(host) {
   if (/(ngrok|herd|tunnel)/.test(host)) return "tunnel/dev";
   if (host.endsWith(".usequeek.com")) {
     if (host === "api.usequeek.com" || host === "docs.usequeek.com") return null;
-    if (host.endsWith(".apps.usequeek.com")) return null;
+    if (host === "apps.usequeek.com" || host.endsWith(".apps.usequeek.com")) return null;
+    if (host === "media.usequeek.com") return null;
     return "non-public usequeek host";
   }
   return null;

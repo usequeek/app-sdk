@@ -1,13 +1,12 @@
 {
   "name": "@usequeek/app-sdk",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": false,
   "license": "MIT",
   "description": "SDK for Queek installable apps: webhook signature verification, install handlers, typed Merchant API client, webhook dispatch, encrypted installation store.",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/usequeek/queek-apps.git",
-    "directory": "packages/app-sdk"
+    "url": "git+https://github.com/usequeek/app-sdk.git"
   },
   "publishConfig": {
     "access": "public"
@@ -35,7 +34,9 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc --noEmit -p tsconfig.json",
+    "lint": "biome check .",
     "test": "vitest run",
+    "verify-package": "node scripts/verify-package.mjs",
     "gen:merchant": "node scripts/gen-merchant-types.mjs",
     "check:merchant-snapshot": "node scripts/check-merchant-snapshot.mjs",
     "check:publish": "node scripts/check-publish.mjs"
@@ -44,6 +45,7 @@
     "hono": "^4"
   },
   "devDependencies": {
+    "@biomejs/biome": "2.5.14",
     "@types/node": "22.20.4",
     "@types/pg": "^8.23.1",
     "hono": "4.13.9",

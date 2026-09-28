@@ -4,13 +4,13 @@ import { spawnSync } from "node:child_process";
  * Refresh the Merchant API contract snapshot and regenerate the typed schema.
  *
  * Usage:
- *   pnpm gen:merchant [url-or-path]
+ *   npm run gen:merchant [url-or-path]
  *
  * Source precedence (A3b, 2026-09-24): the backend's merchant-scoped spec at
  * the reviewed commit, exported WITHOUT a server via Scramble —
  *
  *   php artisan scramble:export --api=merchant --path=/tmp/merchant.json  # in queek_backend
- *   pnpm gen:merchant /tmp/merchant.json
+ *   npm run gen:merchant /tmp/merchant.json
  *
  * — or production once the backend has deployed: 2026-09-26 the snapshot was
  * re-pulled from https://api.usequeek.com/docs/merchant.json after the S11
@@ -65,7 +65,7 @@ if (gen.status !== 0) throw new Error("openapi-typescript failed.");
 const provenance =
   `/**\n` +
   ` * GENERATED from openapi/merchant.json — do not edit by hand.\n` +
-  ` * Refresh with: pnpm --filter @usequeek/app-sdk gen:merchant [url-or-path]\n` +
+  ` * Refresh with: npm run gen:merchant [url-or-path]\n` +
   ` * See scripts/gen-merchant-types.mjs for source precedence.\n` +
   ` */\n`;
 writeFileSync(schemaPath, provenance + readFileSync(schemaPath, "utf8"));

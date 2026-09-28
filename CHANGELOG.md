@@ -88,15 +88,21 @@ One shared Postgres pool per app process (the apps' own tables now live beside t
 
 - `store.ts`: `createPostgresPool(connectionString, max)` — builds one `pg` Pool with the idle-client error guard for a process to share between its installation store and its app store. `PostgresInstallationStore` and `createInstallationStore` accept an optional shared `pool` (a provided pool wins over `DATABASE_URL`; `close()` never ends a pool the store does not own). `PostgresStoreOptions.connectionString` is now optional when `pool` is given.
 
-## [Unreleased]
+## [0.4.0] - 2026-09-28
 
-### Changed
-
-- Regenerated types from the live Merchant API contract (decision 2026-09-24-one-public-product-object): the product list + retrieve now return the one public `ProductResource` — the same object as `products/*` webhooks (`id` = int p_id, `uid` = UUID, plus `url`, `storefront_price`, `storefront_compare_at_price`, `primary_image_url`, `variants[]` with integer `id` = variant p_id, `images[]`; no cost/wholesale/discount internals). The product read shape is public-only: no internal fields to strip.
+Standalone release: `@usequeek/app-sdk` ships from its own repo (`usequeek/app-sdk`).
 
 ### Added
 
-- Installation-bound app writes for the S3a contract (queek_backend@c1fa1c31; snapshot intentionally ahead of production — see `openapi/merchant.drift.json`, re-check after the S3a deploy): `setSetupNotice` (PUT app/setup, full-sheet write), `sendAlert` (POST app/alerts, severity/title/message plus optional dedupe key), `collectedDefinitions.list/create/update` (the calling installation's own collected types), and `createRecord` (POST records with a fresh Idempotency-Key per submit; `values` is a `{field_key: value}` object per the backend's FormsAppCollectedTest — the Scramble `string[]` is imprecise).
+- Session verifier as a server-only export (`@usequeek/app-sdk/server`): `verifySessionToken` — HS256 dashboard session tokens minted per installation (`embsec_…` secret, 20 s clock tolerance, slug audience + api_base issuer, full installation binding). The secret never enters a browser bundle: the main entry does not export the verifier. `sessionTokenInstallationId` reads the token's `installation_id` as an unverified routing hint.
+- Frame bridge (`frame.ts`, browser-safe, no secret): `listenToDashboard` (accepts only the exact dashboard origin) and `sendReady` (exact target origin, never `"*"`).
+- Resync handoff accepted on both `/install` and `/settings` (`type: app/resync`): the install-shaped data plus the resync-only `secret_rotated` flag merges via `saveResyncedInstallation` (secrets/settings/scopes refresh, `installedAt` and the cached token kept).
+- Install handoff carries `app_id` + `embed_secret`: the app's own id (exactly as the session token signs it) and the installation's `embsec_…` embed secret, handed over on install/resync and kept on the installation record (`embedSecret` encrypted, `appId`).
+
+### Changed
+
+- Merchant snapshot refreshed from production (line-properties PATCH, `storefront.domains`, `app_id`, no list `meta.currency`): regenerated types from the live Merchant API contract (decision 2026-09-24-one-public-product-object) — the product list + retrieve now return the one public `ProductResource`, the same object as `products/*` webhooks (`id` = int p_id, `uid` = UUID, plus `url`, `storefront_price`, `storefront_compare_at_price`, `primary_image_url`, `variants[]` with integer `id` = variant p_id, `images[]`; no cost/wholesale/discount internals).
+- Installation-bound app writes for the S3a contract (queek_backend@c1fa1c31; snapshot intentionally ahead of production — see `openapi/merchant.drift.json`, re-check after the S3a deploy): `setSetupNotice` (PUT app/setup, full-sheet write), `sendAlert` (POST app/alerts, severity/title/message plus optional dedupe key), `collectedDefinitions.list/create/update` (the calling installation's own collected types), and `createRecord` (POST records with a fresh Idempotency-Key per submit; `values` is a `{field_key: value}` object per the backend's FormsAppCollectedTest).
 
 ## [0.1.0] - 2026-09-24
 
