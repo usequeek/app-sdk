@@ -88,6 +88,8 @@ function installationRecordFromInstall(data: InstallData, nowIso: string): Insta
     settings: data.settings,
     webhookSecret: data.webhook_secret,
     proxySecret: data.proxy_secret,
+    embedSecret: data.embed_secret ?? null,
+    appId: data.app_id ?? null,
     webhookUrl: data.webhook_url,
     webhookTopics: data.webhook_topics,
     installedAt: nowIso,
@@ -107,8 +109,12 @@ export function saveResyncedInstallation(
   data: InstallData,
   nowIso: string = new Date().toISOString(),
 ): InstallationRecord {
+  const fresh = installationRecordFromInstall(data, nowIso);
   return {
-    ...installationRecordFromInstall(data, nowIso),
+    ...fresh,
+    // A handoff without the key (older payloads) keeps what is stored.
+    embedSecret: data.embed_secret === undefined ? (existing.embedSecret ?? null) : fresh.embedSecret,
+    appId: data.app_id === undefined ? (existing.appId ?? null) : fresh.appId,
     installedAt: existing.installedAt,
     token: existing.token,
     tokenExpiresAt: existing.tokenExpiresAt,

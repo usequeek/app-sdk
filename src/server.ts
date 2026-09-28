@@ -14,6 +14,7 @@ export type {
 export {
   EMBED_SECRET_PREFIX,
   SESSION_CLOCK_TOLERANCE_SECONDS,
+  sessionTokenInstallationId,
   verifySessionToken,
   verifySessionTokenDetailed,
 } from "./session.js";

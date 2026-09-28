@@ -5,6 +5,7 @@ import * as serverEntry from "../src/server.js";
 import {
   EMBED_SECRET_PREFIX,
   SESSION_CLOCK_TOLERANCE_SECONDS,
+  sessionTokenInstallationId,
   verifySessionToken,
   verifySessionTokenDetailed,
 } from "../src/session.js";
@@ -191,5 +192,31 @@ describe("verifySessionToken", () => {
 
   it("pins the backend-matching clock tolerance", () => {
     expect(SESSION_CLOCK_TOLERANCE_SECONDS).toBe(20);
+  });
+
+  it("reads the installation routing hint without trusting it", async () => {
+    const token = await signValid();
+    expect(sessionTokenInstallationId(token)).toBe(BINDING.installation_id);
+    // A forged token still yields its claim: the hint routes, the verify decides.
+    const forged = `${token.split(".").slice(0, 2).join(".")}.${"A".repeat(43)}`;
+    expect(sessionTokenInstallationId(forged)).toBe(BINDING.installation_id);
+    expect(
+      await verifySessionToken(forged, {
+        secret: SECRET,
+        audience: AUDIENCE,
+        issuer: ISSUER,
+        expected: {
+          installationId: BINDING.installation_id,
+          vendorId: BINDING.vendor_id,
+          appSlug: BINDING.app_slug,
+          appId: BINDING.app_id,
+        },
+      }),
+    ).toBe(false);
+    for (const junk of ["", "not-a-jwt", "a.b.c", await signValid({ installation_id: "" })]) {
+      expect(sessionTokenInstallationId(junk)).toBeNull();
+    }
+    expect(Object.keys(serverEntry)).toContain("sessionTokenInstallationId");
+    expect(Object.keys(mainEntry)).not.toContain("sessionTokenInstallationId");
   });
 });

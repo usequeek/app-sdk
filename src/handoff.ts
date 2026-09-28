@@ -57,6 +57,20 @@ export interface InstallData {
    * queek_backend `App\Services\Apps\AppInstallService::installPayload()`.
    */
   proxy_secret: string | null;
+  /**
+   * The installation's `embsec_…` embed secret (backend `embed_secret`),
+   * handed over on install/resync: the HS256 key of the dashboard session
+   * tokens its embedded merchant page receives (verify with
+   * `@usequeek/app-sdk/server` `verifySessionToken`). Null for apps
+   * without a merchant page.
+   */
+  embed_secret?: string | null;
+  /**
+   * The app's own id, exactly as the session token signs it (`app_id`
+   * claim) — the verifier binds it. Source of truth: queek_backend
+   * `AppInstallService::installPayload()` / `resyncPayload()`.
+   */
+  app_id?: string | null;
   webhook_url: string | null;
   webhook_topics: string[];
 }

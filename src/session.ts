@@ -1,4 +1,4 @@
-import { decodeProtectedHeader, jwtVerify } from "jose";
+import { decodeJwt, decodeProtectedHeader, jwtVerify } from "jose";
 
 /**
  * Dashboard session tokens (S4 stage 2): short-lived HS256 JWTs the backend
@@ -120,6 +120,22 @@ export async function verifySessionTokenDetailed(
     return { ok: false, reason: "binding_mismatch" };
   }
   return { ok: true, claims };
+}
+
+/**
+ * ROUTING HINT ONLY — the `installation_id` claim read WITHOUT verifying
+ * anything, so a server can load the installation whose embed secret then
+ * verifies the token with `verifySessionToken`. Never trust it on its
+ * own: a caller that skips the verify has no authentication at all.
+ * Null for anything that is not a decodable JWT carrying the claim.
+ */
+export function sessionTokenInstallationId(token: string): string | null {
+  try {
+    const claim = decodeJwt(token).installation_id;
+    return typeof claim === "string" && claim.length > 0 ? claim : null;
+  } catch {
+    return null;
+  }
 }
 
 /**

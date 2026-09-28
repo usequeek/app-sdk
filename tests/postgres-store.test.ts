@@ -43,6 +43,8 @@ function record(id: string): InstallationRecord {
     settings: { greeting: "hello" },
     webhookSecret: `whsec_secret_${id}`,
     proxySecret: `whsec_proxy_${id}`,
+    embedSecret: `embsec_embed_${id}`,
+    appId: `app-uuid-${id}`,
     webhookUrl: null,
     webhookTopics: [],
     installedAt: new Date().toISOString(),
@@ -94,6 +96,9 @@ describePg("PostgresInstallationStore", () => {
     expect(raw).not.toContain(`tok_secret_${id}`);
     expect(raw).not.toContain(`whsec_secret_${id}`);
     expect(raw).not.toContain(`whsec_proxy_${id}`);
+    expect(raw).not.toContain(`embsec_embed_${id}`);
+    expect(String(row.embed_secret_enc)).toMatch(/^v1\./);
+    expect(row.app_id).toBe(`app-uuid-${id}`);
     expect(String(row.token_enc)).toMatch(/^v1\./);
     expect(String(row.webhook_secret_enc)).toMatch(/^v1\./);
     expect(String(row.proxy_secret_enc)).toMatch(/^v1\./);
@@ -236,7 +241,7 @@ describePg("PostgresInstallationStore", () => {
     expect(columns.rows.map((row) => row.column_name)).toContain("pending");
     const versions = await admin.query(`SELECT version FROM schema_version`);
     expect(versions.rows).toEqual([{ version: INSTALLATION_SCHEMA_VERSION }]);
-    expect(INSTALLATION_SCHEMA_VERSION).toBe(3);
+    expect(INSTALLATION_SCHEMA_VERSION).toBe(4);
     await migrated.close();
     await store.close();
   });

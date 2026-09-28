@@ -63,6 +63,14 @@ export interface InstallationRecord {
    * secret-named keys).
    */
   proxySecret: string | null;
+  /**
+   * Plaintext per-installation embed secret (`embsec_…`) — memory only,
+   * persisted as `embed_secret_enc`, null when the app has no merchant
+   * page. Verifies dashboard session tokens; never logged.
+   */
+  embedSecret?: string | null;
+  /** The app's own id as Queek signs it into session tokens (`app_id`); not a secret. */
+  appId?: string | null;
   webhookUrl: string | null;
   webhookTopics: string[];
   installedAt: string;
@@ -145,6 +153,8 @@ const INSTALLATIONS_TABLE_SQLITE = `
         settings_json TEXT NOT NULL,
         webhook_secret_enc TEXT,
         proxy_secret_enc TEXT,
+        embed_secret_enc TEXT,
+        app_id TEXT,
         webhook_url TEXT,
         webhook_topics_json TEXT NOT NULL,
         installed_at TEXT NOT NULL,
@@ -220,6 +230,15 @@ export class SqliteInstallationStore implements InstallationStore {
     if (!live.has("proxy_secret_enc")) {
       this.db.exec(`ALTER TABLE installations ADD COLUMN proxy_secret_enc TEXT;`);
     }
+    // Schema v4 (S4): the embed secret + app id that verify dashboard
+    // session tokens. Existing rows backfill to NULL until the next
+    // install/resync handoff delivers them.
+    if (!live.has("embed_secret_enc")) {
+      this.db.exec(`ALTER TABLE installations ADD COLUMN embed_secret_enc TEXT;`);
+    }
+    if (!live.has("app_id")) {
+      this.db.exec(`ALTER TABLE installations ADD COLUMN app_id TEXT;`);
+    }
   }
 
   saveInstallation(record: InstallationRecord): void {
@@ -230,9 +249,9 @@ export class SqliteInstallationStore implements InstallationStore {
           installation_id, installation_pid, vendor_id, store_pid, store_name,
           api_base, token_enc, token_expires_at, token_kid, pending,
           scopes_json, settings_json,
-          webhook_secret_enc, proxy_secret_enc, webhook_url, webhook_topics_json,
+          webhook_secret_enc, proxy_secret_enc, embed_secret_enc, app_id, webhook_url, webhook_topics_json,
           installed_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(installation_id) DO UPDATE SET
           installation_pid = excluded.installation_pid,
           vendor_id = excluded.vendor_id,
@@ -247,6 +266,8 @@ export class SqliteInstallationStore implements InstallationStore {
           settings_json = excluded.settings_json,
           webhook_secret_enc = excluded.webhook_secret_enc,
           proxy_secret_enc = excluded.proxy_secret_enc,
+          embed_secret_enc = excluded.embed_secret_enc,
+          app_id = excluded.app_id,
           webhook_url = excluded.webhook_url,
           webhook_topics_json = excluded.webhook_topics_json,
           updated_at = excluded.updated_at`,
@@ -265,9 +286,13 @@ export class SqliteInstallationStore implements InstallationStore {
         JSON.stringify(record.scopes),
         encryptSecret(JSON.stringify(record.settings), this.key),
         record.webhookSecret === null ? null : encryptSecret(record.webhookSecret, this.key),
-        (record.proxySecret === null || record.proxySecret === undefined
+        record.proxySecret === null || record.proxySecret === undefined
           ? null
-          : encryptSecret(record.proxySecret, this.key)),
+          : encryptSecret(record.proxySecret, this.key),
+        record.embedSecret === null || record.embedSecret === undefined
+          ? null
+          : encryptSecret(record.embedSecret, this.key),
+        record.appId ?? null,
         record.webhookUrl,
         JSON.stringify(record.webhookTopics),
         record.installedAt,
@@ -394,6 +419,11 @@ function rowToRecord(row: Record<string, string | null>, key: Buffer): Installat
       row.proxy_secret_enc === null || row.proxy_secret_enc === undefined
         ? null
         : decryptSecret(column(row.proxy_secret_enc), key),
+    embedSecret:
+      row.embed_secret_enc === null || row.embed_secret_enc === undefined
+        ? null
+        : decryptSecret(column(row.embed_secret_enc), key),
+    appId: (row.app_id as string | null | undefined) ?? null,
     webhookUrl: (row.webhook_url as string | null) ?? null,
     webhookTopics: JSON.parse(column(row.webhook_topics_json)) as string[],
     installedAt: column(row.installed_at),
@@ -420,9 +450,10 @@ function toPendingFlag(value: unknown): boolean {
  * Current schema revision, stored as exactly one row in `schema_version`
  * (Postgres) and enforced by column-presence migration (SQLite).
  * v2 adds the persisted 409-pending mark (`pending`, NOT NULL DEFAULT
- * false on both drivers).
+ * false on both drivers); v3 the proxy secret; v4 the embed secret and
+ * app id that verify dashboard session tokens (all nullable).
  */
-export const INSTALLATION_SCHEMA_VERSION = 3;
+export const INSTALLATION_SCHEMA_VERSION = 4;
 
 export interface PostgresStoreOptions {
   /**
@@ -528,6 +559,8 @@ export class PostgresInstallationStore implements InstallationStore {
             settings_json TEXT NOT NULL,
             webhook_secret_enc TEXT,
             proxy_secret_enc TEXT,
+            embed_secret_enc TEXT,
+            app_id TEXT,
             webhook_url TEXT,
             webhook_topics_json TEXT NOT NULL,
             installed_at TIMESTAMPTZ NOT NULL,
@@ -547,6 +580,12 @@ export class PostgresInstallationStore implements InstallationStore {
           -- next install/resync handoff).
           ALTER TABLE installations
           ADD COLUMN IF NOT EXISTS proxy_secret_enc TEXT;
+          -- Schema v4 (S4): the embed secret + app id that verify
+          -- dashboard session tokens (NULL until the next handoff).
+          ALTER TABLE installations
+          ADD COLUMN IF NOT EXISTS embed_secret_enc TEXT;
+          ALTER TABLE installations
+          ADD COLUMN IF NOT EXISTS app_id TEXT;
           -- The guard row always converges to exactly one row at the
           -- current version: v1 databases gain the v2 row and lose the v1
           -- row; fresh databases insert it directly.
@@ -570,9 +609,9 @@ export class PostgresInstallationStore implements InstallationStore {
          installation_id, installation_pid, vendor_id, store_pid, store_name,
          api_base, token_enc, token_expires_at, token_kid, pending,
          scopes_json, settings_json,
-         webhook_secret_enc, proxy_secret_enc, webhook_url, webhook_topics_json,
+         webhook_secret_enc, proxy_secret_enc, embed_secret_enc, app_id, webhook_url, webhook_topics_json,
          installed_at, updated_at
-       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
        ON CONFLICT (installation_id) DO UPDATE SET
          installation_pid = excluded.installation_pid,
          vendor_id = excluded.vendor_id,
@@ -587,6 +626,8 @@ export class PostgresInstallationStore implements InstallationStore {
          settings_json = excluded.settings_json,
          webhook_secret_enc = excluded.webhook_secret_enc,
          proxy_secret_enc = excluded.proxy_secret_enc,
+         embed_secret_enc = excluded.embed_secret_enc,
+         app_id = excluded.app_id,
          webhook_url = excluded.webhook_url,
          webhook_topics_json = excluded.webhook_topics_json,
          updated_at = excluded.updated_at`,
@@ -604,9 +645,13 @@ export class PostgresInstallationStore implements InstallationStore {
         JSON.stringify(record.scopes),
         encryptSecret(JSON.stringify(record.settings), this.key),
         record.webhookSecret === null ? null : encryptSecret(record.webhookSecret, this.key),
-        (record.proxySecret === null || record.proxySecret === undefined
+        record.proxySecret === null || record.proxySecret === undefined
           ? null
-          : encryptSecret(record.proxySecret, this.key)),
+          : encryptSecret(record.proxySecret, this.key),
+        record.embedSecret === null || record.embedSecret === undefined
+          ? null
+          : encryptSecret(record.embedSecret, this.key),
+        record.appId ?? null,
         record.webhookUrl,
         JSON.stringify(record.webhookTopics),
         record.installedAt,
@@ -770,6 +815,11 @@ function pgRowToRecord(row: Record<string, unknown>, key: Buffer): InstallationR
       const enc = row.proxy_secret_enc as string | null | undefined;
       return enc === null || enc === undefined ? null : decryptSecret(enc, key);
     })(),
+    embedSecret: (() => {
+      const enc = row.embed_secret_enc as string | null | undefined;
+      return enc === null || enc === undefined ? null : decryptSecret(enc, key);
+    })(),
+    appId: (row.app_id as string | null | undefined) ?? null,
     webhookUrl: (row.webhook_url as string | null) ?? null,
     webhookTopics: JSON.parse(pgText(row.webhook_topics_json, "webhook_topics_json")) as string[],
     installedAt: toIso(row.installed_at),

@@ -32,6 +32,8 @@ export function installBody(overrides: Record<string, unknown> = {}): string {
       settings: {},
       webhook_secret: `whsec_${randomBytes(24).toString("base64")}`,
       proxy_secret: `whsec_${randomBytes(24).toString("base64")}`,
+      embed_secret: `embsec_${randomBytes(24).toString("base64")}`,
+      app_id: "app-uuid-hello",
       webhook_url: "https://hello.apps.usequeek.com/webhooks",
       webhook_topics: ["orders/updated"],
       ...overrides,

@@ -38,6 +38,9 @@ describe("install handler", () => {
     expect(stored?.storePid).toBe("store_xyz");
     expect(stored?.webhookSecret).toContain("whsec_");
     expect(stored?.proxySecret).toContain("whsec_");
+    // S4: the embed secret + app id that verify dashboard session tokens.
+    expect(stored?.embedSecret).toContain("embsec_");
+    expect(stored?.appId).toBe("app-uuid-hello");
   });
 
   it("answers 401 on a bad signature and stores nothing", async () => {
@@ -279,6 +282,7 @@ describe("resync delivery (install envelope for an existing installation)", () =
         ...(parsed.data as object),
         webhook_secret: "whsec_rotated_secret_after_resync",
         proxy_secret: "whsec_proxy_after_resync",
+        embed_secret: "embsec_after_resync",
         settings: { greeting: "rotated" },
       },
     });
@@ -293,9 +297,28 @@ describe("resync delivery (install envelope for an existing installation)", () =
     const after = await store.getInstallation("11111111-1111-1111-1111-111111111111");
     expect(after?.webhookSecret).toBe("whsec_rotated_secret_after_resync");
     expect(after?.proxySecret).toBe("whsec_proxy_after_resync");
+    expect(after?.embedSecret).toBe("embsec_after_resync");
+    expect(after?.appId).toBe("app-uuid-hello");
     expect(after?.settings).toEqual({ greeting: "rotated" });
     expect(after?.installedAt).toBe(before?.installedAt);
     expect(after?.token).toBe("tok_cached_before_resync");
     expect(after?.tokenKid).toBe("kid-1");
+
+    // A handoff that omits the S4 keys (older payload) keeps what is stored.
+    const older = JSON.parse(resync) as { id: string; data: Record<string, unknown> };
+    delete older.data.embed_secret;
+    delete older.data.app_id;
+    older.id = "evt-resync-8";
+    const olderBody = JSON.stringify(older);
+    const kept = await postRaw(
+      app,
+      "/install",
+      olderBody,
+      signedHeaders("evt-resync-8", NOW, olderBody, APP_SECRET),
+    );
+    expect(kept.status).toBe(200);
+    const afterOlder = await store.getInstallation("11111111-1111-1111-1111-111111111111");
+    expect(afterOlder?.embedSecret).toBe("embsec_after_resync");
+    expect(afterOlder?.appId).toBe("app-uuid-hello");
   });
 });

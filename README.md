@@ -168,7 +168,11 @@ retries (~4 h) are gone; resync cannot backfill them. Full runbook: `docs/deploy
   `verifySessionToken` — HS256 dashboard session tokens minted per installation
   (`embsec_…` secret, raw UTF-8 key bytes, 20 s clock tolerance, slug audience
   + api_base issuer, full installation binding). The secret never enters a
-  browser bundle: the main entry does not export the verifier.
+  browser bundle: the main entry does not export the verifier. The install
+  and resync handoffs deliver `embed_secret` + `app_id`; the store keeps
+  them on the installation (`embedSecret` encrypted, `appId`), and
+  `sessionTokenInstallationId` reads the token's `installation_id` as an
+  unverified routing hint so a server can load that row before verifying.
 - **frame** (`frame.ts`, browser-safe, no secret): `listenToDashboard`
   (accepts only the exact dashboard origin) and `sendReady` (exact target
   origin, never `"*"`).
