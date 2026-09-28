@@ -3,7 +3,7 @@
   "info": {
     "title": "Merchant API",
     "version": "v1",
-    "description": "Merchant API — Queek.\n\n## Errors\n\nEvery error answers `{\"error\": {\"code\", \"message\", \"field\"?, \"errors\"?, \"doc_url\", \"request_id\"}}`, alongside the\nlegacy top-level keys. Switch on `error.code`, never on the message. Codes: `ai_unavailable_in_test_mode`, `api_key_expired`, `api_key_mode_mismatch`, `api_key_revoked`, `app_handoff_failed`, `app_installation_gone`, `app_installation_pending`, `app_ip_not_allowed`, `app_token_revoked`, `bad_request`, `client_key_required`, `conflict`, `custom_gateway_forbidden`, `custom_gateway_kyc_required`, `custom_gateway_not_configured`, `custom_gateway_not_verified`, `custom_gateway_plan_required`, `custom_gateway_store_ineligible`, `custom_gateway_verification_failed`, `forbidden`, `gone`, `idempotency_key_in_progress`, `idempotency_key_reuse`, `insufficient_scope`, `invalid_client`, `invalid_client_key`, `metafield_definition_missing`, `metafield_filter_unsupported_type`, `metafield_namespace_reserved`, `metafield_value_invalid`, `metaobject_definition_missing`, `metaobject_field_invalid`, `metaobject_reference_invalid`, `metaobject_type_reserved`, `method_not_allowed`, `not_found`, `origin_not_allowed`, `origin_required`, `payload_too_large`, `payment_amount_mismatch`, `plan_inactive`, `private_key_required`, `resync_cooldown`, `route_not_available`, `server_error`, `service_unavailable`, `subscription_feature_locked`, `too_many_requests`, `unauthenticated`, `unknown_product_ref`, `unknown_service`, `unknown_variant_ref`, `unsupported_media_type`, `validation_failed`, `vendor_access_denied`, `vendor_mail_sender_forbidden`, `vendor_mail_sender_not_configured`, `vendor_mail_sender_plan_required`, `vendor_mail_sender_verification_failed`.\nEach error carries `doc_url` pointing at its own entry in the error reference.\n\n## Request ids\n\nSend `X-Request-Id` (8–128 chars matching `^[A-Za-z0-9_.:-]+$`) to correlate your trace with ours,\nor read the one we generate — it is echoed on every response, error bodies included, and appears on every log line\nof the request. `X-Queek-Api-Version` carries the API version (`v1`).\n\n## Idempotency\n\nSend `Idempotency-Key` on a write and a retry cannot execute twice. Same key + same body replays the stored\nresponse verbatim with `Idempotent-Replayed: true` for 24h. Same key + a different body is\n`409 idempotency_key_reuse`. A concurrent duplicate waits 15s for the first to finish, then replays;\npast that it is `409 idempotency_key_in_progress`. Responses ≥ 400 are not stored, so a failure stays retryable.\nThe slot is vendor + caller + METHOD:path + key. The body is the fingerprint, not part of the slot. Operations that accept the header document it as a parameter.\n\n## Rate limits\n\n180 requests/min per API key + IP, or storefront origin + IP when no key is sent. On top of that, a private (`sk_live_`) key carries its\nstore's plan quota: `free` 60/min, `social_media` 120/min, `starter` 120/min, `growth` 240/min, `scale` 1200/min, `enterprise` 2400/min. sk_live_ private keys only. A pk_live_ public key is shared by every visitor of the store, so it gets no per-store bucket.\nExceeding either is `too_many_requests` with `Retry-After`.\n\n## Webhooks\n\nSubscribe an endpoint per store and Queek posts the signed event to it. Topics are listed under `webhooks`\nin this document; the body is signed with the Standard Webhooks scheme — HMAC-SHA256 over the base64-decoded secret, value `v1,<base64>` —\nover `{webhook-id}.{webhook-timestamp}.{raw body}`, tolerance 300s. A rotation keeps the previous secret valid for\n24h and sends both signatures, space delimited. Delivery is 8 attempts on a published backoff;\nan endpoint failing for 24h is disabled and the merchant notified. Every operation names the one scope it requires. A write scope also returns, in that write's own response, the record it wrote — listing or reading records needs the matching read scope. A key acts for its whole store, never only for the records one person created."
+    "description": "Merchant API — Queek.\n\n## Errors\n\nEvery error answers `{\"error\": {\"code\", \"message\", \"field\"?, \"errors\"?, \"doc_url\", \"request_id\"}}`, alongside the\nlegacy top-level keys. Switch on `error.code`, never on the message. Codes: `ai_unavailable_in_test_mode`, `api_key_expired`, `api_key_mode_mismatch`, `api_key_revoked`, `app_embed_not_ready`, `app_grant_insufficient`, `app_handoff_failed`, `app_installation_gone`, `app_installation_pending`, `app_ip_not_allowed`, `app_proxy_failed`, `app_proxy_gone`, `app_token_revoked`, `bad_request`, `client_key_required`, `conflict`, `custom_gateway_forbidden`, `custom_gateway_kyc_required`, `custom_gateway_not_configured`, `custom_gateway_not_verified`, `custom_gateway_plan_required`, `custom_gateway_store_ineligible`, `custom_gateway_verification_failed`, `forbidden`, `gone`, `idempotency_key_in_progress`, `idempotency_key_reuse`, `insufficient_scope`, `invalid_client`, `invalid_client_key`, `metafield_definition_missing`, `metafield_filter_unsupported_type`, `metafield_namespace_reserved`, `metafield_value_invalid`, `metaobject_definition_missing`, `metaobject_field_invalid`, `metaobject_reference_invalid`, `metaobject_type_reserved`, `method_not_allowed`, `not_found`, `origin_not_allowed`, `origin_required`, `payload_too_large`, `payment_amount_mismatch`, `plan_inactive`, `private_key_required`, `requires_slot`, `resync_cooldown`, `route_not_available`, `server_error`, `service_unavailable`, `subscription_feature_locked`, `too_many_requests`, `unauthenticated`, `unknown_product_ref`, `unknown_service`, `unknown_variant_ref`, `unsupported_media_type`, `validation_failed`, `vendor_access_denied`, `vendor_mail_sender_forbidden`, `vendor_mail_sender_not_configured`, `vendor_mail_sender_plan_required`, `vendor_mail_sender_verification_failed`.\nEach error carries `doc_url` pointing at its own entry in the error reference.\n\n## Request ids\n\nSend `X-Request-Id` (8–128 chars matching `^[A-Za-z0-9_.:-]+$`) to correlate your trace with ours,\nor read the one we generate — it is echoed on every response, error bodies included, and appears on every log line\nof the request. `X-Queek-Api-Version` carries the API version (`v1`).\n\n## Idempotency\n\nSend `Idempotency-Key` on a write and a retry cannot execute twice. Same key + same body replays the stored\nresponse verbatim with `Idempotent-Replayed: true` for 24h. Same key + a different body is\n`409 idempotency_key_reuse`. A concurrent duplicate waits 15s for the first to finish, then replays;\npast that it is `409 idempotency_key_in_progress`. Responses ≥ 400 are not stored, so a failure stays retryable.\nThe slot is vendor + caller + METHOD:path + key. The body is the fingerprint, not part of the slot. Operations that accept the header document it as a parameter.\n\n## Rate limits\n\n180 requests/min per API key + IP, or storefront origin + IP when no key is sent. On top of that, a private (`sk_live_`) key carries its\nstore's plan quota: `free` 60/min, `social_media` 120/min, `starter` 120/min, `growth` 240/min, `scale` 1200/min, `enterprise` 2400/min. sk_live_ private keys only. A pk_live_ public key is shared by every visitor of the store, so it gets no per-store bucket.\nExceeding either is `too_many_requests` with `Retry-After`.\n\n## Webhooks\n\nSubscribe an endpoint per store and Queek posts the signed event to it. Topics are listed under `webhooks`\nin this document; the body is signed with the Standard Webhooks scheme — HMAC-SHA256 over the base64-decoded secret, value `v1,<base64>` —\nover `{webhook-id}.{webhook-timestamp}.{raw body}`, tolerance 300s. A rotation keeps the previous secret valid for\n24h and sends both signatures, space delimited. Delivery is 8 attempts on a published backoff;\nan endpoint failing for 24h is disabled and the merchant notified. Every operation names the one scope it requires. A write scope also returns, in that write's own response, the record it wrote — listing or reading records needs the matching read scope. A key acts for its whole store, never only for the records one person created."
   },
   "servers": [
     {
@@ -452,6 +452,212 @@
                     "errors": {
                       "severity": [
                         "The selected severity is invalid."
+                      ]
+                    },
+                    "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
+                    "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests — slow down and retry. Switch on `error.code`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueekError"
+                },
+                "example": {
+                  "error": {
+                    "code": "too_many_requests",
+                    "message": "Too Many Attempts.",
+                    "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
+                    "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/app/requirements": {
+      "put": {
+        "operationId": "app.requirements_write",
+        "description": "Requires scope `merchant-app-requirements-write`.\n\nReplaces the calling installation product requirements map: which products require line properties under the installation namespace and which exact claim key each requires. Products are addressed by p_id, scoped to the calling installation vendor.",
+        "summary": "Replace the installation requirements sheet",
+        "tags": [
+          "Apps"
+        ],
+        "parameters": [
+          {
+            "name": "X-Client-Key",
+            "in": "header",
+            "required": true,
+            "description": "A private API key (`sk_live_…`, `sk_test_…` on a test store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "{{merchantKey}}"
+          },
+          {
+            "name": "X-Request-Id",
+            "in": "header",
+            "description": "Your own correlation id (8–128 chars, `^[A-Za-z0-9_.:-]+$`). Echoed back on the response and on every log line of the request; one is generated when you omit it.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "Retry-safe write key. The same key with the same body replays the stored response for 24h with `Idempotent-Replayed: true`; with a different body it is `409 idempotency_key_reuse`; while the first call is still running it is `409 idempotency_key_in_progress`.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AppRequirementStoreRequest"
+              },
+              "example": {
+                "items": [
+                  {
+                    "product_p_id": 20418,
+                    "prefix": "app.booking."
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "const": "success"
+                    },
+                    "message": {
+                      "type": "string",
+                      "const": "Requirements sheet saved."
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "minItems": 0,
+                      "maxItems": 0
+                    },
+                    "meta": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "status",
+                    "message",
+                    "data",
+                    "meta"
+                  ]
+                },
+                "example": {
+                  "status": "success",
+                  "message": "Requirements sheet saved.",
+                  "data": {
+                    "requirements": [
+                      {
+                        "product_p_id": 20418,
+                        "prefix": "app.booking."
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueekError"
+                },
+                "example": {
+                  "error": {
+                    "code": "invalid_client_key",
+                    "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                    "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
+                    "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden — the key cannot call this operation. Switch on `error.code`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueekError"
+                },
+                "example": {
+                  "error": {
+                    "code": "insufficient_scope",
+                    "message": "This API key does not carry the 'merchant-app-requirements-write' scope it was called with.",
+                    "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
+                    "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Idempotency conflict — `idempotency_key_reuse` or `idempotency_key_in_progress`. Switch on `error.code`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueekError"
+                },
+                "example": {
+                  "error": {
+                    "code": "idempotency_key_reuse",
+                    "message": "This Idempotency-Key was already used for a different request body. Use a new key for a new request.",
+                    "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#idempotency_key_reuse",
+                    "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed — `error.errors` carries per-field detail. Switch on `error.code`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueekError"
+                },
+                "example": {
+                  "error": {
+                    "code": "validation_failed",
+                    "message": "The prefix must live under the calling installation app namespace.",
+                    "field": "items.0.prefix",
+                    "errors": {
+                      "items.0.prefix": [
+                        "The prefix must live under the calling installation app namespace."
+                      ],
+                      "items.0.product_p_id": [
+                        "Product p_id 999999 was not found on this store."
                       ]
                     },
                     "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
@@ -2327,26 +2533,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "data": {
-                      "type": "string"
-                    },
-                    "has_more": {
-                      "type": "boolean"
-                    },
-                    "next_cursor": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    }
-                  },
-                  "required": [
-                    "data",
-                    "has_more",
-                    "next_cursor"
-                  ]
+                  "type": "object"
                 },
                 "example": {
                   "data": [
@@ -3049,26 +3236,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "data": {
-                      "type": "string"
-                    },
-                    "has_more": {
-                      "type": "boolean"
-                    },
-                    "next_cursor": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    }
-                  },
-                  "required": [
-                    "data",
-                    "has_more",
-                    "next_cursor"
-                  ]
+                  "type": "object"
                 },
                 "example": {
                   "data": [
@@ -3247,26 +3415,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "data": {
-                      "type": "string"
-                    },
-                    "has_more": {
-                      "type": "boolean"
-                    },
-                    "next_cursor": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    }
-                  },
-                  "required": [
-                    "data",
-                    "has_more",
-                    "next_cursor"
-                  ]
+                  "type": "object"
                 },
                 "example": {
                   "data": [
@@ -5797,26 +5946,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "data": {
-                      "type": "string"
-                    },
-                    "has_more": {
-                      "type": "boolean"
-                    },
-                    "next_cursor": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    }
-                  },
-                  "required": [
-                    "data",
-                    "has_more",
-                    "next_cursor"
-                  ]
+                  "type": "object"
                 },
                 "example": {
                   "data": [
@@ -6270,26 +6400,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "data": {
-                      "type": "string"
-                    },
-                    "has_more": {
-                      "type": "boolean"
-                    },
-                    "next_cursor": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    }
-                  },
-                  "required": [
-                    "data",
-                    "has_more",
-                    "next_cursor"
-                  ]
+                  "type": "object"
                 },
                 "example": {
                   "data": [
@@ -6501,59 +6612,33 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "type": "object",
-                      "properties": {
-                        "status": {
-                          "type": "string",
-                          "const": "success"
-                        },
-                        "message": {
-                          "type": "string",
-                          "const": "Metafield definitions"
-                        },
-                        "data": {
-                          "type": "array",
-                          "items": {
-                            "type": "string"
-                          },
-                          "minItems": 0,
-                          "maxItems": 0
-                        },
-                        "meta": {
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "status",
-                        "message",
-                        "data",
-                        "meta"
-                      ]
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "const": "success"
                     },
-                    {
-                      "type": "object",
-                      "properties": {
-                        "data": {
-                          "type": "string"
-                        },
-                        "has_more": {
-                          "type": "boolean"
-                        },
-                        "next_cursor": {
-                          "type": [
-                            "string",
-                            "null"
-                          ]
-                        }
+                    "message": {
+                      "type": "string",
+                      "const": "Metafield definitions"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
                       },
-                      "required": [
-                        "data",
-                        "has_more",
-                        "next_cursor"
-                      ]
+                      "minItems": 0,
+                      "maxItems": 0
+                    },
+                    "meta": {
+                      "type": "string"
                     }
+                  },
+                  "required": [
+                    "status",
+                    "message",
+                    "data",
+                    "meta"
                   ]
                 },
                 "example": {
@@ -6966,59 +7051,33 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "type": "object",
-                      "properties": {
-                        "status": {
-                          "type": "string",
-                          "const": "success"
-                        },
-                        "message": {
-                          "type": "string",
-                          "const": "Metaobject definitions"
-                        },
-                        "data": {
-                          "type": "array",
-                          "items": {
-                            "type": "string"
-                          },
-                          "minItems": 0,
-                          "maxItems": 0
-                        },
-                        "meta": {
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "status",
-                        "message",
-                        "data",
-                        "meta"
-                      ]
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "const": "success"
                     },
-                    {
-                      "type": "object",
-                      "properties": {
-                        "data": {
-                          "type": "string"
-                        },
-                        "has_more": {
-                          "type": "boolean"
-                        },
-                        "next_cursor": {
-                          "type": [
-                            "string",
-                            "null"
-                          ]
-                        }
+                    "message": {
+                      "type": "string",
+                      "const": "Metaobject definitions"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
                       },
-                      "required": [
-                        "data",
-                        "has_more",
-                        "next_cursor"
-                      ]
+                      "minItems": 0,
+                      "maxItems": 0
+                    },
+                    "meta": {
+                      "type": "string"
                     }
+                  },
+                  "required": [
+                    "status",
+                    "message",
+                    "data",
+                    "meta"
                   ]
                 },
                 "example": {
@@ -7487,33 +7546,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "type": "object"
-                    },
-                    {
-                      "type": "object",
-                      "properties": {
-                        "data": {
-                          "type": "string"
-                        },
-                        "has_more": {
-                          "type": "boolean"
-                        },
-                        "next_cursor": {
-                          "type": [
-                            "string",
-                            "null"
-                          ]
-                        }
-                      },
-                      "required": [
-                        "data",
-                        "has_more",
-                        "next_cursor"
-                      ]
-                    }
-                  ]
+                  "type": "object"
                 },
                 "example": {
                   "data": [
@@ -7996,26 +8029,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "data": {
-                      "type": "string"
-                    },
-                    "has_more": {
-                      "type": "boolean"
-                    },
-                    "next_cursor": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    }
-                  },
-                  "required": [
-                    "data",
-                    "has_more",
-                    "next_cursor"
-                  ]
+                  "type": "object"
                 },
                 "example": {
                   "data": [
@@ -8058,7 +8072,8 @@
                           "variant_title": "50cl",
                           "quantity": 2,
                           "unit_price": "2500.00",
-                          "total": "5000.00"
+                          "total": "5000.00",
+                          "properties": {}
                         }
                       ],
                       "note": null,
@@ -8112,7 +8127,10 @@
                           "variant_title": null,
                           "quantity": 2,
                           "unit_price": "18500.00",
-                          "total": "37000.00"
+                          "total": "37000.00",
+                          "properties": {
+                            "gift.note": "Happy birthday, Tolu!"
+                          }
                         }
                       ],
                       "note": "Leave with the gateman if no one answers.",
@@ -8331,7 +8349,10 @@
                         "variant_title": null,
                         "quantity": 2,
                         "unit_price": "18500.00",
-                        "total": "37000.00"
+                        "total": "37000.00",
+                        "properties": {
+                          "gift.note": "Happy birthday, Tolu!"
+                        }
                       }
                     ],
                     "note": "Leave with the gateman if no one answers.",
@@ -8423,7 +8444,7 @@
       },
       "patch": {
         "operationId": "orders.update",
-        "description": "Requires scope `merchant-orders-update`.\n\nChanges an order’s developer-extension fields only: metafields and metadata. Order state has its own endpoints. Answers the updated order.",
+        "description": "Requires scope `merchant-orders-update`.\n\nChanges an order’s developer-extension fields only: metafields, metadata, and per-line properties (`line_items`: merged by key into each line’s `properties`; a string sets a key, null deletes it, keys left out keep their value). An app installation key writes property keys only under its own `app.{slug}.` namespace; any other key writes none under `app.*` or `queek.*`. Order state has its own endpoints. Answers the updated order.",
         "summary": "Update an order",
         "tags": [
           "Orders"
@@ -8474,7 +8495,16 @@
               "example": {
                 "metadata": {
                   "erp_id": "SO-104882"
-                }
+                },
+                "line_items": [
+                  {
+                    "id": "019a3a0e-1c2d-7e3f-8a4b-5c6d7e8f9a11",
+                    "properties": {
+                      "gift.note": "Happy birthday, Tolu!",
+                      "gift.wrap": null
+                    }
+                  }
+                ]
               }
             }
           }
@@ -8561,7 +8591,10 @@
                         "variant_title": null,
                         "quantity": 2,
                         "unit_price": "18500.00",
-                        "total": "37000.00"
+                        "total": "37000.00",
+                        "properties": {
+                          "gift.note": "Happy birthday, Tolu!"
+                        }
                       }
                     ],
                     "note": "Leave with the gateman if no one answers.",
@@ -8838,7 +8871,8 @@
                         "variant_title": "50cl",
                         "quantity": 2,
                         "unit_price": "2500.00",
-                        "total": "5000.00"
+                        "total": "5000.00",
+                        "properties": {}
                       }
                     ],
                     "note": null,
@@ -8927,7 +8961,8 @@
                         "variant_title": "50cl",
                         "quantity": 2,
                         "unit_price": "2500.00",
-                        "total": "5000.00"
+                        "total": "5000.00",
+                        "properties": {}
                       }
                     ],
                     "note": null,
@@ -9153,7 +9188,10 @@
                         "variant_title": null,
                         "quantity": 2,
                         "unit_price": "18500.00",
-                        "total": "37000.00"
+                        "total": "37000.00",
+                        "properties": {
+                          "gift.note": "Happy birthday, Tolu!"
+                        }
                       }
                     ],
                     "note": "Leave with the gateman if no one answers.",
@@ -9399,7 +9437,10 @@
                         "variant_title": null,
                         "quantity": 2,
                         "unit_price": "18500.00",
-                        "total": "37000.00"
+                        "total": "37000.00",
+                        "properties": {
+                          "gift.note": "Happy birthday, Tolu!"
+                        }
                       }
                     ],
                     "note": "Leave with the gateman if no one answers.",
@@ -9657,7 +9698,8 @@
                         "variant_title": "1 litre",
                         "quantity": 6,
                         "unit_price": "4200.00",
-                        "total": "25200.00"
+                        "total": "25200.00",
+                        "properties": {}
                       }
                     ],
                     "note": null,
@@ -10009,26 +10051,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "data": {
-                      "type": "string"
-                    },
-                    "has_more": {
-                      "type": "boolean"
-                    },
-                    "next_cursor": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    }
-                  },
-                  "required": [
-                    "data",
-                    "has_more",
-                    "next_cursor"
-                  ]
+                  "type": "object"
                 },
                 "example": {
                   "data": [
@@ -10051,6 +10074,7 @@
                       "barcode": null,
                       "stock": 60,
                       "track_inventory": true,
+                      "is_digital": false,
                       "has_variants": true,
                       "image": "https://media.usequeek.com/uploads/stores/1095/homemade-chapman.jpg",
                       "thumbnail_image": null,
@@ -10071,6 +10095,7 @@
                           "compare_at_price": null,
                           "stock": 36,
                           "track_inventory": true,
+                          "is_digital": false,
                           "is_active": true,
                           "is_backorder": false,
                           "backorder_ready_date": null,
@@ -10094,6 +10119,7 @@
                           "compare_at_price": null,
                           "stock": 24,
                           "track_inventory": true,
+                          "is_digital": false,
                           "is_active": true,
                           "is_backorder": false,
                           "backorder_ready_date": null,
@@ -10171,6 +10197,7 @@
                       "barcode": "6154000102417",
                       "stock": 42,
                       "track_inventory": true,
+                      "is_digital": false,
                       "has_variants": false,
                       "image": "https://media.usequeek.com/uploads/stores/1095/jollof-rice-party-pack.jpg",
                       "thumbnail_image": null,
@@ -10402,6 +10429,7 @@
                     "barcode": "6154000102417",
                     "stock": 42,
                     "track_inventory": true,
+                    "is_digital": false,
                     "has_variants": false,
                     "image": "https://media.usequeek.com/uploads/stores/1095/jollof-rice-party-pack.jpg",
                     "thumbnail_image": null,
@@ -10655,6 +10683,7 @@
                     "barcode": "6154000102417",
                     "stock": 42,
                     "track_inventory": true,
+                    "is_digital": false,
                     "has_variants": false,
                     "image": "https://media.usequeek.com/uploads/stores/1095/jollof-rice-party-pack.jpg",
                     "thumbnail_image": null,
@@ -10885,6 +10914,7 @@
                     "barcode": "6154000102417",
                     "stock": 42,
                     "track_inventory": true,
+                    "is_digital": false,
                     "has_variants": false,
                     "image": "https://media.usequeek.com/uploads/stores/1095/jollof-rice-party-pack.jpg",
                     "thumbnail_image": null,
@@ -11517,26 +11547,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "data": {
-                      "type": "string"
-                    },
-                    "has_more": {
-                      "type": "boolean"
-                    },
-                    "next_cursor": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    }
-                  },
-                  "required": [
-                    "data",
-                    "has_more",
-                    "next_cursor"
-                  ]
+                  "type": "object"
                 },
                 "example": {
                   "data": [
@@ -12255,6 +12266,12 @@
                         "pickup_enabled": true,
                         "instore_order": false
                       },
+                      "storefront": {
+                        "domains": [
+                          "https://adeyemifoods.com",
+                          "https://adeyemi-foods.queek.com.ng"
+                        ]
+                      },
                       "created_at": "2026-06-02T08:00:00+01:00",
                       "updated_at": "2026-09-24T18:30:00+01:00"
                     }
@@ -12422,59 +12439,33 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "type": "object",
-                      "properties": {
-                        "status": {
-                          "type": "string",
-                          "const": "success"
-                        },
-                        "message": {
-                          "type": "string",
-                          "const": "Product variants"
-                        },
-                        "data": {
-                          "type": "array",
-                          "items": {
-                            "type": "string"
-                          },
-                          "minItems": 0,
-                          "maxItems": 0
-                        },
-                        "meta": {
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "status",
-                        "message",
-                        "data",
-                        "meta"
-                      ]
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "const": "success"
                     },
-                    {
-                      "type": "object",
-                      "properties": {
-                        "data": {
-                          "type": "string"
-                        },
-                        "has_more": {
-                          "type": "boolean"
-                        },
-                        "next_cursor": {
-                          "type": [
-                            "string",
-                            "null"
-                          ]
-                        }
+                    "message": {
+                      "type": "string",
+                      "const": "Product variants"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
                       },
-                      "required": [
-                        "data",
-                        "has_more",
-                        "next_cursor"
-                      ]
+                      "minItems": 0,
+                      "maxItems": 0
+                    },
+                    "meta": {
+                      "type": "string"
                     }
+                  },
+                  "required": [
+                    "status",
+                    "message",
+                    "data",
+                    "meta"
                   ]
                 },
                 "example": {
@@ -12494,6 +12485,7 @@
                       "compare_at_price": null,
                       "stock": 36,
                       "track_inventory": true,
+                      "is_digital": false,
                       "is_active": true,
                       "is_backorder": false,
                       "backorder_ready_date": null,
@@ -12517,6 +12509,7 @@
                       "compare_at_price": null,
                       "stock": 24,
                       "track_inventory": true,
+                      "is_digital": false,
                       "is_active": true,
                       "is_backorder": false,
                       "backorder_ready_date": null,
@@ -12747,6 +12740,7 @@
                     "compare_at_price": null,
                     "stock": 24,
                     "track_inventory": true,
+                    "is_digital": false,
                     "is_active": true,
                     "is_backorder": false,
                     "backorder_ready_date": null,
@@ -12996,6 +12990,7 @@
                     "compare_at_price": null,
                     "stock": 24,
                     "track_inventory": true,
+                    "is_digital": false,
                     "is_active": true,
                     "is_backorder": false,
                     "backorder_ready_date": null,
@@ -13369,6 +13364,134 @@
         ],
         "title": "AdjustStockRequest"
       },
+      "App.Http.Resources.Customer.OrderItemResource": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "variant_id": {
+            "type": "string"
+          },
+          "variant_title": {
+            "type": "string"
+          },
+          "variant_option_values": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "variant_media": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "image": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "video_url": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "source": {
+                "type": "string",
+                "enum": [
+                  "variant",
+                  "product"
+                ]
+              }
+            },
+            "required": [
+              "image",
+              "video_url",
+              "source"
+            ]
+          },
+          "currency": {
+            "type": "string"
+          },
+          "total_price": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "sale_price": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "unit_price": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "base_unit_price": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "is_backorder": {
+            "type": "boolean"
+          },
+          "backorder_ready_date": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "discounted_amount": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "addons": {},
+          "properties": {
+            "type": "string",
+            "description": "Per-line checkout properties. Always present as an object so\ndashboard chips and the shopper page never branch on absence.\nBearer keys are withheld here too (dashboard, shopper page,\nrider): the order email is their only carrier."
+          }
+        },
+        "required": [
+          "id",
+          "quantity",
+          "title",
+          "variant_id",
+          "variant_title",
+          "variant_option_values",
+          "variant_media",
+          "currency",
+          "total_price",
+          "sale_price",
+          "unit_price",
+          "base_unit_price",
+          "is_backorder",
+          "backorder_ready_date",
+          "created_at",
+          "addons",
+          "properties"
+        ],
+        "title": "App.Http.Resources.Customer.OrderItemResource"
+      },
       "App.Http.Resources.Customer.ProductResource": {
         "anyOf": [
           {
@@ -13393,7 +13516,10 @@
                 "type": "string"
               },
               "excerpt": {
-                "type": "string"
+                "type": [
+                  "string",
+                  "null"
+                ]
               },
               "description": {
                 "type": "string"
@@ -13576,6 +13702,67 @@
                       "null"
                     ],
                     "additionalProperties": {}
+                  },
+                  "images": {
+                    "type": [
+                      "array",
+                      "null"
+                    ],
+                    "items": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "integer"
+                            },
+                            "url": {
+                              "type": "string"
+                            },
+                            "alt": {},
+                            "variants": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "url",
+                            "alt",
+                            "variants"
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": [
+                                "integer",
+                                "null"
+                              ]
+                            },
+                            "url": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "alt": {},
+                            "variants": {
+                              "type": "null"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "url",
+                            "alt",
+                            "variants"
+                          ]
+                        }
+                      ]
+                    }
                   }
                 },
                 "required": [
@@ -13584,7 +13771,8 @@
                   "original",
                   "primary_variant_image",
                   "image_variants",
-                  "primary_variant_image_variants"
+                  "primary_variant_image_variants",
+                  "images"
                 ]
               },
               "inventory": {
@@ -13692,6 +13880,1072 @@
           }
         ],
         "title": "App.Http.Resources.Customer.ProductResource"
+      },
+      "App.Http.Resources.OrderResource": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "0": {
+                "type": "object"
+              },
+              "id": {
+                "type": "string"
+              },
+              "title": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "currency": {
+                "type": "string"
+              },
+              "total_price": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "delivery_fee": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "grand_total": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "payment_status": {
+                "type": "string"
+              },
+              "transaction_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "is_verified": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              },
+              "order_no": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string"
+              },
+              "order_type": {
+                "type": "string"
+              },
+              "scheduled_date": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "scheduled_time": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "is_backorder_held": {
+                "type": "boolean"
+              },
+              "backorder_ready_date": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "delivery_method": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "payment_method": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "delivery_address": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "pickup_address": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "table": {
+                "description": "The dine-in table picked at checkout for in-store QR orders: its\nid, name and section, as shown in the table picker.",
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "section": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "name",
+                      "section"
+                    ]
+                  },
+                  {
+                    "type": "object"
+                  }
+                ]
+              },
+              "stage": {
+                "type": "integer"
+              },
+              "earliest_delivery_time": {
+                "type": [
+                  "string",
+                  "null",
+                  "object"
+                ]
+              },
+              "latest_delivery_time": {
+                "type": [
+                  "string",
+                  "null",
+                  "object"
+                ]
+              },
+              "ready_window": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "from": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "to": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "label": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "from",
+                      "to",
+                      "label"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "object"
+                  }
+                ]
+              },
+              "vendor": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "slug": {
+                        "type": "string"
+                      },
+                      "logo": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "address": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "description": "Contact + location surfaced so the storefront can render a\n\"collect from\" block on pickup orders. Cheap eager-loaded\ncolumns; not gated behind delivery_mode so a hybrid UI can\nalso show them on rider/dispatch flows."
+                      },
+                      "phone": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "email": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "map_lat": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "map_lng": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "name",
+                      "slug",
+                      "logo",
+                      "address",
+                      "phone",
+                      "email",
+                      "map_lat",
+                      "map_lng"
+                    ]
+                  },
+                  {
+                    "type": "object"
+                  }
+                ]
+              },
+              "created_by_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "timeline": {
+                "type": "array",
+                "items": {}
+              },
+              "vendor_timeline": {
+                "type": "array",
+                "items": {}
+              },
+              "vendor_note": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "rider_note": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "shopforme_fee": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "service_fee": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "delivery_pin": {
+                "type": [
+                  "string",
+                  "null",
+                  "object"
+                ]
+              },
+              "delivery_pins": {
+                "type": [
+                  "array",
+                  "null",
+                  "object"
+                ]
+              },
+              "is_confirmed": {
+                "type": "boolean"
+              },
+              "rejected": {
+                "type": "boolean"
+              },
+              "is_completed": {
+                "type": "boolean"
+              },
+              "cancelled": {
+                "type": "boolean"
+              },
+              "cancellation_reason": {
+                "type": [
+                  "string",
+                  "null",
+                  "object"
+                ]
+              },
+              "items_count": {
+                "type": "string"
+              },
+              "started_at": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "completed_at": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "created_at": {
+                "type": "string"
+              },
+              "updated_at": {
+                "type": "string"
+              },
+              "status_label": {
+                "type": "string"
+              },
+              "status_img": {
+                "type": "string"
+              },
+              "user_id": {
+                "type": "string"
+              },
+              "pickup_map_lat": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "pickup_map_lng": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "items": {
+                "description": "In-memory parent link (zero queries): item currency resolves through\nthis order, then its vendor, before the platform default.",
+                "anyOf": [
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/OrderItemResource"
+                    }
+                  },
+                  {
+                    "type": "object"
+                  }
+                ]
+              },
+              "created_by": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "avatar": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "phone": {
+                        "type": "string"
+                      },
+                      "email": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "name",
+                      "avatar",
+                      "phone",
+                      "email"
+                    ]
+                  },
+                  {
+                    "type": "object"
+                  }
+                ]
+              },
+              "rider": {
+                "$ref": "#/components/schemas/UserItemResource"
+              },
+              "rider_rating": {
+                "type": "number"
+              },
+              "rider_review_status": {
+                "type": "string"
+              },
+              "vendor_review_status": {
+                "type": "string"
+              },
+              "vendor_rating": {
+                "type": "number"
+              },
+              "virtual_account_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "payment_link": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "pay_link": {
+                "type": "string"
+              },
+              "viewer_type": {
+                "type": "string",
+                "enum": [
+                  "customer",
+                  "vendor",
+                  "rider",
+                  "admin"
+                ]
+              },
+              "amount_summary": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "title": {
+                        "type": "string",
+                        "const": "Order Summary"
+                      },
+                      "view": {
+                        "type": "string",
+                        "const": "rider"
+                      },
+                      "items": {
+                        "type": "array",
+                        "prefixItems": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string",
+                                "const": "rider_fee"
+                              },
+                              "label": {
+                                "type": "string",
+                                "const": "Rider Fee"
+                              },
+                              "type": {
+                                "type": "string",
+                                "const": "total"
+                              },
+                              "amount": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "label",
+                              "type",
+                              "amount"
+                            ]
+                          }
+                        ],
+                        "minItems": 1,
+                        "maxItems": 1
+                      }
+                    },
+                    "required": [
+                      "title",
+                      "view",
+                      "items"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "title": {
+                        "type": "string",
+                        "const": "Order Summary"
+                      },
+                      "view": {
+                        "type": "string",
+                        "const": "vendor"
+                      },
+                      "items": {
+                        "type": "array",
+                        "items": {}
+                      }
+                    },
+                    "required": [
+                      "title",
+                      "view",
+                      "items"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "title": {
+                        "type": "string",
+                        "const": "Order Summary"
+                      },
+                      "view": {
+                        "type": "string",
+                        "const": "customer"
+                      },
+                      "items": {
+                        "type": "array",
+                        "items": {}
+                      }
+                    },
+                    "required": [
+                      "title",
+                      "view",
+                      "items"
+                    ]
+                  }
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "title",
+              "currency",
+              "total_price",
+              "delivery_fee",
+              "grand_total",
+              "payment_status",
+              "transaction_id",
+              "is_verified",
+              "order_no",
+              "status",
+              "order_type",
+              "scheduled_date",
+              "scheduled_time",
+              "is_backorder_held",
+              "backorder_ready_date",
+              "delivery_method",
+              "payment_method",
+              "0",
+              "delivery_address",
+              "pickup_address",
+              "table",
+              "stage",
+              "earliest_delivery_time",
+              "latest_delivery_time",
+              "ready_window",
+              "vendor",
+              "created_by_id",
+              "timeline",
+              "vendor_timeline",
+              "vendor_note",
+              "rider_note",
+              "shopforme_fee",
+              "service_fee",
+              "delivery_pin",
+              "delivery_pins",
+              "is_confirmed",
+              "rejected",
+              "is_completed",
+              "cancelled",
+              "cancellation_reason",
+              "items_count",
+              "started_at",
+              "completed_at",
+              "created_at",
+              "updated_at",
+              "status_label",
+              "status_img",
+              "user_id",
+              "pickup_map_lat",
+              "pickup_map_lng",
+              "items",
+              "created_by",
+              "rider",
+              "rider_rating",
+              "rider_review_status",
+              "vendor_review_status",
+              "vendor_rating",
+              "virtual_account_id",
+              "payment_link",
+              "pay_link",
+              "viewer_type",
+              "amount_summary"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "0": {
+                "type": "object",
+                "description": "Settlement ledger is vendor facts, never customer facts: it stays\noff the storefront public path only (client_vendor_id resolved).\nEvery other surface keeps reading it exactly as before."
+              },
+              "id": {
+                "type": "string"
+              },
+              "title": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "currency": {
+                "type": "string"
+              },
+              "total_price": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "delivery_fee": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "grand_total": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "payment_status": {
+                "type": "string"
+              },
+              "transaction_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "is_verified": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              },
+              "order_no": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string"
+              },
+              "order_type": {
+                "type": "string"
+              },
+              "scheduled_date": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "scheduled_time": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "is_backorder_held": {
+                "type": "boolean"
+              },
+              "backorder_ready_date": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "delivery_method": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "payment_method": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "delivery_address": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "pickup_address": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "table": {
+                "description": "The dine-in table picked at checkout for in-store QR orders: its\nid, name and section, as shown in the table picker.",
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "section": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "name",
+                      "section"
+                    ]
+                  },
+                  {
+                    "type": "object"
+                  }
+                ]
+              },
+              "stage": {
+                "type": "integer"
+              },
+              "earliest_delivery_time": {
+                "type": [
+                  "string",
+                  "null",
+                  "object"
+                ]
+              },
+              "latest_delivery_time": {
+                "type": [
+                  "string",
+                  "null",
+                  "object"
+                ]
+              },
+              "ready_window": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "from": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "to": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "label": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "from",
+                      "to",
+                      "label"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "object"
+                  }
+                ]
+              },
+              "vendor": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "slug": {
+                        "type": "string"
+                      },
+                      "logo": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "address": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "description": "Contact + location surfaced so the storefront can render a\n\"collect from\" block on pickup orders. Cheap eager-loaded\ncolumns; not gated behind delivery_mode so a hybrid UI can\nalso show them on rider/dispatch flows."
+                      },
+                      "phone": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "email": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "map_lat": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "map_lng": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "name",
+                      "slug",
+                      "logo",
+                      "address",
+                      "phone",
+                      "email",
+                      "map_lat",
+                      "map_lng"
+                    ]
+                  },
+                  {
+                    "type": "object"
+                  }
+                ]
+              },
+              "created_by_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "timeline": {
+                "type": "array",
+                "items": {}
+              },
+              "vendor_timeline": {
+                "type": "array",
+                "items": {}
+              },
+              "vendor_note": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "rider_note": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "shopforme_fee": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "service_fee": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "delivery_pin": {
+                "type": [
+                  "string",
+                  "null",
+                  "object"
+                ]
+              },
+              "delivery_pins": {
+                "type": [
+                  "array",
+                  "null",
+                  "object"
+                ]
+              },
+              "is_confirmed": {
+                "type": "boolean"
+              },
+              "rejected": {
+                "type": "boolean"
+              },
+              "is_completed": {
+                "type": "boolean"
+              },
+              "cancelled": {
+                "type": "boolean"
+              },
+              "cancellation_reason": {
+                "type": [
+                  "string",
+                  "null",
+                  "object"
+                ]
+              },
+              "items_count": {
+                "type": "string"
+              },
+              "started_at": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "completed_at": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "created_at": {
+                "type": "string"
+              },
+              "updated_at": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "title",
+              "currency",
+              "total_price",
+              "delivery_fee",
+              "grand_total",
+              "payment_status",
+              "transaction_id",
+              "is_verified",
+              "order_no",
+              "status",
+              "order_type",
+              "scheduled_date",
+              "scheduled_time",
+              "is_backorder_held",
+              "backorder_ready_date",
+              "delivery_method",
+              "payment_method",
+              "0",
+              "delivery_address",
+              "pickup_address",
+              "table",
+              "stage",
+              "earliest_delivery_time",
+              "latest_delivery_time",
+              "ready_window",
+              "vendor",
+              "created_by_id",
+              "timeline",
+              "vendor_timeline",
+              "vendor_note",
+              "rider_note",
+              "shopforme_fee",
+              "service_fee",
+              "delivery_pin",
+              "delivery_pins",
+              "is_confirmed",
+              "rejected",
+              "is_completed",
+              "cancelled",
+              "cancellation_reason",
+              "items_count",
+              "started_at",
+              "completed_at",
+              "created_at",
+              "updated_at"
+            ]
+          }
+        ],
+        "title": "App.Http.Resources.OrderResource"
+      },
+      "AppRequirementStoreRequest": {
+        "type": "object",
+        "description": "The installation-bound requirements-sheet write (PUT app/requirements,\nmerchant API, installation key only). The declaring app replaces its\ninstallation's {product → required property prefix} map as product\nmetafield declarations in its OWN app namespace.\n\nFull-body PUT: the whole sheet every time, so a retry replays instead\nof merging and removals are explicit. Products are addressed by p_id\n(never UUID) and resolved vendor-scoped in the controller.",
+        "properties": {
+          "items": {
+            "type": "array",
+            "description": "`present` (not `required`): an emptied sheet is the explicit\nfull-removal signal, and an empty array is a valid sheet.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "product_p_id": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "prefix": {
+                  "type": "string",
+                  "description": "The required line-property prefix, e.g. `app.booking.`. It\nmust live under the calling installation's own app\nnamespace, so one installation can never declare for\nanother app's keys.",
+                  "pattern": "^app\\.[a-z0-9_]+\\.$",
+                  "maxLength": 64
+                }
+              },
+              "required": [
+                "product_p_id",
+                "prefix"
+              ]
+            },
+            "maxItems": 200
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "AppRequirementStoreRequest"
       },
       "AssignOrderRiderRequest": {
         "type": "object",
@@ -14366,7 +15620,7 @@
               "string",
               "null"
             ],
-            "description": "Resolved by URL (no media_id column on categories/collections) — see\nMediaVariantMap::attachUrlVariants(), called once per response in the\ncontroller BEFORE this resource is resolved, never lazily here."
+            "description": "Pre-sized copies of the image, resolved from its URL (categories\nand collections store no media id)."
           },
           "featured": {
             "type": "boolean"
@@ -15355,16 +16609,25 @@
             "type": "string"
           },
           "quantity": {
-            "type": "string"
+            "type": "integer"
           },
           "title": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "variant_id": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "variant_title": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "variant_option_values": {
             "type": "object",
@@ -15447,9 +16710,17 @@
             ]
           },
           "created_at": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
           },
-          "addons": {}
+          "addons": {},
+          "properties": {
+            "type": "string",
+            "description": "Per-line checkout properties. Always present as an object so\ndashboard chips and the shopper page never branch on absence.\nBearer keys are withheld here too (dashboard, shopper page,\nrider): the order email is their only carrier."
+          }
         },
         "required": [
           "id",
@@ -15467,7 +16738,8 @@
           "is_backorder",
           "backorder_ready_date",
           "created_at",
-          "addons"
+          "addons",
+          "properties"
         ],
         "title": "OrderItemResource"
       },
@@ -15532,7 +16804,8 @@
             "type": "string"
           },
           "currency": {
-            "type": "string"
+            "type": "string",
+            "description": "Vendor chain with the same unloaded-relation safety net as the\nsibling order shapes: loaded relation first, then the\ncache-backed lookup — never the silent platform default."
           },
           "subtotal": {
             "type": "string"
@@ -15722,6 +16995,10 @@
                 },
                 "total": {
                   "type": "string"
+                },
+                "properties": {
+                  "type": "string",
+                  "description": "Per-line checkout properties (jsonb, array-cast). Absent lines\nrender an empty object, never null — apps always see the key.\nAn app's single-use keys (claims, manage links) reach only the\napp that issued them, never another app or key."
                 }
               },
               "required": [
@@ -15732,7 +17009,8 @@
                 "variant_title",
                 "quantity",
                 "unit_price",
-                "total"
+                "total",
+                "properties"
               ]
             }
           },
@@ -16266,7 +17544,7 @@
           },
           "is_digital": {
             "type": [
-              "string",
+              "boolean",
               "null"
             ]
           },
@@ -16335,6 +17613,21 @@
           "price": {
             "type": "number",
             "minimum": 5
+          },
+          "sku": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Product-level identity/pricing for products WITHOUT variants\n(Shopify default-variant parity). Prohibited the moment\nvariants are in play — variants carry their own\nsku/compare_at_price and the product-level pair is ignored\nthere, never merged.",
+            "maxLength": 100
+          },
+          "compare_at_price": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0
           },
           "images": {
             "type": [
@@ -16456,7 +17749,10 @@
             "type": "string"
           },
           "excerpt": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "description": {
             "type": "string"
@@ -16486,8 +17782,7 @@
             "type": [
               "string",
               "null"
-            ],
-            "description": "The storefront shows a compare-at exactly when the discounted\nprice sits below the (commission-inclusive) list price."
+            ]
           },
           "url": {
             "type": [
@@ -16511,6 +17806,9 @@
             ]
           },
           "track_inventory": {
+            "type": "boolean"
+          },
+          "is_digital": {
             "type": "boolean"
           },
           "has_variants": {
@@ -16585,6 +17883,7 @@
           "barcode",
           "stock",
           "track_inventory",
+          "is_digital",
           "has_variants",
           "image",
           "thumbnail_image",
@@ -16757,6 +18056,10 @@
           "track_inventory": {
             "type": "boolean"
           },
+          "is_digital": {
+            "type": "boolean",
+            "description": "Product-level flag, inherited read-only: variants carry no\nis_digital column, so a missing parent reads false, never throws."
+          },
           "is_active": {
             "type": "boolean"
           },
@@ -16804,6 +18107,7 @@
           "compare_at_price",
           "stock",
           "track_inventory",
+          "is_digital",
           "is_active",
           "is_backorder",
           "backorder_ready_date",
@@ -16887,10 +18191,14 @@
                   "api_key_expired",
                   "api_key_mode_mismatch",
                   "api_key_revoked",
+                  "app_embed_not_ready",
+                  "app_grant_insufficient",
                   "app_handoff_failed",
                   "app_installation_gone",
                   "app_installation_pending",
                   "app_ip_not_allowed",
+                  "app_proxy_failed",
+                  "app_proxy_gone",
                   "app_token_revoked",
                   "bad_request",
                   "client_key_required",
@@ -16925,6 +18233,7 @@
                   "payment_amount_mismatch",
                   "plan_inactive",
                   "private_key_required",
+                  "requires_slot",
                   "resync_cooldown",
                   "route_not_available",
                   "server_error",
@@ -17052,11 +18361,11 @@
         "title": "QueekStoreMetaobject"
       },
       "QueekStoreOrder": {
-        "$ref": "#/components/schemas/OrderResource",
+        "$ref": "#/components/schemas/App.Http.Resources.OrderResource",
         "title": "QueekStoreOrder"
       },
       "QueekStoreOrderItem": {
-        "$ref": "#/components/schemas/OrderItemResource",
+        "$ref": "#/components/schemas/App.Http.Resources.Customer.OrderItemResource",
         "title": "QueekStoreOrderItem"
       },
       "QueekStorePage": {
@@ -18263,6 +19572,19 @@
             ],
             "description": "What the storefront offers."
           },
+          "storefront": {
+            "type": "object",
+            "properties": {
+              "domains": {
+                "type": "string",
+                "description": "Every origin the storefront answers on (`https://host`), the canonical one first: each verified custom domain, then the Queek subdomain."
+              }
+            },
+            "required": [
+              "domains"
+            ],
+            "description": "Where the store’s own storefront is served."
+          },
           "created_at": {
             "type": [
               "string",
@@ -18291,6 +19613,7 @@
           "status",
           "operating_hours",
           "capabilities",
+          "storefront",
           "created_at",
           "updated_at"
         ],
@@ -18316,7 +19639,7 @@
               "string",
               "null"
             ],
-            "description": "Resolved by URL (no media_id column on categories/collections) — see\nMediaVariantMap::attachUrlVariants(), called once per response in the\ncontroller BEFORE this resource is resolved, never lazily here."
+            "description": "Pre-sized copies of the image, resolved from its URL (categories\nand collections store no media id)."
           },
           "products_count": {
             "type": "integer"
@@ -18594,6 +19917,123 @@
         ],
         "title": "UpdateVendorOrderStatusRequest"
       },
+      "UserItemResource": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
+          },
+          "first_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "last_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "email": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "phone": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "country_code": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "phone_code": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "avatar": {
+            "type": "string"
+          },
+          "map_lat": {
+            "type": "number"
+          },
+          "map_lng": {
+            "type": "number"
+          },
+          "address": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "type": "string"
+          },
+          "roles": {
+            "type": "string"
+          },
+          "transactions_count": {
+            "type": "string"
+          },
+          "orders_count": {
+            "type": "string"
+          },
+          "assigned_orders_count": {
+            "type": "string"
+          },
+          "completed_orders_count": {
+            "type": "string"
+          },
+          "date_joined": {
+            "type": "string"
+          },
+          "last_seen": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "wallet": {
+            "$ref": "#/components/schemas/WalletResource"
+          }
+        },
+        "required": [
+          "id",
+          "username",
+          "first_name",
+          "last_name",
+          "name",
+          "email",
+          "phone",
+          "country_code",
+          "phone_code",
+          "avatar",
+          "map_lat",
+          "map_lng",
+          "address",
+          "status",
+          "date_joined",
+          "last_seen"
+        ],
+        "title": "UserItemResource"
+      },
       "VendorItemResource": {
         "type": "object",
         "properties": {
@@ -18608,7 +20048,6 @@
           },
           "delivery_info": {
             "type": "object",
-            "description": "'time' => $vendorService->getCurrentTime(),",
             "properties": {
               "is_free_delivery": {
                 "type": "boolean"
@@ -18729,8 +20168,7 @@
             ]
           },
           "support_phone": {
-            "type": "string",
-            "description": "'banner' => $this->banner,"
+            "type": "string"
           },
           "phone": {
             "type": "string"
@@ -18752,7 +20190,7 @@
           },
           "tag": {
             "type": "string",
-            "const": "Restaurant"
+            "description": "The store's own service tag (fashion, food, ...), like the\nstorefront info surface answers — never a hardcoded trade."
           },
           "is_new": {
             "type": "string"
@@ -18785,8 +20223,7 @@
             "type": "string"
           },
           "landmark": {
-            "type": "string",
-            "description": "'map_lat' => $this->map_lat,\n'map_lng' => $this->map_lng,"
+            "type": "string"
           },
           "region_id": {
             "type": "string"
@@ -18837,7 +20274,7 @@
       },
       "VendorOrderExtensionRequest": {
         "type": "object",
-        "description": "PATCH /api/v1/biz/vendor/orders/{order} — the developer-extension fields of an\norder, and nothing else.\n\nThe route reads like a general order update because that is the shape an\nintegrator expects, but an order's state is NOT editable here: status,\ncancellation, rider assignment and shipment each have their own endpoint with\ntheir own ability and their own side effects (stock, settlement, notifications,\nwebhooks). So any field outside the allowed set is REJECTED by name rather than\nignored — an integrator who believes they cancelled an order by PATCHing\n`status` must find out from a 422, not from an order that shipped anyway.",
+        "description": "PATCH /api/v1/biz/vendor/orders/{order} — the developer-extension fields of an\norder, and nothing else.\n\nThe route reads like a general order update because that is the shape an\nintegrator expects, but an order's state is NOT editable here: status,\ncancellation, rider assignment and shipment each have their own endpoint with\ntheir own ability and their own side effects (stock, settlement, notifications,\nwebhooks). So any field outside the allowed set is REJECTED by name rather than\nignored — an integrator who believes they cancelled an order by PATCHing\n`status` must find out from a 422, not from an order that shipped anyway.\n\n`line_items` merges per-line properties by key (OrderLinePropertiesWriter):\nan app mirrors what it booked or issued onto the line it belongs to. Who\nmay write which keys follows the metafields rule: an app installation key\nwrites ONLY under its own `app.{slug}.` namespace (the BB1b derivation,\nAppInstallService::declarationNamespaceFor, resolved from the calling key\nalone); every other caller — the dashboard session, a store key — writes\nany checkout-shaped key EXCEPT the app-owned `app.*` / `queek.*` ones\n(MetafieldWriter::isAppOwnedNamespace), so no merchant can forge or clear an\napp's keys. Keys and values obey the checkout caps.",
         "properties": {
           "metafields": {
             "type": [
@@ -18879,6 +20316,38 @@
               "maxLength": 500
             },
             "maxItems": 50
+          },
+          "line_items": {
+            "type": "array",
+            "description": "Per-line properties to merge: a string sets the key, null\ndeletes it, keys you leave out keep their value.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "description": "The line item `id` exactly as the order object's `line_items[].id` carries it."
+                },
+                "properties": {
+                  "type": "array",
+                  "description": "Key → value map merged into the line's `properties`. Keys are\n`namespace.key` (lowercase, at most 64 characters); a line holds\nat most 20 keys and the whole order 200, counted after the merge.",
+                  "items": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "maxLength": 500
+                  },
+                  "maxItems": 20
+                }
+              },
+              "required": [
+                "id",
+                "properties"
+              ]
+            },
+            "minItems": 1,
+            "uniqueItems": true
           }
         },
         "title": "VendorOrderExtensionRequest"
@@ -19841,6 +21310,53 @@
           "currency"
         ],
         "title": "VendorResource"
+      },
+      "WalletResource": {
+        "type": "object",
+        "properties": {
+          "balance": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "balance_value": {
+            "type": "string"
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "account_number": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "account_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "account_provider": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "balance",
+          "balance_value",
+          "name",
+          "account_number",
+          "account_name",
+          "account_provider"
+        ],
+        "title": "WalletResource"
       }
     },
     "responses": {

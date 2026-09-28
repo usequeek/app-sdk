@@ -53,6 +53,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/app/requirements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Replace the installation requirements sheet
+         * @description Requires scope `merchant-app-requirements-write`.
+         *
+         *     Replaces the calling installation product requirements map: which products require line properties under the installation namespace and which exact claim key each requires. Products are addressed by p_id, scoped to the calling installation vendor.
+         */
+        put: operations["app.requirements_write"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/collected-definitions": {
         parameters: {
             query?: never;
@@ -680,7 +702,7 @@ export interface paths {
          * Update an order
          * @description Requires scope `merchant-orders-update`.
          *
-         *     Changes an order’s developer-extension fields only: metafields and metadata. Order state has its own endpoints. Answers the updated order.
+         *     Changes an order’s developer-extension fields only: metafields, metadata, and per-line properties (`line_items`: merged by key into each line’s `properties`; a string sets a key, null deletes it, keys left out keep their value). An app installation key writes property keys only under its own `app.{slug}.` namespace; any other key writes none under `app.*` or `queek.*`. Order state has its own endpoints. Answers the updated order.
          */
         patch: operations["orders.update"];
         trace?: never;
@@ -999,6 +1021,40 @@ export interface components {
             type: "restock" | "adjustment" | "damage";
             reason: string;
         };
+        /** App.Http.Resources.Customer.OrderItemResource */
+        "App.Http.Resources.Customer.OrderItemResource": {
+            id: string;
+            quantity: string;
+            title: string;
+            variant_id: string;
+            variant_title: string;
+            variant_option_values: {
+                [key: string]: string;
+            };
+            variant_media: {
+                image: string | null;
+                video_url: string | null;
+                /** @enum {string} */
+                source: "variant" | "product";
+            } | null;
+            currency: string;
+            total_price: number | null;
+            sale_price: number | null;
+            unit_price: number | null;
+            base_unit_price: number | null;
+            is_backorder: boolean;
+            backorder_ready_date: string | null;
+            discounted_amount?: number | null;
+            created_at: string;
+            addons: unknown;
+            /**
+             * @description Per-line checkout properties. Always present as an object so
+             *     dashboard chips and the shopper page never branch on absence.
+             *     Bearer keys are withheld here too (dashboard, shopper page,
+             *     rider): the order email is their only carrier.
+             */
+            properties: string;
+        };
         /** App.Http.Resources.Customer.ProductResource */
         "App.Http.Resources.Customer.ProductResource": unknown[] | {
             shop_id: string;
@@ -1006,7 +1062,7 @@ export interface components {
             p_id: string;
             title: string;
             slug: string;
-            excerpt: string;
+            excerpt: string | null;
             description: string;
             image: string | null;
             thumbnail_image: string | null;
@@ -1056,6 +1112,17 @@ export interface components {
                 primary_variant_image_variants: {
                     [key: string]: unknown;
                 } | null;
+                images: ({
+                    id: number;
+                    url: string;
+                    alt: unknown;
+                    variants: string;
+                } | null | {
+                    id: number | null;
+                    url: string | null;
+                    alt: unknown;
+                    variants: null;
+                })[] | null;
             };
             inventory: unknown[];
             variant_summary: string | null;
@@ -1081,6 +1148,246 @@ export interface components {
             updated_at: string | null;
             shop: unknown[];
             barcode: string;
+        };
+        /** App.Http.Resources.OrderResource */
+        "App.Http.Resources.OrderResource": {
+            0: Record<string, never>;
+            id: string;
+            title: string | null;
+            currency: string;
+            total_price: number | null;
+            delivery_fee: number | null;
+            grand_total: number | null;
+            payment_status: string;
+            transaction_id: string | null;
+            is_verified: boolean | null;
+            order_no: string;
+            status: string;
+            order_type: string;
+            scheduled_date: string | null;
+            scheduled_time: string | null;
+            is_backorder_held: boolean;
+            backorder_ready_date: string | null;
+            delivery_method: string | null;
+            payment_method: string | null;
+            delivery_address: string | null;
+            pickup_address: string | null;
+            /**
+             * @description The dine-in table picked at checkout for in-store QR orders: its
+             *     id, name and section, as shown in the table picker.
+             */
+            table: {
+                id: string;
+                name: string;
+                section: string | null;
+            } | Record<string, never>;
+            stage: number;
+            earliest_delivery_time: string | null | Record<string, never>;
+            latest_delivery_time: string | null | Record<string, never>;
+            ready_window: {
+                from: string | null;
+                to: string | null;
+                label: string;
+            } | null | Record<string, never>;
+            vendor: {
+                id: string;
+                name: string;
+                slug: string;
+                logo: string | null;
+                /**
+                 * @description Contact + location surfaced so the storefront can render a
+                 *     "collect from" block on pickup orders. Cheap eager-loaded
+                 *     columns; not gated behind delivery_mode so a hybrid UI can
+                 *     also show them on rider/dispatch flows.
+                 */
+                address: string | null;
+                phone: string | null;
+                email: string | null;
+                map_lat: string | null;
+                map_lng: string | null;
+            } | Record<string, never>;
+            created_by_id: string | null;
+            timeline: unknown[];
+            vendor_timeline: unknown[];
+            vendor_note: string | null;
+            rider_note: string | null;
+            shopforme_fee: number | null;
+            service_fee: number | null;
+            delivery_pin: string | null | Record<string, never>;
+            delivery_pins: unknown[] | null | Record<string, never>;
+            is_confirmed: boolean;
+            rejected: boolean;
+            is_completed: boolean;
+            cancelled: boolean;
+            cancellation_reason: string | null | Record<string, never>;
+            items_count: string;
+            started_at: string | null;
+            completed_at: string | null;
+            created_at: string;
+            updated_at: string;
+            status_label: string;
+            status_img: string;
+            user_id: string;
+            pickup_map_lat: string | null;
+            pickup_map_lng: string | null;
+            /**
+             * @description In-memory parent link (zero queries): item currency resolves through
+             *     this order, then its vendor, before the platform default.
+             */
+            items: components["schemas"]["OrderItemResource"][] | Record<string, never>;
+            created_by: {
+                id: string;
+                name: string;
+                avatar: string | null;
+                phone: string;
+                email: string;
+            } | Record<string, never>;
+            rider: components["schemas"]["UserItemResource"];
+            rider_rating: number;
+            rider_review_status: string;
+            vendor_review_status: string;
+            vendor_rating: number;
+            virtual_account_id: string | null;
+            payment_link: string | null;
+            pay_link: string;
+            /** @enum {string} */
+            viewer_type: "customer" | "vendor" | "rider" | "admin";
+            amount_summary: {
+                /** @constant */
+                title: "Order Summary";
+                /** @constant */
+                view: "rider";
+                items: [
+                    {
+                        /** @constant */
+                        key: "rider_fee";
+                        /** @constant */
+                        label: "Rider Fee";
+                        /** @constant */
+                        type: "total";
+                        amount: number | null;
+                    }
+                ];
+            } | {
+                /** @constant */
+                title: "Order Summary";
+                /** @constant */
+                view: "vendor";
+                items: unknown[];
+            } | {
+                /** @constant */
+                title: "Order Summary";
+                /** @constant */
+                view: "customer";
+                items: unknown[];
+            };
+        } | {
+            /**
+             * @description Settlement ledger is vendor facts, never customer facts: it stays
+             *     off the storefront public path only (client_vendor_id resolved).
+             *     Every other surface keeps reading it exactly as before.
+             */
+            0: Record<string, never>;
+            id: string;
+            title: string | null;
+            currency: string;
+            total_price: number | null;
+            delivery_fee: number | null;
+            grand_total: number | null;
+            payment_status: string;
+            transaction_id: string | null;
+            is_verified: boolean | null;
+            order_no: string;
+            status: string;
+            order_type: string;
+            scheduled_date: string | null;
+            scheduled_time: string | null;
+            is_backorder_held: boolean;
+            backorder_ready_date: string | null;
+            delivery_method: string | null;
+            payment_method: string | null;
+            delivery_address: string | null;
+            pickup_address: string | null;
+            /**
+             * @description The dine-in table picked at checkout for in-store QR orders: its
+             *     id, name and section, as shown in the table picker.
+             */
+            table: {
+                id: string;
+                name: string;
+                section: string | null;
+            } | Record<string, never>;
+            stage: number;
+            earliest_delivery_time: string | null | Record<string, never>;
+            latest_delivery_time: string | null | Record<string, never>;
+            ready_window: {
+                from: string | null;
+                to: string | null;
+                label: string;
+            } | null | Record<string, never>;
+            vendor: {
+                id: string;
+                name: string;
+                slug: string;
+                logo: string | null;
+                /**
+                 * @description Contact + location surfaced so the storefront can render a
+                 *     "collect from" block on pickup orders. Cheap eager-loaded
+                 *     columns; not gated behind delivery_mode so a hybrid UI can
+                 *     also show them on rider/dispatch flows.
+                 */
+                address: string | null;
+                phone: string | null;
+                email: string | null;
+                map_lat: string | null;
+                map_lng: string | null;
+            } | Record<string, never>;
+            created_by_id: string | null;
+            timeline: unknown[];
+            vendor_timeline: unknown[];
+            vendor_note: string | null;
+            rider_note: string | null;
+            shopforme_fee: number | null;
+            service_fee: number | null;
+            delivery_pin: string | null | Record<string, never>;
+            delivery_pins: unknown[] | null | Record<string, never>;
+            is_confirmed: boolean;
+            rejected: boolean;
+            is_completed: boolean;
+            cancelled: boolean;
+            cancellation_reason: string | null | Record<string, never>;
+            items_count: string;
+            started_at: string | null;
+            completed_at: string | null;
+            created_at: string;
+            updated_at: string;
+        };
+        /**
+         * AppRequirementStoreRequest
+         * @description The installation-bound requirements-sheet write (PUT app/requirements,
+         *     merchant API, installation key only). The declaring app replaces its
+         *     installation's {product → required property prefix} map as product
+         *     metafield declarations in its OWN app namespace.
+         *
+         *     Full-body PUT: the whole sheet every time, so a retry replays instead
+         *     of merging and removals are explicit. Products are addressed by p_id
+         *     (never UUID) and resolved vendor-scoped in the controller.
+         */
+        AppRequirementStoreRequest: {
+            /**
+             * @description `present` (not `required`): an emptied sheet is the explicit
+             *     full-removal signal, and an empty array is a valid sheet.
+             */
+            items: {
+                product_p_id: number;
+                /**
+                 * @description The required line-property prefix, e.g. `app.booking.`. It
+                 *     must live under the calling installation's own app
+                 *     namespace, so one installation can never declare for
+                 *     another app's keys.
+                 */
+                prefix: string;
+            }[];
         };
         /** AssignOrderRiderRequest */
         AssignOrderRiderRequest: {
@@ -1269,9 +1576,8 @@ export interface components {
             description: string;
             image: string;
             /**
-             * @description Resolved by URL (no media_id column on categories/collections) — see
-             *     MediaVariantMap::attachUrlVariants(), called once per response in the
-             *     controller BEFORE this resource is resolved, never lazily here.
+             * @description Pre-sized copies of the image, resolved from its URL (categories
+             *     and collections store no media id).
              */
             image_variants: string | null;
             featured: boolean;
@@ -1561,10 +1867,10 @@ export interface components {
         /** OrderItemResource */
         OrderItemResource: {
             id: string;
-            quantity: string;
-            title: string;
-            variant_id: string;
-            variant_title: string;
+            quantity: number;
+            title: string | null;
+            variant_id: string | null;
+            variant_title: string | null;
             variant_option_values: {
                 [key: string]: string;
             };
@@ -1582,8 +1888,16 @@ export interface components {
             is_backorder: boolean;
             backorder_ready_date: string | null;
             discounted_amount?: number | null;
-            created_at: string;
+            /** Format: date-time */
+            created_at: string | null;
             addons: unknown;
+            /**
+             * @description Per-line checkout properties. Always present as an object so
+             *     dashboard chips and the shopper page never branch on absence.
+             *     Bearer keys are withheld here too (dashboard, shopper page,
+             *     rider): the order email is their only carrier.
+             */
+            properties: string;
         };
         /** OrderResource */
         OrderResource: {
@@ -1615,6 +1929,11 @@ export interface components {
             custom_channel: string | null;
             external_ref: string;
             delivery_method: string;
+            /**
+             * @description Vendor chain with the same unloaded-relation safety net as the
+             *     sibling order shapes: loaded relation first, then the
+             *     cache-backed lookup — never the silent platform default.
+             */
             currency: string;
             subtotal: string;
             discount_total: string;
@@ -1652,6 +1971,13 @@ export interface components {
                 quantity: number;
                 unit_price: string;
                 total: string;
+                /**
+                 * @description Per-line checkout properties (jsonb, array-cast). Absent lines
+                 *     render an empty object, never null — apps always see the key.
+                 *     An app's single-use keys (claims, manage links) reach only the
+                 *     app that issued them, never another app or key.
+                 */
+                properties: string;
             }[];
             note: string;
             /**
@@ -1770,7 +2096,7 @@ export interface components {
             }[];
             cost_price?: number | null;
             currency?: string | null;
-            is_digital?: string | null;
+            is_digital?: boolean | null;
             is_pos?: boolean | null;
             is_instore?: boolean | null;
             is_online?: boolean | null;
@@ -1782,6 +2108,15 @@ export interface components {
             published?: string | null;
             approved?: string | null;
             price: number;
+            /**
+             * @description Product-level identity/pricing for products WITHOUT variants
+             *     (Shopify default-variant parity). Prohibited the moment
+             *     variants are in play — variants carry their own
+             *     sku/compare_at_price and the product-level pair is ignored
+             *     there, never merged.
+             */
+            sku?: string | null;
+            compare_at_price?: number | null;
             images?: string | null;
             image_url?: string | null;
             /** Format: uri */
@@ -1822,7 +2157,7 @@ export interface components {
             uid: string;
             title: string;
             slug: string;
-            excerpt: string;
+            excerpt: string | null;
             description: string;
             /** @enum {string} */
             status: "active" | "out_of_stock" | "draft" | "archived";
@@ -1830,10 +2165,6 @@ export interface components {
             in_stock: boolean;
             price: string;
             storefront_price: string;
-            /**
-             * @description The storefront shows a compare-at exactly when the discounted
-             *     price sits below the (commission-inclusive) list price.
-             */
             storefront_compare_at_price: string | null;
             url: string | null;
             currency: string;
@@ -1841,6 +2172,7 @@ export interface components {
             barcode: string;
             stock: number | null;
             track_inventory: boolean;
+            is_digital: boolean;
             has_variants: boolean;
             image: string;
             thumbnail_image: string;
@@ -1898,6 +2230,11 @@ export interface components {
             compare_at_price: string | null;
             stock: number;
             track_inventory: boolean;
+            /**
+             * @description Product-level flag, inherited read-only: variants carry no
+             *     is_digital column, so a missing parent reads false, never throws.
+             */
+            is_digital: boolean;
             is_active: boolean;
             is_backorder: boolean;
             backorder_ready_date: string | null;
@@ -1928,7 +2265,7 @@ export interface components {
                  * @description Stable identifier a client switches on. A new failure mode gets a new code; an existing code never changes meaning.
                  * @enum {string}
                  */
-                code: "ai_unavailable_in_test_mode" | "api_key_expired" | "api_key_mode_mismatch" | "api_key_revoked" | "app_handoff_failed" | "app_installation_gone" | "app_installation_pending" | "app_ip_not_allowed" | "app_token_revoked" | "bad_request" | "client_key_required" | "conflict" | "custom_gateway_forbidden" | "custom_gateway_kyc_required" | "custom_gateway_not_configured" | "custom_gateway_not_verified" | "custom_gateway_plan_required" | "custom_gateway_store_ineligible" | "custom_gateway_verification_failed" | "forbidden" | "gone" | "idempotency_key_in_progress" | "idempotency_key_reuse" | "insufficient_scope" | "invalid_client" | "invalid_client_key" | "metafield_definition_missing" | "metafield_filter_unsupported_type" | "metafield_namespace_reserved" | "metafield_value_invalid" | "metaobject_definition_missing" | "metaobject_field_invalid" | "metaobject_reference_invalid" | "metaobject_type_reserved" | "method_not_allowed" | "not_found" | "origin_not_allowed" | "origin_required" | "payload_too_large" | "payment_amount_mismatch" | "plan_inactive" | "private_key_required" | "resync_cooldown" | "route_not_available" | "server_error" | "service_unavailable" | "subscription_feature_locked" | "too_many_requests" | "unauthenticated" | "unknown_product_ref" | "unknown_service" | "unknown_variant_ref" | "unsupported_media_type" | "validation_failed" | "vendor_access_denied" | "vendor_mail_sender_forbidden" | "vendor_mail_sender_not_configured" | "vendor_mail_sender_plan_required" | "vendor_mail_sender_verification_failed";
+                code: "ai_unavailable_in_test_mode" | "api_key_expired" | "api_key_mode_mismatch" | "api_key_revoked" | "app_embed_not_ready" | "app_grant_insufficient" | "app_handoff_failed" | "app_installation_gone" | "app_installation_pending" | "app_ip_not_allowed" | "app_proxy_failed" | "app_proxy_gone" | "app_token_revoked" | "bad_request" | "client_key_required" | "conflict" | "custom_gateway_forbidden" | "custom_gateway_kyc_required" | "custom_gateway_not_configured" | "custom_gateway_not_verified" | "custom_gateway_plan_required" | "custom_gateway_store_ineligible" | "custom_gateway_verification_failed" | "forbidden" | "gone" | "idempotency_key_in_progress" | "idempotency_key_reuse" | "insufficient_scope" | "invalid_client" | "invalid_client_key" | "metafield_definition_missing" | "metafield_filter_unsupported_type" | "metafield_namespace_reserved" | "metafield_value_invalid" | "metaobject_definition_missing" | "metaobject_field_invalid" | "metaobject_reference_invalid" | "metaobject_type_reserved" | "method_not_allowed" | "not_found" | "origin_not_allowed" | "origin_required" | "payload_too_large" | "payment_amount_mismatch" | "plan_inactive" | "private_key_required" | "requires_slot" | "resync_cooldown" | "route_not_available" | "server_error" | "service_unavailable" | "subscription_feature_locked" | "too_many_requests" | "unauthenticated" | "unknown_product_ref" | "unknown_service" | "unknown_variant_ref" | "unsupported_media_type" | "validation_failed" | "vendor_access_denied" | "vendor_mail_sender_forbidden" | "vendor_mail_sender_not_configured" | "vendor_mail_sender_plan_required" | "vendor_mail_sender_verification_failed";
                 /** @description Human-readable explanation. Not stable — never switch on it. */
                 message: string;
                 /** @description First offending field, on validation failures only. */
@@ -1973,9 +2310,9 @@ export interface components {
         /** QueekStoreMetaobject */
         QueekStoreMetaobject: components["schemas"]["MetaobjectResource"];
         /** QueekStoreOrder */
-        QueekStoreOrder: components["schemas"]["OrderResource"];
+        QueekStoreOrder: components["schemas"]["App.Http.Resources.OrderResource"];
         /** QueekStoreOrderItem */
-        QueekStoreOrderItem: components["schemas"]["OrderItemResource"];
+        QueekStoreOrderItem: components["schemas"]["App.Http.Resources.Customer.OrderItemResource"];
         /** QueekStorePage */
         QueekStorePage: components["schemas"]["StorePageResource"];
         /** QueekStoreProduct */
@@ -2348,6 +2685,11 @@ export interface components {
                 /** @description Whether in-store (QR) ordering is on. */
                 instore_order: string;
             };
+            /** @description Where the store’s own storefront is served. */
+            storefront: {
+                /** @description Every origin the storefront answers on (`https://host`), the canonical one first: each verified custom domain, then the Queek subdomain. */
+                domains: string;
+            };
             /** @description When the store was created (ISO-8601). */
             created_at: string | null;
             /** @description When the store was last updated (ISO-8601). */
@@ -2360,9 +2702,8 @@ export interface components {
             slug: string;
             image: string;
             /**
-             * @description Resolved by URL (no media_id column on categories/collections) — see
-             *     MediaVariantMap::attachUrlVariants(), called once per response in the
-             *     controller BEFORE this resource is resolved, never lazily here.
+             * @description Pre-sized copies of the image, resolved from its URL (categories
+             *     and collections store no media id).
              */
             image_variants: string | null;
             products_count: number;
@@ -2458,12 +2799,36 @@ export interface components {
             /** Format: date-time */
             latest_delivery_time?: string | null;
         };
+        /** UserItemResource */
+        UserItemResource: {
+            id: string;
+            username: string;
+            first_name: string | null;
+            last_name: string | null;
+            name: string | null;
+            email: string | null;
+            phone: string | null;
+            country_code: string | null;
+            phone_code: string | null;
+            avatar: string;
+            map_lat: number;
+            map_lng: number;
+            address: string | null;
+            status: string;
+            roles?: string;
+            transactions_count?: string;
+            orders_count?: string;
+            assigned_orders_count?: string;
+            completed_orders_count?: string;
+            date_joined: string;
+            last_seen: string | null;
+            wallet?: components["schemas"]["WalletResource"];
+        };
         /** VendorItemResource */
         VendorItemResource: {
             id: string;
             name: string;
             distance: string;
-            /** @description 'time' => $vendorService->getCurrentTime(), */
             delivery_info: {
                 is_free_delivery: boolean;
                 delivery_fee: number | null;
@@ -2496,7 +2861,6 @@ export interface components {
             preorder_enabled: string;
             area: string;
             banner: string | null;
-            /** @description 'banner' => $this->banner, */
             support_phone: string;
             phone: string;
             country_code: string;
@@ -2504,8 +2868,11 @@ export interface components {
             support_email: string;
             slogan: string;
             tags: string;
-            /** @constant */
-            tag: "Restaurant";
+            /**
+             * @description The store's own service tag (fashion, food, ...), like the
+             *     storefront info surface answers — never a hardcoded trade.
+             */
+            tag: string;
             is_new: string;
             rating: number;
             rating_count: number;
@@ -2514,10 +2881,6 @@ export interface components {
             open_time: string | null;
             close_time: string | null;
             service_type: string;
-            /**
-             * @description 'map_lat' => $this->map_lat,
-             *     'map_lng' => $this->map_lng,
-             */
             landmark: string;
             region_id: string;
             min_order_price: number | null;
@@ -2534,6 +2897,16 @@ export interface components {
          *     webhooks). So any field outside the allowed set is REJECTED by name rather than
          *     ignored — an integrator who believes they cancelled an order by PATCHing
          *     `status` must find out from a 422, not from an order that shipped anyway.
+         *
+         *     `line_items` merges per-line properties by key (OrderLinePropertiesWriter):
+         *     an app mirrors what it booked or issued onto the line it belongs to. Who
+         *     may write which keys follows the metafields rule: an app installation key
+         *     writes ONLY under its own `app.{slug}.` namespace (the BB1b derivation,
+         *     AppInstallService::declarationNamespaceFor, resolved from the calling key
+         *     alone); every other caller — the dashboard session, a store key — writes
+         *     any checkout-shaped key EXCEPT the app-owned `app.*` / `queek.*` ones
+         *     (MetafieldWriter::isAppOwnedNamespace), so no merchant can forge or clear an
+         *     app's keys. Keys and values obey the checkout caps.
          */
         VendorOrderExtensionRequest: {
             metafields?: {
@@ -2547,6 +2920,23 @@ export interface components {
              *     it can carry are size and count.
              */
             metadata?: (string | null)[] | null;
+            /**
+             * @description Per-line properties to merge: a string sets the key, null
+             *     deletes it, keys you leave out keep their value.
+             */
+            line_items?: {
+                /**
+                 * Format: uuid
+                 * @description The line item `id` exactly as the order object's `line_items[].id` carries it.
+                 */
+                id: string;
+                /**
+                 * @description Key → value map merged into the line's `properties`. Keys are
+                 *     `namespace.key` (lowercase, at most 64 characters); a line holds
+                 *     at most 20 keys and the whole order 200, counted after the merge.
+                 */
+                properties: (string | null)[];
+            }[];
         };
         /** VendorProfileResource */
         VendorProfileResource: {
@@ -2753,6 +3143,15 @@ export interface components {
                 font: string;
                 socials: unknown[];
             };
+        };
+        /** WalletResource */
+        WalletResource: {
+            balance: number | null;
+            balance_value: string;
+            name: string | null;
+            account_number: string | null;
+            account_name: string | null;
+            account_provider: string | null;
         };
     };
     responses: {
@@ -3124,6 +3523,174 @@ export interface operations {
                      *         "errors": {
                      *           "severity": [
                      *             "The selected severity is invalid."
+                     *           ]
+                     *         },
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Too many requests — slow down and retry. Switch on `error.code`. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "too_many_requests",
+                     *         "message": "Too Many Attempts.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+        };
+    };
+    "app.requirements_write": {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a test store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @example {{merchantKey}}
+                 */
+                "X-Client-Key": string;
+                /** @description Your own correlation id (8–128 chars, `^[A-Za-z0-9_.:-]+$`). Echoed back on the response and on every log line of the request; one is generated when you omit it. */
+                "X-Request-Id"?: string;
+                /** @description Retry-safe write key. The same key with the same body replays the stored response for 24h with `Idempotent-Replayed: true`; with a different body it is `409 idempotency_key_reuse`; while the first call is still running it is `409 idempotency_key_in_progress`. */
+                "Idempotency-Key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "items": [
+                 *         {
+                 *           "product_p_id": 20418,
+                 *           "prefix": "app.booking."
+                 *         }
+                 *       ]
+                 *     }
+                 */
+                "application/json": components["schemas"]["AppRequirementStoreRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "status": "success",
+                     *       "message": "Requirements sheet saved.",
+                     *       "data": {
+                     *         "requirements": [
+                     *           {
+                     *             "product_p_id": 20418,
+                     *             "prefix": "app.booking."
+                     *           }
+                     *         ]
+                     *       }
+                     *     }
+                     */
+                    "application/json": {
+                        /** @constant */
+                        status: "success";
+                        /** @constant */
+                        message: "Requirements sheet saved.";
+                        data: string[];
+                        meta: string;
+                    };
+                };
+            };
+            /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "invalid_client_key",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Forbidden — the key cannot call this operation. Switch on `error.code`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "insufficient_scope",
+                     *         "message": "This API key does not carry the 'merchant-app-requirements-write' scope it was called with.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Idempotency conflict — `idempotency_key_reuse` or `idempotency_key_in_progress`. Switch on `error.code`. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "idempotency_key_reuse",
+                     *         "message": "This Idempotency-Key was already used for a different request body. Use a new key for a new request.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#idempotency_key_reuse",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Validation failed — `error.errors` carries per-field detail. Switch on `error.code`. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "validation_failed",
+                     *         "message": "The prefix must live under the calling installation app namespace.",
+                     *         "field": "items.0.prefix",
+                     *         "errors": {
+                     *           "items.0.prefix": [
+                     *             "The prefix must live under the calling installation app namespace."
+                     *           ],
+                     *           "items.0.product_p_id": [
+                     *             "Product p_id 999999 was not found on this store."
                      *           ]
                      *         },
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
@@ -4699,11 +5266,7 @@ export interface operations {
                      *       "next_cursor": "eyJpZCI6IjAxOWEyZDExLTVhNmItN2M3ZC04ZTlmLTBhMWIyYzNkNGUwMiIsIl9wb2ludHNUb05leHRJdGVtcyI6dHJ1ZX0"
                      *     }
                      */
-                    "application/json": {
-                        data: string;
-                        has_more: boolean;
-                        next_cursor: string | null;
-                    };
+                    "application/json": Record<string, never>;
                 };
             };
             /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
@@ -5181,11 +5744,7 @@ export interface operations {
                      *       "next_cursor": "eyJpZCI6OTAzNDEsIl9wb2ludHNUb05leHRJdGVtcyI6dHJ1ZX0"
                      *     }
                      */
-                    "application/json": {
-                        data: string;
-                        has_more: boolean;
-                        next_cursor: string | null;
-                    };
+                    "application/json": Record<string, never>;
                 };
             };
             /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
@@ -5329,11 +5888,7 @@ export interface operations {
                      *       "next_cursor": "eyJpZCI6IjAxOWEyZjMzLTFhMmItN2MzZC04ZTRmLTVhNmI3YzhkOWUwMSIsIl9wb2ludHNUb05leHRJdGVtcyI6dHJ1ZX0"
                      *     }
                      */
-                    "application/json": {
-                        data: string;
-                        has_more: boolean;
-                        next_cursor: string | null;
-                    };
+                    "application/json": Record<string, never>;
                 };
             };
             /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
@@ -7400,11 +7955,7 @@ export interface operations {
                      *       "next_cursor": "eyJpZCI6IjAxOWEzYTBlLTZkMjEtN2I1NC04ZTkwLTJmNGE2YzhlMGIxMCIsIl9wb2ludHNUb05leHRJdGVtcyI6dHJ1ZX0"
                      *     }
                      */
-                    "application/json": {
-                        data: string;
-                        has_more: boolean;
-                        next_cursor: string | null;
-                    };
+                    "application/json": Record<string, never>;
                 };
             };
             /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
@@ -7603,11 +8154,7 @@ export interface operations {
                      *       "next_cursor": "eyJpZCI6IjAxOWEzYTBlLTZkMjEtN2I1NC04ZTkwLTJmNGE2YzhlMGIxMSIsIl9wb2ludHNUb05leHRJdGVtcyI6dHJ1ZX0"
                      *     }
                      */
-                    "application/json": {
-                        data: string;
-                        has_more: boolean;
-                        next_cursor: string | null;
-                    };
+                    "application/json": Record<string, never>;
                 };
             };
             /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
@@ -7953,10 +8500,6 @@ export interface operations {
                         message: "Metafield definitions";
                         data: string[];
                         meta: string;
-                    } | {
-                        data: string;
-                        has_more: boolean;
-                        next_cursor: string | null;
                     };
                 };
             };
@@ -8311,10 +8854,6 @@ export interface operations {
                         message: "Metaobject definitions";
                         data: string[];
                         meta: string;
-                    } | {
-                        data: string;
-                        has_more: boolean;
-                        next_cursor: string | null;
                     };
                 };
             };
@@ -8683,11 +9222,7 @@ export interface operations {
                      *       "next_cursor": "eyJpZCI6MTIwMiwiX3BvaW50c1RvTmV4dEl0ZW1zIjp0cnVlfQ"
                      *     }
                      */
-                    "application/json": Record<string, never> | {
-                        data: string;
-                        has_more: boolean;
-                        next_cursor: string | null;
-                    };
+                    "application/json": Record<string, never>;
                 };
             };
             /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
@@ -9025,7 +9560,8 @@ export interface operations {
                      *               "variant_title": "50cl",
                      *               "quantity": 2,
                      *               "unit_price": "2500.00",
-                     *               "total": "5000.00"
+                     *               "total": "5000.00",
+                     *               "properties": {}
                      *             }
                      *           ],
                      *           "note": null,
@@ -9079,7 +9615,10 @@ export interface operations {
                      *               "variant_title": null,
                      *               "quantity": 2,
                      *               "unit_price": "18500.00",
-                     *               "total": "37000.00"
+                     *               "total": "37000.00",
+                     *               "properties": {
+                     *                 "gift.note": "Happy birthday, Tolu!"
+                     *               }
                      *             }
                      *           ],
                      *           "note": "Leave with the gateman if no one answers.",
@@ -9096,11 +9635,7 @@ export interface operations {
                      *       "next_cursor": "eyJpZCI6NTgyMTMsIl9wb2ludHNUb05leHRJdGVtcyI6dHJ1ZX0"
                      *     }
                      */
-                    "application/json": {
-                        data: string;
-                        has_more: boolean;
-                        next_cursor: string | null;
-                    };
+                    "application/json": Record<string, never>;
                 };
             };
             /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
@@ -9260,7 +9795,10 @@ export interface operations {
                      *             "variant_title": null,
                      *             "quantity": 2,
                      *             "unit_price": "18500.00",
-                     *             "total": "37000.00"
+                     *             "total": "37000.00",
+                     *             "properties": {
+                     *               "gift.note": "Happy birthday, Tolu!"
+                     *             }
                      *           }
                      *         ],
                      *         "note": "Leave with the gateman if no one answers.",
@@ -9388,7 +9926,16 @@ export interface operations {
                  * @example {
                  *       "metadata": {
                  *         "erp_id": "SO-104882"
-                 *       }
+                 *       },
+                 *       "line_items": [
+                 *         {
+                 *           "id": "019a3a0e-1c2d-7e3f-8a4b-5c6d7e8f9a11",
+                 *           "properties": {
+                 *             "gift.note": "Happy birthday, Tolu!",
+                 *             "gift.wrap": null
+                 *           }
+                 *         }
+                 *       ]
                  *     }
                  */
                 "application/json": components["schemas"]["VendorOrderExtensionRequest"];
@@ -9448,7 +9995,10 @@ export interface operations {
                      *             "variant_title": null,
                      *             "quantity": 2,
                      *             "unit_price": "18500.00",
-                     *             "total": "37000.00"
+                     *             "total": "37000.00",
+                     *             "properties": {
+                     *               "gift.note": "Happy birthday, Tolu!"
+                     *             }
                      *           }
                      *         ],
                      *         "note": "Leave with the gateman if no one answers.",
@@ -9688,7 +10238,8 @@ export interface operations {
                      *             "variant_title": "50cl",
                      *             "quantity": 2,
                      *             "unit_price": "2500.00",
-                     *             "total": "5000.00"
+                     *             "total": "5000.00",
+                     *             "properties": {}
                      *           }
                      *         ],
                      *         "note": null,
@@ -9758,7 +10309,8 @@ export interface operations {
                      *             "variant_title": "50cl",
                      *             "quantity": 2,
                      *             "unit_price": "2500.00",
-                     *             "total": "5000.00"
+                     *             "total": "5000.00",
+                     *             "properties": {}
                      *           }
                      *         ],
                      *         "note": null,
@@ -9966,7 +10518,10 @@ export interface operations {
                      *             "variant_title": null,
                      *             "quantity": 2,
                      *             "unit_price": "18500.00",
-                     *             "total": "37000.00"
+                     *             "total": "37000.00",
+                     *             "properties": {
+                     *               "gift.note": "Happy birthday, Tolu!"
+                     *             }
                      *           }
                      *         ],
                      *         "note": "Leave with the gateman if no one answers.",
@@ -10189,7 +10744,10 @@ export interface operations {
                      *             "variant_title": null,
                      *             "quantity": 2,
                      *             "unit_price": "18500.00",
-                     *             "total": "37000.00"
+                     *             "total": "37000.00",
+                     *             "properties": {
+                     *               "gift.note": "Happy birthday, Tolu!"
+                     *             }
                      *           }
                      *         ],
                      *         "note": "Leave with the gateman if no one answers.",
@@ -10425,7 +10983,8 @@ export interface operations {
                      *             "variant_title": "1 litre",
                      *             "quantity": 6,
                      *             "unit_price": "4200.00",
-                     *             "total": "25200.00"
+                     *             "total": "25200.00",
+                     *             "properties": {}
                      *           }
                      *         ],
                      *         "note": null,
@@ -10626,6 +11185,7 @@ export interface operations {
                      *           "barcode": null,
                      *           "stock": 60,
                      *           "track_inventory": true,
+                     *           "is_digital": false,
                      *           "has_variants": true,
                      *           "image": "https://media.usequeek.com/uploads/stores/1095/homemade-chapman.jpg",
                      *           "thumbnail_image": null,
@@ -10646,6 +11206,7 @@ export interface operations {
                      *               "compare_at_price": null,
                      *               "stock": 36,
                      *               "track_inventory": true,
+                     *               "is_digital": false,
                      *               "is_active": true,
                      *               "is_backorder": false,
                      *               "backorder_ready_date": null,
@@ -10669,6 +11230,7 @@ export interface operations {
                      *               "compare_at_price": null,
                      *               "stock": 24,
                      *               "track_inventory": true,
+                     *               "is_digital": false,
                      *               "is_active": true,
                      *               "is_backorder": false,
                      *               "backorder_ready_date": null,
@@ -10746,6 +11308,7 @@ export interface operations {
                      *           "barcode": "6154000102417",
                      *           "stock": 42,
                      *           "track_inventory": true,
+                     *           "is_digital": false,
                      *           "has_variants": false,
                      *           "image": "https://media.usequeek.com/uploads/stores/1095/jollof-rice-party-pack.jpg",
                      *           "thumbnail_image": null,
@@ -10807,11 +11370,7 @@ export interface operations {
                      *       "next_cursor": "eyJpZCI6MjA0MTcsIl9wb2ludHNUb05leHRJdGVtcyI6dHJ1ZX0"
                      *     }
                      */
-                    "application/json": {
-                        data: string;
-                        has_more: boolean;
-                        next_cursor: string | null;
-                    };
+                    "application/json": Record<string, never>;
                 };
             };
             /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
@@ -10964,6 +11523,7 @@ export interface operations {
                      *         "barcode": "6154000102417",
                      *         "stock": 42,
                      *         "track_inventory": true,
+                     *         "is_digital": false,
                      *         "has_variants": false,
                      *         "image": "https://media.usequeek.com/uploads/stores/1095/jollof-rice-party-pack.jpg",
                      *         "thumbnail_image": null,
@@ -11176,6 +11736,7 @@ export interface operations {
                      *         "barcode": "6154000102417",
                      *         "stock": 42,
                      *         "track_inventory": true,
+                     *         "is_digital": false,
                      *         "has_variants": false,
                      *         "image": "https://media.usequeek.com/uploads/stores/1095/jollof-rice-party-pack.jpg",
                      *         "thumbnail_image": null,
@@ -11390,6 +11951,7 @@ export interface operations {
                      *         "barcode": "6154000102417",
                      *         "stock": 42,
                      *         "track_inventory": true,
+                     *         "is_digital": false,
                      *         "has_variants": false,
                      *         "image": "https://media.usequeek.com/uploads/stores/1095/jollof-rice-party-pack.jpg",
                      *         "thumbnail_image": null,
@@ -11972,11 +12534,7 @@ export interface operations {
                      *       "next_cursor": "eyJpZCI6IjAxOWEyYzVkLTNlNGYtN2E1Yi04YzZkLTdlOGY5YTBiMWMyMiIsIl9wb2ludHNUb05leHRJdGVtcyI6dHJ1ZX0"
                      *     }
                      */
-                    "application/json": {
-                        data: string;
-                        has_more: boolean;
-                        next_cursor: string | null;
-                    };
+                    "application/json": Record<string, never>;
                 };
             };
             /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
@@ -12531,6 +13089,12 @@ export interface operations {
                      *             "pickup_enabled": true,
                      *             "instore_order": false
                      *           },
+                     *           "storefront": {
+                     *             "domains": [
+                     *               "https://adeyemifoods.com",
+                     *               "https://adeyemi-foods.queek.com.ng"
+                     *             ]
+                     *           },
                      *           "created_at": "2026-06-02T08:00:00+01:00",
                      *           "updated_at": "2026-09-24T18:30:00+01:00"
                      *         }
@@ -12692,6 +13256,7 @@ export interface operations {
                      *           "compare_at_price": null,
                      *           "stock": 36,
                      *           "track_inventory": true,
+                     *           "is_digital": false,
                      *           "is_active": true,
                      *           "is_backorder": false,
                      *           "backorder_ready_date": null,
@@ -12715,6 +13280,7 @@ export interface operations {
                      *           "compare_at_price": null,
                      *           "stock": 24,
                      *           "track_inventory": true,
+                     *           "is_digital": false,
                      *           "is_active": true,
                      *           "is_backorder": false,
                      *           "backorder_ready_date": null,
@@ -12735,10 +13301,6 @@ export interface operations {
                         message: "Product variants";
                         data: string[];
                         meta: string;
-                    } | {
-                        data: string;
-                        has_more: boolean;
-                        next_cursor: string | null;
                     };
                 };
             };
@@ -12907,6 +13469,7 @@ export interface operations {
                      *         "compare_at_price": null,
                      *         "stock": 24,
                      *         "track_inventory": true,
+                     *         "is_digital": false,
                      *         "is_active": true,
                      *         "is_backorder": false,
                      *         "backorder_ready_date": null,
@@ -13254,6 +13817,7 @@ export interface operations {
                      *         "compare_at_price": null,
                      *         "stock": 24,
                      *         "track_inventory": true,
+                     *         "is_digital": false,
                      *         "is_active": true,
                      *         "is_backorder": false,
                      *         "backorder_ready_date": null,
