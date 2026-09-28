@@ -95,6 +95,15 @@ export {
   storeKeyFingerprint,
 } from "./crypto.js";
 export {
+  APP_SOURCE,
+  type AppInboundMessage,
+  type AppOutboundMessage,
+  DASHBOARD_SOURCE,
+  type FrameBridgeOptions,
+  listenToDashboard,
+  sendReady,
+} from "./frame.js";
+export {
   type HandoffEnvelope,
   type HandoffEnvelopeAny,
   type HandoffInstallationRef,

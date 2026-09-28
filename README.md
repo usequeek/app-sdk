@@ -164,6 +164,31 @@ retries (~4 h) are gone; resync cannot backfill them. Full runbook: `docs/deploy
   concurrency ≤ pool size, honors 429 once per installation).
 - **logger** (`logger.ts`): redacts `sk_`/`pk_`/`whsec_`/`Bearer` values, bare RS256 JWTs, and
   PEM private-key blocks — the app JWT and private key can never reach logs.
+- **session** (`session.ts`, server-only via `@usequeek/app-sdk/server`):
+  `verifySessionToken` — HS256 dashboard session tokens minted per installation
+  (`embsec_…` secret, raw UTF-8 key bytes, 20 s clock tolerance, slug audience
+  + api_base issuer, full installation binding). The secret never enters a
+  browser bundle: the main entry does not export the verifier.
+- **frame** (`frame.ts`, browser-safe, no secret): `listenToDashboard`
+  (accepts only the exact dashboard origin) and `sendReady` (exact target
+  origin, never `"*"`).
+
+## Embedded merchant page (S4 stage 2)
+
+The dashboard frames your app's granted merchant page in a
+`sandbox="allow-scripts allow-forms"` iframe and delivers the session token
+by postMessage. Serve the page with a `frame-ancestors` policy naming ONLY
+your dashboard origin, for example:
+
+```http
+Content-Security-Policy: frame-ancestors https://merchant.queek.com
+```
+
+Replace the host with the dashboard origin you registered. `frame-ancestors`
+is a docs-only control the dashboard cannot enforce for you: without it any
+site may frame the page, and the token handshake (origin-bound) is your only
+remaining gate. Verify every token server-side with `verifySessionToken`
+before trusting calls that carry one.
 
 ## Local development
 
