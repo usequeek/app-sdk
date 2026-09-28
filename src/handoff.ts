@@ -7,18 +7,26 @@
  *
  *   { id, type, api_version: "v1", created_at, data }
  *
- * `type` is `app/installed` | `app/uninstalled` | `app/settings_updated`.
- * The handoff POST carries the Standard Webhooks headers (`webhook-id`,
- * `webhook-timestamp`, `webhook-signature`) signed with the APP's signing
- * secret (`whsec_…`, minted once at `app:register`), NOT the per-installation
- * webhook secret. The per-installation `webhook_secret` arrives INSIDE the
- * install payload (`data.webhook_secret`) — once — so the app can verify the
- * topic events it is about to receive.
+ * `type` is `app/installed` | `app/uninstalled` | `app/settings_updated`
+ * | `app/resync`. The handoff POST carries the Standard Webhooks headers
+ * (`webhook-id`, `webhook-timestamp`, `webhook-signature`) signed with the
+ * APP's signing secret (`whsec_…`, minted once at `app:register`), NOT the
+ * per-installation webhook secret. The per-installation `webhook_secret`
+ * arrives INSIDE the install payload (`data.webhook_secret`) — once — so
+ * the app can verify the topic events it is about to receive.
+ *
+ * `app/resync` is the installation resync handoff (backend
+ * `AppInstallService::resyncPayload()`, delivered to the app's
+ * `settings_url` falling back to `install_url`): the install-shaped data
+ * plus the resync-only `secret_rotated` flag, over the same signed channel
+ * with the same verification rules. Both the `/install` and `/settings`
+ * handlers accept it.
  */
 
 export const INSTALL_EVENT = "app/installed";
 export const UNINSTALL_EVENT = "app/uninstalled";
 export const SETTINGS_EVENT = "app/settings_updated";
+export const RESYNC_EVENT = "app/resync";
 
 export interface HandoffInstallationRef {
   id: string;
@@ -73,6 +81,12 @@ export interface InstallData {
   app_id?: string | null;
   webhook_url: string | null;
   webhook_topics: string[];
+  /**
+   * Resync-only (backend `resyncPayload()`): whether the delivery rotated
+   * the endpoint secret (`webhook_secret` holds the new secret when true,
+   * null when the installation has no webhook endpoint). Absent on install.
+   */
+  secret_rotated?: boolean | null;
 }
 
 export interface UninstallData {
@@ -97,5 +111,11 @@ export interface HandoffEnvelope<TType extends string, TData> {
 export type InstallEnvelope = HandoffEnvelope<typeof INSTALL_EVENT, InstallData>;
 export type UninstallEnvelope = HandoffEnvelope<typeof UNINSTALL_EVENT, UninstallData>;
 export type SettingsEnvelope = HandoffEnvelope<typeof SETTINGS_EVENT, SettingsData>;
+/**
+ * The installation resync handoff: the install-shaped data (plus the
+ * resync-only `secret_rotated` flag) under `type: app/resync`. Handled by
+ * the install AND settings handlers via the resync merge path.
+ */
+export type ResyncEnvelope = HandoffEnvelope<typeof RESYNC_EVENT, InstallData>;
 
-export type HandoffEnvelopeAny = InstallEnvelope | UninstallEnvelope | SettingsEnvelope;
+export type HandoffEnvelopeAny = InstallEnvelope | UninstallEnvelope | SettingsEnvelope | ResyncEnvelope;

@@ -111,6 +111,8 @@ export {
   INSTALL_EVENT,
   type InstallData,
   type InstallEnvelope,
+  RESYNC_EVENT,
+  type ResyncEnvelope,
   SETTINGS_EVENT,
   type SettingsData,
   type SettingsEnvelope,

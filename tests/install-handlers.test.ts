@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { createInstallHandlers } from "../src/install-handlers.js";
 import { SqliteInstallationStore } from "../src/store.js";
-import { installBody, postRaw, signedHeaders } from "./helpers.js";
+import { installBody, postRaw, resyncBody, signedHeaders } from "./helpers.js";
 
 const APP_SECRET = "whsec_YXBwc2lnbmluZ3NlY3JldGFwcHNlY3JldA==";
 const STORE_KEY = Buffer.alloc(32, 7).toString("base64");
@@ -244,6 +244,187 @@ describe("install handler", () => {
       expect(response.status).toBe(400);
     }
     expect(await ctx.store.getInstallation("x")).toBeNull();
+  });
+});
+
+describe("platform resync handoff (type app/resync)", () => {
+  const INSTALLATION_ID = "11111111-1111-1111-1111-111111111111";
+
+  async function installFirst(ctx: ReturnType<typeof setup>) {
+    const install = installBody();
+    expect(
+      (await postRaw(ctx.app, "/install", install, signedHeaders("evt-install-1", NOW, install, APP_SECRET)))
+        .status,
+    ).toBe(200);
+    const before = await ctx.store.getInstallation(INSTALLATION_ID);
+    if (!before) throw new Error("expected the install to be stored");
+    // A minted token is cached before the resync lands.
+    await ctx.store.saveInstallation({
+      ...before,
+      token: "tok_cached_before_resync",
+      tokenExpiresAt: new Date(Date.now() + 3_600_000).toISOString(),
+      tokenKid: "kid-1",
+      updatedAt: new Date().toISOString(),
+    });
+    return before;
+  }
+
+  it("/install accepts a resync for an existing row and restores a lost embed_secret/app_id", async () => {
+    const ctx = setup();
+    const before = await installFirst(ctx);
+
+    // The outage wiped the S4 keys from the row; the resync restores them.
+    const wiped = await ctx.store.getInstallation(INSTALLATION_ID);
+    if (!wiped) throw new Error("expected the install to be stored");
+    await ctx.store.saveInstallation({ ...wiped, embedSecret: null, appId: null });
+
+    const body = resyncBody({
+      webhook_secret: "whsec_rotated_secret_after_resync",
+      proxy_secret: "whsec_proxy_after_resync",
+      embed_secret: "embsec_restored_after_resync",
+      app_id: "app-uuid-restored",
+    });
+    const response = await postRaw(
+      ctx.app,
+      "/install",
+      body,
+      signedHeaders("evt-resync-1", NOW, body, APP_SECRET),
+    );
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ ok: true });
+
+    const after = await ctx.store.getInstallation(INSTALLATION_ID);
+    expect(after?.webhookSecret).toBe("whsec_rotated_secret_after_resync");
+    expect(after?.proxySecret).toBe("whsec_proxy_after_resync");
+    expect(after?.embedSecret).toBe("embsec_restored_after_resync");
+    expect(after?.appId).toBe("app-uuid-restored");
+    expect(after?.settings).toEqual({ greeting: "resynced" });
+    expect(after?.installedAt).toBe(before?.installedAt);
+    expect(after?.token).toBe("tok_cached_before_resync");
+    expect(after?.tokenKid).toBe("kid-1");
+  });
+
+  it("/install creates the row when the resync finds nothing stored", async () => {
+    const ctx = setup();
+    const body = resyncBody();
+    const response = await postRaw(
+      ctx.app,
+      "/install",
+      body,
+      signedHeaders("evt-resync-1", NOW, body, APP_SECRET),
+    );
+    expect(response.status).toBe(200);
+    const stored = await ctx.store.getInstallation(INSTALLATION_ID);
+    expect(stored?.webhookSecret).toContain("whsec_");
+    expect(stored?.embedSecret).toContain("embsec_");
+    expect(stored?.appId).toBe("app-uuid-hello");
+  });
+
+  it("/install refuses a resync with a bad signature and stores nothing", async () => {
+    const ctx = setup();
+    const body = resyncBody();
+    const headers = signedHeaders("evt-resync-1", NOW, body, "whsec_d3JvbmdzZWNyZXR3cm9uZ3NlY3JldHhy");
+    expect((await postRaw(ctx.app, "/install", body, headers)).status).toBe(401);
+    expect(await ctx.store.getInstallation(INSTALLATION_ID)).toBeNull();
+  });
+
+  it("/settings accepts a resync: secrets + settings refresh, installedAt and cached token kept", async () => {
+    const ctx = setup();
+    const before = await installFirst(ctx);
+
+    const body = resyncBody({
+      webhook_secret: "whsec_rotated_via_settings",
+      proxy_secret: "whsec_proxy_via_settings",
+      embed_secret: "embsec_via_settings",
+      app_id: "app-uuid-via-settings",
+      settings: { color: "resynced-blue" },
+    });
+    const response = await postRaw(
+      ctx.app,
+      "/settings",
+      body,
+      signedHeaders("evt-resync-9", NOW, body, APP_SECRET),
+    );
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ ok: true });
+
+    const after = await ctx.store.getInstallation(INSTALLATION_ID);
+    expect(after?.webhookSecret).toBe("whsec_rotated_via_settings");
+    expect(after?.proxySecret).toBe("whsec_proxy_via_settings");
+    expect(after?.embedSecret).toBe("embsec_via_settings");
+    expect(after?.appId).toBe("app-uuid-via-settings");
+    expect(after?.settings).toEqual({ color: "resynced-blue" });
+    expect(after?.installedAt).toBe(before?.installedAt);
+    expect(after?.token).toBe("tok_cached_before_resync");
+  });
+
+  it("/settings creates the row when the resync finds nothing stored", async () => {
+    const ctx = setup();
+    const body = resyncBody();
+    const response = await postRaw(
+      ctx.app,
+      "/settings",
+      body,
+      signedHeaders("evt-resync-1", NOW, body, APP_SECRET),
+    );
+    expect(response.status).toBe(200);
+    expect((await ctx.store.getInstallation(INSTALLATION_ID))?.appId).toBe("app-uuid-hello");
+  });
+
+  it("/settings keeps stored values the resync omits and refuses a bad signature", async () => {
+    const ctx = setup();
+    await installFirst(ctx);
+
+    const parsed = JSON.parse(resyncBody()) as { id: string; data: Record<string, unknown> };
+    delete parsed.data.embed_secret;
+    delete parsed.data.app_id;
+    parsed.id = "evt-resync-omit";
+    const omitted = JSON.stringify(parsed);
+    expect(
+      (
+        await postRaw(
+          ctx.app,
+          "/settings",
+          omitted,
+          signedHeaders("evt-resync-omit", NOW, omitted, APP_SECRET),
+        )
+      ).status,
+    ).toBe(200);
+    const kept = await ctx.store.getInstallation(INSTALLATION_ID);
+    expect(kept?.embedSecret).toContain("embsec_");
+    expect(kept?.appId).toBe("app-uuid-hello");
+
+    const forged = resyncBody();
+    expect(
+      (
+        await postRaw(
+          ctx.app,
+          "/settings",
+          forged,
+          signedHeaders("evt-resync-bad", NOW, forged, "whsec_d3JvbmdzZWNyZXR3cm9uZ3NlY3JldHhy"),
+        )
+      ).status,
+    ).toBe(401);
+  });
+
+  it("both routes still refuse an unknown event type", async () => {
+    const ctx = setup();
+    for (const path of ["/install", "/settings"]) {
+      const body = JSON.stringify({
+        id: "evt-unknown",
+        type: "app/deleted",
+        api_version: "v1",
+        created_at: "2026-09-25T00:00:00+00:00",
+        data: {},
+      });
+      const response = await postRaw(
+        ctx.app,
+        path,
+        body,
+        signedHeaders(`evt-unknown-${path}`, NOW, body, APP_SECRET),
+      );
+      expect(response.status).toBe(400);
+    }
   });
 });
 
