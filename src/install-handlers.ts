@@ -87,6 +87,7 @@ function installationRecordFromInstall(data: InstallData, nowIso: string): Insta
     scopes: data.scopes,
     settings: data.settings,
     webhookSecret: data.webhook_secret,
+    proxySecret: data.proxy_secret,
     webhookUrl: data.webhook_url,
     webhookTopics: data.webhook_topics,
     installedAt: nowIso,

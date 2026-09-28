@@ -124,6 +124,7 @@ describe("runInstallationCatchup", () => {
         scopes: [],
         settings: {},
         webhookSecret: null,
+        proxySecret: null,
         webhookUrl: null,
         webhookTopics: [],
         installedAt: now,

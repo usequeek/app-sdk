@@ -24,6 +24,7 @@ function record(): InstallationRecord {
     scopes: ["merchant-orders-read"],
     settings: { greeting: "hello", chowdeck_api_key: "sk_chowdeck_merchant_secret_value" },
     webhookSecret: "whsec_super_secret_webhook_material",
+    proxySecret: "whsec_super_secret_proxy_material",
     webhookUrl: "https://hello.apps.usequeek.com/webhooks",
     webhookTopics: ["orders/updated"],
     installedAt: new Date().toISOString(),
@@ -88,6 +89,7 @@ describe("SqliteInstallationStore", () => {
       token: "tok_supersecret_cached_token_material",
       tokenKid: "kid-1",
       webhookSecret: "whsec_super_secret_webhook_material",
+      proxySecret: "whsec_super_secret_proxy_material",
       settings: { greeting: "hello", chowdeck_api_key: "sk_chowdeck_merchant_secret_value" },
     });
     expect(loaded?.tokenExpiresAt).toContain("20");
@@ -107,6 +109,7 @@ describe("SqliteInstallationStore", () => {
     const raw = readFileSync(file);
     expect(raw.includes(Buffer.from("tok_supersecret_cached_token_material"))).toBe(false);
     expect(raw.includes(Buffer.from("whsec_super_secret_webhook_material"))).toBe(false);
+    expect(raw.includes(Buffer.from("whsec_super_secret_proxy_material"))).toBe(false);
     expect(raw.includes(Buffer.from("sk_chowdeck_merchant_secret_value"))).toBe(false);
 
     const db = new DatabaseSync(file);

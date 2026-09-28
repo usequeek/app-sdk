@@ -48,6 +48,15 @@ export interface InstallData {
   settings: Record<string, unknown>;
   /** The installation endpoint's `whsec_…` secret, handed over ONCE per rotation. */
   webhook_secret: string | null;
+  /**
+   * The installation's `whsec_…` proxy secret (backend `proxy_secret`),
+   * handed over ONCE per install/resync over the signed channel. The
+   * booking app signs slot-claims with it; core verifies the HMAC
+   * against the same installation secret. Null for apps without a
+   * proxy — the key's absence is the signal. Source of truth:
+   * queek_backend `App\Services\Apps\AppInstallService::installPayload()`.
+   */
+  proxy_secret: string | null;
   webhook_url: string | null;
   webhook_topics: string[];
 }

@@ -39,6 +39,7 @@ function installationRecord(id: string, overrides: Partial<InstallationRecord> =
     scopes: [],
     settings: {},
     webhookSecret: "whsec_old_secret",
+    proxySecret: "whsec_old_proxy_secret",
     webhookUrl: null,
     webhookTopics: [],
     installedAt: new Date().toISOString(),
@@ -100,6 +101,7 @@ async function deliverHandoff(
   installationId: string,
   headerId: string,
   webhookSecret: string,
+  proxySecret = "whsec_proxy_after_wipe",
 ): Promise<void> {
   const app = createInstallHandlers({ appSecret: APP_SECRET, store: ctx.store, nowSeconds: NOW });
   const parsed = JSON.parse(installBody()) as { data: Record<string, unknown> };
@@ -113,6 +115,7 @@ async function deliverHandoff(
       installation: { id: installationId, p_id: `inst_${installationId.slice(0, 4)}` },
       api_base: API_BASE,
       webhook_secret: webhookSecret,
+      proxy_secret: proxySecret,
     },
   });
   const response = await postRaw(app, "/install", body, signedHeaders(headerId, NOW, body, APP_SECRET));

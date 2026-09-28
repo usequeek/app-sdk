@@ -37,6 +37,7 @@ describe("install handler", () => {
     expect(stored?.tokenExpiresAt).toBeNull();
     expect(stored?.storePid).toBe("store_xyz");
     expect(stored?.webhookSecret).toContain("whsec_");
+    expect(stored?.proxySecret).toContain("whsec_");
   });
 
   it("answers 401 on a bad signature and stores nothing", async () => {
@@ -277,6 +278,7 @@ describe("resync delivery (install envelope for an existing installation)", () =
       data: {
         ...(parsed.data as object),
         webhook_secret: "whsec_rotated_secret_after_resync",
+        proxy_secret: "whsec_proxy_after_resync",
         settings: { greeting: "rotated" },
       },
     });
@@ -290,6 +292,7 @@ describe("resync delivery (install envelope for an existing installation)", () =
 
     const after = await store.getInstallation("11111111-1111-1111-1111-111111111111");
     expect(after?.webhookSecret).toBe("whsec_rotated_secret_after_resync");
+    expect(after?.proxySecret).toBe("whsec_proxy_after_resync");
     expect(after?.settings).toEqual({ greeting: "rotated" });
     expect(after?.installedAt).toBe(before?.installedAt);
     expect(after?.token).toBe("tok_cached_before_resync");

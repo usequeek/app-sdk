@@ -42,6 +42,7 @@ function record(id: string): InstallationRecord {
     scopes: ["merchant-orders-read"],
     settings: { greeting: "hello" },
     webhookSecret: `whsec_secret_${id}`,
+    proxySecret: `whsec_proxy_${id}`,
     webhookUrl: null,
     webhookTopics: [],
     installedAt: new Date().toISOString(),
@@ -74,6 +75,7 @@ describePg("PostgresInstallationStore", () => {
       token: `tok_secret_${id}`,
       tokenKid: "kid-1",
       webhookSecret: `whsec_secret_${id}`,
+      proxySecret: `whsec_proxy_${id}`,
       settings: { greeting: "hello" },
     });
     expect(loaded?.tokenExpiresAt).toContain("20");
@@ -91,8 +93,10 @@ describePg("PostgresInstallationStore", () => {
     const raw = JSON.stringify(row);
     expect(raw).not.toContain(`tok_secret_${id}`);
     expect(raw).not.toContain(`whsec_secret_${id}`);
+    expect(raw).not.toContain(`whsec_proxy_${id}`);
     expect(String(row.token_enc)).toMatch(/^v1\./);
     expect(String(row.webhook_secret_enc)).toMatch(/^v1\./);
+    expect(String(row.proxy_secret_enc)).toMatch(/^v1\./);
     expect(decryptSecret(String(row.token_enc), parseStoreKey(STORE_KEY))).toBe(`tok_secret_${id}`);
     await store.close();
   });
@@ -232,7 +236,7 @@ describePg("PostgresInstallationStore", () => {
     expect(columns.rows.map((row) => row.column_name)).toContain("pending");
     const versions = await admin.query(`SELECT version FROM schema_version`);
     expect(versions.rows).toEqual([{ version: INSTALLATION_SCHEMA_VERSION }]);
-    expect(INSTALLATION_SCHEMA_VERSION).toBe(2);
+    expect(INSTALLATION_SCHEMA_VERSION).toBe(3);
     await migrated.close();
     await store.close();
   });

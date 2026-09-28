@@ -32,6 +32,7 @@ describe("structured logger", () => {
       installation: "inst_abc",
       api_key: "sk_test_abc123XYZ",
       webhook_secret: "whsec_c2VjcmV0dmVjcmV0c2VjcmV0",
+      proxy_secret: "whsec_cHJveHlzZWNyZXRwcm94eXNlY3JldA",
       nested: { token: "Bearer eyJhbGciOiJIUzI1NiJ9.payload.sig", keep: "yes" },
     });
     const parsed = JSON.parse(lines[0] as string) as Record<string, unknown>;

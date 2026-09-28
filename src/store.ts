@@ -56,6 +56,13 @@ export interface InstallationRecord {
   settings: Record<string, unknown>;
   /** Plaintext per-installation webhook secret — memory only. */
   webhookSecret: string | null;
+  /**
+   * Plaintext per-installation proxy secret — memory only, persisted as
+   * `proxy_secret_enc`, null when the app has no proxy. Signs
+   * slot-claims (booking app); never logged (the logger redacts
+   * secret-named keys).
+   */
+  proxySecret: string | null;
   webhookUrl: string | null;
   webhookTopics: string[];
   installedAt: string;
@@ -137,6 +144,7 @@ const INSTALLATIONS_TABLE_SQLITE = `
         scopes_json TEXT NOT NULL,
         settings_json TEXT NOT NULL,
         webhook_secret_enc TEXT,
+        proxy_secret_enc TEXT,
         webhook_url TEXT,
         webhook_topics_json TEXT NOT NULL,
         installed_at TEXT NOT NULL,
@@ -205,6 +213,13 @@ export class SqliteInstallationStore implements InstallationStore {
     if (!live.has("pending")) {
       this.db.exec(`ALTER TABLE installations ADD COLUMN pending INTEGER NOT NULL DEFAULT 0;`);
     }
+    // Schema v3 (FA1): the installation proxy secret for slot-claim
+    // signing. Existing rows backfill to NULL (no proxy secret known
+    // until the next install/resync handoff); fresh tables already carry
+    // the column via the CREATE above, so this is a no-op for them.
+    if (!live.has("proxy_secret_enc")) {
+      this.db.exec(`ALTER TABLE installations ADD COLUMN proxy_secret_enc TEXT;`);
+    }
   }
 
   saveInstallation(record: InstallationRecord): void {
@@ -215,9 +230,9 @@ export class SqliteInstallationStore implements InstallationStore {
           installation_id, installation_pid, vendor_id, store_pid, store_name,
           api_base, token_enc, token_expires_at, token_kid, pending,
           scopes_json, settings_json,
-          webhook_secret_enc, webhook_url, webhook_topics_json,
+          webhook_secret_enc, proxy_secret_enc, webhook_url, webhook_topics_json,
           installed_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(installation_id) DO UPDATE SET
           installation_pid = excluded.installation_pid,
           vendor_id = excluded.vendor_id,
@@ -231,6 +246,7 @@ export class SqliteInstallationStore implements InstallationStore {
           scopes_json = excluded.scopes_json,
           settings_json = excluded.settings_json,
           webhook_secret_enc = excluded.webhook_secret_enc,
+          proxy_secret_enc = excluded.proxy_secret_enc,
           webhook_url = excluded.webhook_url,
           webhook_topics_json = excluded.webhook_topics_json,
           updated_at = excluded.updated_at`,
@@ -249,6 +265,9 @@ export class SqliteInstallationStore implements InstallationStore {
         JSON.stringify(record.scopes),
         encryptSecret(JSON.stringify(record.settings), this.key),
         record.webhookSecret === null ? null : encryptSecret(record.webhookSecret, this.key),
+        (record.proxySecret === null || record.proxySecret === undefined
+          ? null
+          : encryptSecret(record.proxySecret, this.key)),
         record.webhookUrl,
         JSON.stringify(record.webhookTopics),
         record.installedAt,
@@ -371,6 +390,10 @@ function rowToRecord(row: Record<string, string | null>, key: Buffer): Installat
     settings: JSON.parse(decryptSecret(column(row.settings_json), key)) as Record<string, unknown>,
     webhookSecret:
       row.webhook_secret_enc === null ? null : decryptSecret(column(row.webhook_secret_enc), key),
+    proxySecret:
+      row.proxy_secret_enc === null || row.proxy_secret_enc === undefined
+        ? null
+        : decryptSecret(column(row.proxy_secret_enc), key),
     webhookUrl: (row.webhook_url as string | null) ?? null,
     webhookTopics: JSON.parse(column(row.webhook_topics_json)) as string[],
     installedAt: column(row.installed_at),
@@ -399,7 +422,7 @@ function toPendingFlag(value: unknown): boolean {
  * v2 adds the persisted 409-pending mark (`pending`, NOT NULL DEFAULT
  * false on both drivers).
  */
-export const INSTALLATION_SCHEMA_VERSION = 2;
+export const INSTALLATION_SCHEMA_VERSION = 3;
 
 export interface PostgresStoreOptions {
   /**
@@ -504,6 +527,7 @@ export class PostgresInstallationStore implements InstallationStore {
             scopes_json TEXT NOT NULL,
             settings_json TEXT NOT NULL,
             webhook_secret_enc TEXT,
+            proxy_secret_enc TEXT,
             webhook_url TEXT,
             webhook_topics_json TEXT NOT NULL,
             installed_at TIMESTAMPTZ NOT NULL,
@@ -518,6 +542,11 @@ export class PostgresInstallationStore implements InstallationStore {
           -- databases in place (existing rows backfill to FALSE).
           ALTER TABLE installations
           ADD COLUMN IF NOT EXISTS pending BOOLEAN NOT NULL DEFAULT FALSE;
+          -- Schema v3 (FA1): the installation proxy secret for slot-claim
+          -- signing. Existing rows backfill to NULL (unknown until the
+          -- next install/resync handoff).
+          ALTER TABLE installations
+          ADD COLUMN IF NOT EXISTS proxy_secret_enc TEXT;
           -- The guard row always converges to exactly one row at the
           -- current version: v1 databases gain the v2 row and lose the v1
           -- row; fresh databases insert it directly.
@@ -541,9 +570,9 @@ export class PostgresInstallationStore implements InstallationStore {
          installation_id, installation_pid, vendor_id, store_pid, store_name,
          api_base, token_enc, token_expires_at, token_kid, pending,
          scopes_json, settings_json,
-         webhook_secret_enc, webhook_url, webhook_topics_json,
+         webhook_secret_enc, proxy_secret_enc, webhook_url, webhook_topics_json,
          installed_at, updated_at
-       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
        ON CONFLICT (installation_id) DO UPDATE SET
          installation_pid = excluded.installation_pid,
          vendor_id = excluded.vendor_id,
@@ -557,6 +586,7 @@ export class PostgresInstallationStore implements InstallationStore {
          scopes_json = excluded.scopes_json,
          settings_json = excluded.settings_json,
          webhook_secret_enc = excluded.webhook_secret_enc,
+         proxy_secret_enc = excluded.proxy_secret_enc,
          webhook_url = excluded.webhook_url,
          webhook_topics_json = excluded.webhook_topics_json,
          updated_at = excluded.updated_at`,
@@ -574,6 +604,9 @@ export class PostgresInstallationStore implements InstallationStore {
         JSON.stringify(record.scopes),
         encryptSecret(JSON.stringify(record.settings), this.key),
         record.webhookSecret === null ? null : encryptSecret(record.webhookSecret, this.key),
+        (record.proxySecret === null || record.proxySecret === undefined
+          ? null
+          : encryptSecret(record.proxySecret, this.key)),
         record.webhookUrl,
         JSON.stringify(record.webhookTopics),
         record.installedAt,
@@ -733,6 +766,10 @@ function pgRowToRecord(row: Record<string, unknown>, key: Buffer): InstallationR
       unknown
     >,
     webhookSecret: webhookSecretEnc === null ? null : decryptSecret(webhookSecretEnc, key),
+    proxySecret: (() => {
+      const enc = row.proxy_secret_enc as string | null | undefined;
+      return enc === null || enc === undefined ? null : decryptSecret(enc, key);
+    })(),
     webhookUrl: (row.webhook_url as string | null) ?? null,
     webhookTopics: JSON.parse(pgText(row.webhook_topics_json, "webhook_topics_json")) as string[],
     installedAt: toIso(row.installed_at),

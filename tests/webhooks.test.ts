@@ -23,6 +23,7 @@ function record(): InstallationRecord {
     scopes: ["merchant-orders-read"],
     settings: {},
     webhookSecret: WEBHOOK_SECRET,
+    proxySecret: null,
     webhookUrl: "https://hello.apps.usequeek.com/webhooks",
     webhookTopics: ["orders/updated"],
     installedAt: new Date().toISOString(),

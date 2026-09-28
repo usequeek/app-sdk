@@ -31,6 +31,7 @@ export function installBody(overrides: Record<string, unknown> = {}): string {
       scopes: ["merchant-business_profile-read"],
       settings: {},
       webhook_secret: `whsec_${randomBytes(24).toString("base64")}`,
+      proxy_secret: `whsec_${randomBytes(24).toString("base64")}`,
       webhook_url: "https://hello.apps.usequeek.com/webhooks",
       webhook_topics: ["orders/updated"],
       ...overrides,

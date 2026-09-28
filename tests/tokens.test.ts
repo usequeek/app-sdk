@@ -33,6 +33,7 @@ function installationRecord(overrides: Partial<InstallationRecord> = {}): Instal
     scopes: [],
     settings: {},
     webhookSecret: null,
+    proxySecret: null,
     webhookUrl: null,
     webhookTopics: [],
     installedAt: new Date().toISOString(),
