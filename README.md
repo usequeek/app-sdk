@@ -62,46 +62,69 @@ export async function POST(request: Request) {
 
 ### Express (no new package)
 
-Express doesn't speak `Request`/`Response` natively — bridge it with a small adapter over the built-in `express.raw` body parser (raw bytes matter: the signature covers the exact body):
+Express hands you whatever request object it supports — pass its raw body bytes and headers straight to the layer-1 core (no `Request` construction needed). Keep the untouched bytes Queek signed with the built-in `express.raw` parser:
 
 ```ts
 import express from "express";
-import type { ServerResponse } from "node:http";
-import { handleInstallRequest, handleWebhookRequest } from "@usequeek/app-sdk";
+import {
+  type DeliveryResult,
+  handleInstallDelivery,
+  handleWebhookDelivery,
+} from "@usequeek/app-sdk";
 
 const app = express();
-const raw = express.raw({ type: "*/*" });
+app.use("/api", express.raw({ type: "application/json" }));
 
-function toWebRequest(req: express.Request): Request {
-  const headers = new Headers();
-  for (const [key, value] of Object.entries(req.headers)) {
-    if (value === undefined) continue;
-    for (const v of Array.isArray(value) ? value : [value]) headers.append(key, v);
-  }
-  return new Request(`http${req.secure ? "s" : ""}://${req.headers.host}${req.url}`, {
-    method: req.method,
-    headers,
-    body: req.method === "GET" || req.method === "HEAD" ? undefined : (req.body as Buffer),
-  });
-}
-
-async function sendWebResponse(res: ServerResponse, response: Response) {
-  res.statusCode = response.status;
-  response.headers.forEach((value, key) => res.setHeader(key, value));
-  res.end(Buffer.from(await response.arrayBuffer()));
+function reply(res: express.Response, result: DeliveryResult) {
+  res.status(result.status).json(result.body);
 }
 
 for (const route of ["install", "uninstall", "settings"]) {
-  app.post(`/api/${route}`, raw, async (req, res) => {
-    await sendWebResponse(res, await handleInstallRequest(toWebRequest(req), installOptions));
+  app.post(`/api/${route}`, async (req, res) => {
+    reply(
+      res,
+      await handleInstallDelivery(
+        { rawBody: req.body as Buffer, headers: req.headers, method: req.method, path: req.path },
+        installOptions,
+      ),
+    );
   });
 }
-app.post("/api/webhooks", raw, async (req, res) => {
-  await sendWebResponse(res, await handleWebhookRequest(toWebRequest(req), webhookOptions));
+app.post("/api/webhooks", async (req, res) => {
+  reply(
+    res,
+    await handleWebhookDelivery({ rawBody: req.body as Buffer, headers: req.headers }, webhookOptions),
+  );
 });
 ```
 
-(If you already run Hono on Node, `@hono/node-server`'s `getRequestListener` bridges this for you — but the adapter above needs no extra dependency.)
+### Fastify (no new package)
+
+Same idea — keep the body raw with `addContentTypeParser`, then call the core directly:
+
+```ts
+import Fastify from "fastify";
+import { handleWebhookDelivery } from "@usequeek/app-sdk";
+
+const fastify = Fastify();
+fastify.addContentTypeParser("application/json", { parseAs: "buffer" }, (_req, body, done) => {
+  done(null, body);
+});
+
+fastify.post("/api/webhooks", async (req, reply) => {
+  const result = await handleWebhookDelivery(
+    { rawBody: req.body as Buffer, headers: req.headers },
+    webhookOptions,
+  );
+  return reply.status(result.status).send(result.body);
+});
+```
+
+### Why the raw body matters
+
+Signature verification covers the exact bytes Queek sent (`{id}.{timestamp}.{body}`), not the parsed JSON value — so the SDK takes the untouched body bytes at every layer. A parsed-then-restringified body has different bytes (spacing, key order) and will NOT verify. This is Stripe's model (`stripe.webhooks.constructEvent(rawBody, sigHeader, secret)`): [their docs](https://docs.stripe.com/webhooks) put it bluntly — "Stripe requires the raw body of the request to perform signature verification… Any manipulation to the raw body of the request causes the verification to fail." In practice: Express needs `express.raw(...)` (never `express.json()`) on webhook routes, Fastify needs `addContentTypeParser` with `parseAs: "buffer"`, and in Next.js you read `await request.arrayBuffer()` (the SDK's layer 2 already does) rather than `await request.json()`.
+
+(If you already run Hono on Node, `@hono/node-server`'s `getRequestListener` bridges serving for you — but the adapters above need no extra dependency.)
 
 ### Hono
 
@@ -236,9 +259,10 @@ retries (~4 h) are gone; resync cannot backfill them. Full runbook: `docs/deploy
   429 `resync_cooldown` → skip + record; other 429 → backoff + retry) → drop tokens →
   purge absent except known-pending. Connectivity scope only.
 - **verify** (`signatures.ts`): `verifyQueekSignature` — Standard Webhooks verification (`webhook-id`, `webhook-timestamp`, `webhook-signature` over `{id}.{timestamp}.{body}`, keyed by the decoded `whsec_…` bytes), with timestamp-skew enforcement.
-- **install handlers** (`install-handlers.ts`): `handleInstallRequest(request, { appSecret, store, onInstall?, onUninstall?, onSettings? })` — serves the signed install/uninstall/settings handoff over plain `Request`/`Response` (routes on the URL's trailing segment). Defaults persist the installation (encrypted) in the store; a redelivered install for an existing installation merges idempotently (`saveResyncedInstallation`). The Hono wrapper `createInstallHandlers` lives under `@usequeek/app-sdk/hono` (`hono.ts`).
+- **delivery core** (`delivery.ts`): `CoreDelivery` (`rawBody` + `headers`) / `InstallDelivery` (+ `method`/`path`) / `DeliveryResult` (`{ status, body }`) / `CoreHeaders`, plus `readHeader` (case-insensitive, array-tolerant), `decodeBody`, and `toResponse`. Zero request/response types.
+- **install handlers** (`install-handlers.ts`): layer 1 `handleInstallDelivery(input, { appSecret, store, onInstall?, onUninstall?, onSettings? })` serves the signed install/uninstall/settings handoff from raw bytes + headers (routes on the path's trailing segment); layer 2 `handleInstallRequest(request, …)` adapts `Request` → `Response` onto it. Defaults persist the installation (encrypted) in the store; a redelivered install for an existing installation merges idempotently (`saveResyncedInstallation`). The Hono wrapper `createInstallHandlers` lives under `@usequeek/app-sdk/hono` (`hono.ts`).
 - **client** (`client.ts`): `createQueekClient({ apiBase, apiKey })` — the low-level typed fetch client over the Merchant API (`X-Client-Key`), with `Idempotency-Key` on writes, typed `QueekApiError`s, and 429 retry helpers. Types come from `openapi/merchant.json`, the committed snapshot of the live contract. Prefer `createInstallationClient` in apps.
-- **webhooks** (`webhooks.ts`): `handleWebhookRequest(request, { store, handlers })` — verifies each delivery against the installation's endpoint secret, dedupes on `webhook-id`, and dispatches `topic → handler` at most once. The Hono wrapper `createWebhookHandler` lives under `@usequeek/app-sdk/hono` (`hono.ts`).
+- **webhooks** (`webhooks.ts`): layer 1 `handleWebhookDelivery(input, { store, handlers })` verifies each delivery against the installation's endpoint secret, dedupes on `webhook-id`, and dispatches `topic → handler` at most once; layer 2 `handleWebhookRequest(request, …)` adapts `Request` → `Response` onto it. The Hono wrapper `createWebhookHandler` lives under `@usequeek/app-sdk/hono` (`hono.ts`).
 - **store** (`store.ts`): `SqliteInstallationStore` (local/dev/test) and `PostgresInstallationStore`
   (`pg`, pool max 2, advisory-locked schema + `schema_version` row so two containers boot
   safely) — installations encrypted at rest (AES-GCM via `APP_ENCRYPTION_KEY`), plus the

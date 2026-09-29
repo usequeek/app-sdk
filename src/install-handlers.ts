@@ -11,6 +11,14 @@ import {
   type UninstallEnvelope,
 } from "./handoff.js";
 import {
+  type CoreHeaders,
+  decodeBody,
+  type DeliveryResult,
+  type InstallDelivery,
+  readHeader,
+  toResponse,
+} from "./delivery.js";
+import {
   MAX_TIMESTAMP_SKEW_SECONDS,
   verifyQueekSignatureDetailed,
   WEBHOOK_ID_HEADER,
@@ -21,12 +29,13 @@ import type { InstallationRecord, InstallationStore } from "./store.js";
 
 /**
  * Framework-agnostic handlers for Queek's signed server-to-server handoff
- * (`AppInstallService::deliver()` in queek_backend), built on the Web
- * standard: `handleInstallRequest(request, options)` routes on the request
- * URL's last path segment (`install`, `uninstall`, `settings`) and answers
- * with a plain `Response`. Wire it into any framework (Next.js route
- * handlers, Express, Hono — see `@usequeek/app-sdk/hono` for the Hono
- * wrappers).
+ * (`AppInstallService::deliver()` in queek_backend) in three thin layers:
+ * layer 1 `handleInstallDelivery(input, options)` takes plain data
+ * (untouched body bytes + headers, plus method/path for routing) and
+ * returns a plain `{ status, body }` result — zero request/response types,
+ * so whatever request object each framework supports works; layer 2
+ * `handleInstallRequest(request, options)` adapts the Web standard onto
+ * layer 1; layer 3 (`@usequeek/app-sdk/hono`) adapts Hono onto layer 2.
  *
  * Every handoff — install, uninstall, settings, resync — carries the
  * Standard Webhooks headers signed with the APP signing secret (`whsec_…`,
@@ -138,39 +147,64 @@ export function saveResyncedInstallation(
   };
 }
 
-function json(body: unknown, status: number): Response {
-  return Response.json(body, { status });
+/**
+ * Layer 1: handle one signed install-handoff delivery (`install`,
+ * `uninstall`, or `settings`, taken from the input path's last segment)
+ * from plain data — no `Request`, no framework. Same options, same
+ * behaviour, same errors/status codes at every layer.
+ */
+export async function handleInstallDelivery(
+  input: InstallDelivery,
+  options: InstallHandlerOptions,
+): Promise<DeliveryResult> {
+  if ((input.method ?? "POST").toUpperCase() !== "POST") {
+    return { status: 405, body: { ok: false, error: "method_not_allowed" } };
+  }
+  const route = trailingSegment(input.path ?? "");
+  const rawBody = decodeBody(input.rawBody);
+  if (route === "install") return installDelivery(rawBody, input.headers, options);
+  if (route === "uninstall") return uninstallDelivery(rawBody, input.headers, options);
+  if (route === "settings") return settingsDelivery(rawBody, input.headers, options);
+  return { status: 404, body: { ok: false, error: "unknown_route" } };
+}
+
+/** Last path segment of a pathname or full URL (query stripped, trailing slashes ignored). */
+function trailingSegment(path: string): string {
+  const withoutQuery = path.split("?", 1)[0] ?? "";
+  const trimmed = withoutQuery.replace(/\/+$/, "");
+  return trimmed.slice(trimmed.lastIndexOf("/") + 1);
 }
 
 /**
- * Handle one signed install-handoff delivery (`install`, `uninstall`, or
- * `settings`, taken from the request URL's last path segment) and answer
- * with a plain `Response` — same options, same behaviour, same
- * errors/status codes as the Hono wrapper. Only `POST` is served; anything
- * else answers 405, and an unrecognised trailing segment answers 404.
+ * Layer 2: the Web-standard wrapper, built ONLY on layer 1 — reads
+ * `await request.arrayBuffer()` + headers, calls the core, builds the
+ * `Response`.
  */
 export async function handleInstallRequest(
   request: Request,
   options: InstallHandlerOptions,
 ): Promise<Response> {
-  if (request.method !== "POST") {
-    return json({ ok: false, error: "method_not_allowed" }, 405);
-  }
-  const pathname = new URL(request.url).pathname.replace(/\/+$/, "");
-  const route = pathname.slice(pathname.lastIndexOf("/") + 1);
-  if (route === "install") return handleInstall(request, options);
-  if (route === "uninstall") return handleUninstall(request, options);
-  if (route === "settings") return handleSettings(request, options);
-  return json({ ok: false, error: "unknown_route" }, 404);
+  return toResponse(
+    await handleInstallDelivery(
+      {
+        rawBody: new Uint8Array(await request.arrayBuffer()),
+        headers: request.headers,
+        method: request.method,
+        path: new URL(request.url).pathname,
+      },
+      options,
+    ),
+  );
 }
 
 async function guard(
   options: InstallHandlerOptions,
-  id: string | null,
-  timestamp: string | null,
-  signatureHeader: string | null,
+  headers: CoreHeaders,
   rawBody: string,
 ): Promise<{ ok: true; id: string } | { ok: false; status: 401; reason: string }> {
+  const id = readHeader(headers, WEBHOOK_ID_HEADER);
+  const timestamp = readHeader(headers, WEBHOOK_TIMESTAMP_HEADER);
+  const signatureHeader = readHeader(headers, WEBHOOK_SIGNATURE_HEADER);
   if (!id || !timestamp || !signatureHeader) {
     return { ok: false, status: 401, reason: "missing signature headers" };
   }
@@ -219,34 +253,31 @@ async function applyResync(store: InstallationStore, data: InstallData): Promise
   );
 }
 
-async function handleInstall(request: Request, options: InstallHandlerOptions): Promise<Response> {
-  const rawBody = await request.text();
-  const checked = await guard(
-    options,
-    request.headers.get(WEBHOOK_ID_HEADER),
-    request.headers.get(WEBHOOK_TIMESTAMP_HEADER),
-    request.headers.get(WEBHOOK_SIGNATURE_HEADER),
-    rawBody,
-  );
-  if (!checked.ok) return json({ ok: false, error: checked.reason }, checked.status);
+async function installDelivery(
+  rawBody: string,
+  headers: CoreHeaders,
+  options: InstallHandlerOptions,
+): Promise<DeliveryResult> {
+  const checked = await guard(options, headers, rawBody);
+  if (!checked.ok) return { status: checked.status, body: { ok: false, error: checked.reason } };
 
   const envelope = parseEnvelope(rawBody);
-  if (!envelope) return json({ ok: false, error: "invalid_envelope" }, 400);
+  if (!envelope) return { status: 400, body: { ok: false, error: "invalid_envelope" } };
   // The platform resync handoff redelivers the install-shaped data under
   // `type: app/resync` (same signed channel, same verification): it lands
   // here as well as on `settings` (the backend aims at `settings_url`
   // first, falling back to `install_url`).
   if (envelope.type !== INSTALL_EVENT && envelope.type !== RESYNC_EVENT) {
-    return json({ ok: false, error: "unexpected event type" }, 400);
+    return { status: 400, body: { ok: false, error: "unexpected event type" } };
   }
   if (!isInstallPayload(envelope.data)) {
-    return json({ ok: false, error: "invalid install payload" }, 400);
+    return { status: 400, body: { ok: false, error: "invalid install payload" } };
   }
 
   // Atomic claim on the HEADER id (never the body id): exactly one
   // same-id delivery runs the callback.
   if (!(await options.store.claimWebhookId(checked.id))) {
-    return json({ ok: false, error: "duplicate delivery" }, 409);
+    return { status: 409, body: { ok: false, error: "duplicate delivery" } };
   }
   try {
     if (options.onInstall) {
@@ -263,30 +294,27 @@ async function handleInstall(request: Request, options: InstallHandlerOptions): 
     // Non-2xx on purpose: Queek revokes the key and the merchant retries
     // as a fresh install. The claim is released so the retry can land.
     await options.store.releaseWebhookId(checked.id);
-    return json({ ok: false, error: "install_failed" }, 500);
+    return { status: 500, body: { ok: false, error: "install_failed" } };
   }
-  return json({ ok: true }, 200);
+  return { status: 200, body: { ok: true } };
 }
 
-async function handleUninstall(request: Request, options: InstallHandlerOptions): Promise<Response> {
-  const rawBody = await request.text();
-  const checked = await guard(
-    options,
-    request.headers.get(WEBHOOK_ID_HEADER),
-    request.headers.get(WEBHOOK_TIMESTAMP_HEADER),
-    request.headers.get(WEBHOOK_SIGNATURE_HEADER),
-    rawBody,
-  );
-  if (!checked.ok) return json({ ok: false, error: checked.reason }, checked.status);
+async function uninstallDelivery(
+  rawBody: string,
+  headers: CoreHeaders,
+  options: InstallHandlerOptions,
+): Promise<DeliveryResult> {
+  const checked = await guard(options, headers, rawBody);
+  if (!checked.ok) return { status: checked.status, body: { ok: false, error: checked.reason } };
 
   const envelope = parseEnvelope(rawBody);
-  if (!envelope) return json({ ok: false, error: "invalid_envelope" }, 400);
+  if (!envelope) return { status: 400, body: { ok: false, error: "invalid_envelope" } };
   if (envelope.type !== UNINSTALL_EVENT) {
-    return json({ ok: false, error: "unexpected event type" }, 400);
+    return { status: 400, body: { ok: false, error: "unexpected event type" } };
   }
 
   if (!(await options.store.claimWebhookId(checked.id))) {
-    return json({ ok: false, error: "duplicate delivery" }, 409);
+    return { status: 409, body: { ok: false, error: "duplicate delivery" } };
   }
   try {
     if (options.onUninstall) {
@@ -296,50 +324,47 @@ async function handleUninstall(request: Request, options: InstallHandlerOptions)
     }
   } catch {
     await options.store.releaseWebhookId(checked.id);
-    return json({ ok: false, error: "uninstall_failed" }, 500);
+    return { status: 500, body: { ok: false, error: "uninstall_failed" } };
   }
-  return json({ ok: true }, 200);
+  return { status: 200, body: { ok: true } };
 }
 
-async function handleSettings(request: Request, options: InstallHandlerOptions): Promise<Response> {
-  const rawBody = await request.text();
-  const checked = await guard(
-    options,
-    request.headers.get(WEBHOOK_ID_HEADER),
-    request.headers.get(WEBHOOK_TIMESTAMP_HEADER),
-    request.headers.get(WEBHOOK_SIGNATURE_HEADER),
-    rawBody,
-  );
-  if (!checked.ok) return json({ ok: false, error: checked.reason }, checked.status);
+async function settingsDelivery(
+  rawBody: string,
+  headers: CoreHeaders,
+  options: InstallHandlerOptions,
+): Promise<DeliveryResult> {
+  const checked = await guard(options, headers, rawBody);
+  if (!checked.ok) return { status: checked.status, body: { ok: false, error: checked.reason } };
 
   const envelope = parseEnvelope(rawBody);
-  if (!envelope) return json({ ok: false, error: "invalid_envelope" }, 400);
+  if (!envelope) return { status: 400, body: { ok: false, error: "invalid_envelope" } };
   // The platform resync handoff (`type: app/resync`) is delivered to the
   // app's `settings_url` first: it lands here with the install-shaped
   // data, so it takes the resync merge — never the settings callback,
   // whose envelope shape does not fit.
   if (envelope.type !== SETTINGS_EVENT && envelope.type !== RESYNC_EVENT) {
-    return json({ ok: false, error: "unexpected event type" }, 400);
+    return { status: 400, body: { ok: false, error: "unexpected event type" } };
   }
 
   if (envelope.type === RESYNC_EVENT) {
     if (!isInstallPayload(envelope.data)) {
-      return json({ ok: false, error: "invalid install payload" }, 400);
+      return { status: 400, body: { ok: false, error: "invalid install payload" } };
     }
     if (!(await options.store.claimWebhookId(checked.id))) {
-      return json({ ok: false, error: "duplicate delivery" }, 409);
+      return { status: 409, body: { ok: false, error: "duplicate delivery" } };
     }
     try {
       await applyResync(options.store, (envelope as ResyncEnvelope).data);
     } catch {
       await options.store.releaseWebhookId(checked.id);
-      return json({ ok: false, error: "settings_failed" }, 500);
+      return { status: 500, body: { ok: false, error: "settings_failed" } };
     }
-    return json({ ok: true }, 200);
+    return { status: 200, body: { ok: true } };
   }
 
   if (!(await options.store.claimWebhookId(checked.id))) {
-    return json({ ok: false, error: "duplicate delivery" }, 409);
+    return { status: 409, body: { ok: false, error: "duplicate delivery" } };
   }
   try {
     if (options.onSettings) {
@@ -349,7 +374,7 @@ async function handleSettings(request: Request, options: InstallHandlerOptions):
       const existing = await options.store.getInstallation(data.installation.id);
       if (!existing) {
         await options.store.releaseWebhookId(checked.id);
-        return json({ ok: false, error: "unknown_installation" }, 404);
+        return { status: 404, body: { ok: false, error: "unknown_installation" } };
       }
       await options.store.saveInstallation({
         ...existing,
@@ -359,7 +384,7 @@ async function handleSettings(request: Request, options: InstallHandlerOptions):
     }
   } catch {
     await options.store.releaseWebhookId(checked.id);
-    return json({ ok: false, error: "settings_failed" }, 500);
+    return { status: 500, body: { ok: false, error: "settings_failed" } };
   }
-  return json({ ok: true }, 200);
+  return { status: 200, body: { ok: true } };
 }

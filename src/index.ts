@@ -95,6 +95,14 @@ export {
   storeKeyFingerprint,
 } from "./crypto.js";
 export {
+  type CoreDelivery,
+  type CoreHeaders,
+  decodeBody,
+  type DeliveryResult,
+  type InstallDelivery,
+  readHeader,
+} from "./delivery.js";
+export {
   APP_SOURCE,
   type AppInboundMessage,
   type AppOutboundMessage,
@@ -122,6 +130,7 @@ export {
 } from "./handoff.js";
 export {
   buildInstallationRecord,
+  handleInstallDelivery,
   handleInstallRequest,
   type InstallCallbacks,
   type InstallHandlerOptions,
@@ -180,6 +189,7 @@ export {
   type TokenProviderOptions,
 } from "./tokens.js";
 export {
+  handleWebhookDelivery,
   handleWebhookRequest,
   QUEEK_TOPIC_HEADER,
   type QueekWebhookEnvelope,

@@ -14,18 +14,23 @@ Framework-agnostic core: the install handoff and webhook receivers no longer req
   `import { createInstallHandlers } from "@usequeek/app-sdk/hono"`. `hono` is now an optional
   peer (`peerDependenciesMeta: { hono: { optional: true } }`), so non-Hono apps install zero
   framework code. `./server` keeps working as today.
-- The root entry is framework-free: `handleInstallRequest(request, options)` (routes on the
-  request URL's trailing `install` / `uninstall` / `settings` segment) and
-  `handleWebhookRequest(request, options)` take a plain `Request` and answer a plain `Response`
-  — wire them into Next.js route handlers, Express (via a small `Request`/`Response` adapter),
-  or any runtime.
+- The root entry is framework-free in three thin layers, each a wrapper over the one below:
+  layer 1 `handleInstallDelivery(input, options)` / `handleWebhookDelivery(input, options)` take
+  untouched body bytes + headers (`Record` or `Headers`, case-insensitive, array-tolerant) plus
+  method/path where the install endpoints genuinely need them, and return plain
+  `{ status, body }` — zero request/response types, so whatever request object each framework
+  supports works; layer 2 `handleInstallRequest` / `handleWebhookRequest` adapt the Web-standard
+  `Request` → `Response` onto layer 1; layer 3 `@usequeek/app-sdk/hono` adapts Hono onto layer 2.
 
 ### Added
 
+- `delivery.ts`: `CoreDelivery` / `InstallDelivery` / `DeliveryResult` / `CoreHeaders` plus
+  `readHeader`, `decodeBody`, `toResponse`.
 - `hono.ts` behind the `./hono` export: the Hono wrappers.
 - `scripts/verify-package.mjs` now proves the split in two sandboxes: the root entry plus
-  `./server` work with NO `hono` installed (and importing `/hono` there fails — the proof the
-  root carries zero framework imports), while `/hono` works with it.
+  `./server` work with NO `hono` installed and NO framework at all (layer 1 is called directly
+  with a `Buffer` + plain headers; importing `/hono` there fails — the proof the root carries
+  zero framework imports), while `/hono` works with it.
 
 ## [0.2.0] - 2026-09-25
 

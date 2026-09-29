@@ -2,9 +2,9 @@
  * Optional Hono integration for `@usequeek/app-sdk`.
  *
  * Import from `@usequeek/app-sdk/hono` (requires the optional `hono` peer):
- * `createInstallHandlers` and `createWebhookHandler` are thin wrappers over
- * the framework-agnostic core (`handleInstallRequest` /
- * `handleWebhookRequest` in the root entry) — same options objects, same
+ * `createInstallHandlers` and `createWebhookHandler` are thin wrappers
+ * built ONLY on the layer-2 Web-standard handlers (`handleInstallRequest`
+ * / `handleWebhookRequest` in the root entry) — same options objects, same
  * behaviour, same errors/status codes.
  */
 

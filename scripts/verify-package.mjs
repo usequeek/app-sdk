@@ -51,6 +51,7 @@ function pack() {
 /** Sandbox A: the SDK with NO `hono` anywhere — the root entry must stand alone. */
 const CORE_EXAMPLE = `import { randomBytes } from "node:crypto";
 import {
+  handleInstallDelivery,
   handleInstallRequest,
   handleWebhookRequest,
   signQueekPayload,
@@ -111,6 +112,19 @@ const installRes = await handleInstallRequest(
 if (installRes.status !== 200) throw new Error("install handoff failed: " + installRes.status);
 const stored = await store.getInstallation("11111111-1111-1111-1111-111111111111");
 if (!stored || stored.webhookSecret !== webhookSecret) throw new Error("installation was not stored");
+
+// Layer 1 directly: untouched bytes + plain headers, no Request, no framework at all.
+// Same header id as the delivery above, so the atomic claim must dedupe it.
+const direct = await handleInstallDelivery(
+  {
+    rawBody: Buffer.from(installBody),
+    headers: signedHeaders("evt-install-1", NOW, installBody, APP_SECRET),
+    method: "POST",
+    path: "/install",
+  },
+  { appSecret: APP_SECRET, store },
+);
+if (direct.status !== 409) throw new Error("layer-1 replay should dedupe, got: " + direct.status);
 
 const delivery = JSON.stringify({
   id: "evt-1",

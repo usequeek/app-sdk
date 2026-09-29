@@ -1,4 +1,11 @@
 import {
+  type CoreDelivery,
+  decodeBody,
+  type DeliveryResult,
+  readHeader,
+  toResponse,
+} from "./delivery.js";
+import {
   MAX_TIMESTAMP_SKEW_SECONDS,
   verifyQueekSignature,
   WEBHOOK_ID_HEADER,
@@ -10,10 +17,13 @@ import type { InstallationRecord, InstallationStore } from "./store.js";
 /**
  * Framework-agnostic receiver for Queek topic deliveries
  * (`DeliverWebhookJob` in queek_backend, one signed POST per installation
- * endpoint), built on the Web standard: `handleWebhookRequest(request,
- * options)` takes a plain `Request` and answers with a plain `Response`.
- * Wire it into any framework (Next.js route handlers, Express, Hono — see
- * `@usequeek/app-sdk/hono` for the Hono wrapper).
+ * endpoint) in three thin layers: layer 1
+ * `handleWebhookDelivery(input, options)` takes plain data (untouched body
+ * bytes + headers) and returns a plain `{ status, body }` result — zero
+ * request/response types, so whatever request object each framework
+ * supports works; layer 2 `handleWebhookRequest(request, options)` adapts
+ * the Web standard onto layer 1; layer 3 (`@usequeek/app-sdk/hono`)
+ * adapts Hono onto layer 2.
  *
  * Delivery envelope: `{ id, topic, api_version: "v1", created_at, data }`
  * with `X-Queek-Topic` echoing `topic`. Verification uses the
@@ -116,29 +126,22 @@ async function defaultResolveSecret(
   return null;
 }
 
-function json(body: unknown, status: number): Response {
-  return Response.json(body, { status });
-}
-
 /**
- * Handle one signed Queek topic delivery and answer with a plain
- * `Response` — same options, same behaviour, same errors/status codes as
- * the Hono wrapper. Only `POST` is served; anything else answers 405.
+ * Layer 1: handle one signed Queek topic delivery from plain data — no
+ * `Request`, no framework. Same options, same behaviour, same
+ * errors/status codes at every layer.
  */
-export async function handleWebhookRequest(
-  request: Request,
+export async function handleWebhookDelivery(
+  input: CoreDelivery,
   options: WebhookHandlerOptions,
-): Promise<Response> {
-  if (request.method !== "POST") {
-    return json({ ok: false, error: "method_not_allowed" }, 405);
-  }
+): Promise<DeliveryResult> {
   const maxSkew = options.maxSkewSeconds ?? MAX_TIMESTAMP_SKEW_SECONDS;
-  const rawBody = await request.text();
-  const id = request.headers.get(WEBHOOK_ID_HEADER);
-  const timestamp = request.headers.get(WEBHOOK_TIMESTAMP_HEADER);
-  const signatureHeader = request.headers.get(WEBHOOK_SIGNATURE_HEADER);
+  const rawBody = decodeBody(input.rawBody);
+  const id = readHeader(input.headers, WEBHOOK_ID_HEADER);
+  const timestamp = readHeader(input.headers, WEBHOOK_TIMESTAMP_HEADER);
+  const signatureHeader = readHeader(input.headers, WEBHOOK_SIGNATURE_HEADER);
   if (!id || !timestamp || !signatureHeader) {
-    return json({ ok: false, error: "missing signature headers" }, 401);
+    return { status: 401, body: { ok: false, error: "missing signature headers" } };
   }
 
   let envelope: QueekWebhookEnvelope | null = null;
@@ -146,10 +149,10 @@ export async function handleWebhookRequest(
     const parsed = JSON.parse(rawBody) as unknown;
     if (typeof parsed === "object" && parsed !== null) envelope = parsed as QueekWebhookEnvelope;
   } catch {
-    return json({ ok: false, error: "invalid_json" }, 400);
+    return { status: 400, body: { ok: false, error: "invalid_json" } };
   }
   if (!envelope || typeof envelope.topic !== "string") {
-    return json({ ok: false, error: "invalid_envelope" }, 400);
+    return { status: 400, body: { ok: false, error: "invalid_envelope" } };
   }
 
   const headers = { id, timestamp, signatureHeader };
@@ -157,7 +160,7 @@ export async function handleWebhookRequest(
     ? await options.resolveSecret(envelope, rawBody, headers)
     : await defaultResolveSecret(options.store, rawBody, headers, envelope);
   if (!resolution) {
-    return json({ ok: false, error: "unknown_installation" }, 401);
+    return { status: 401, body: { ok: false, error: "unknown_installation" } };
   }
 
   // Freshness is enforced HERE, once, against the resolved secret — the
@@ -166,7 +169,7 @@ export async function handleWebhookRequest(
   const now = options.nowSeconds ?? Math.floor(Date.now() / 1000);
   const ts = Number(timestamp);
   if (!Number.isFinite(ts) || Math.abs(now - ts) > maxSkew) {
-    return json({ ok: false, error: "stale timestamp" }, 401);
+    return { status: 401, body: { ok: false, error: "stale timestamp" } };
   }
   // Freshness was enforced above; this re-checks the MAC only, so a
   // custom resolver cannot claim an installation without its secret.
@@ -176,34 +179,57 @@ export async function handleWebhookRequest(
       { skipFreshnessCheck: true },
     )
   ) {
-    return json({ ok: false, error: "signature mismatch" }, 401);
+    return { status: 401, body: { ok: false, error: "signature mismatch" } };
   }
 
   const installation = await options.store.getInstallation(resolution.installationId);
   if (!installation) {
-    return json({ ok: false, error: "unknown_installation" }, 401);
+    return { status: 401, body: { ok: false, error: "unknown_installation" } };
   }
 
   // Atomic claim on the HEADER id: exactly one concurrent same-id
   // delivery runs the handler; the rest answer deduped.
   if (!(await options.store.claimWebhookId(id))) {
-    return json({ ok: true, deduped: true }, 200);
+    return { status: 200, body: { ok: true, deduped: true } };
   }
 
-  const topic = request.headers.get(QUEEK_TOPIC_HEADER) ?? envelope.topic;
+  const topic = readHeader(input.headers, QUEEK_TOPIC_HEADER) ?? envelope.topic;
   const handler = options.handlers[topic];
   if (!handler) {
     // No handler for this topic is NOT a failure: answering non-2xx would
     // retry for hours something the app will never handle. The claim
     // stands as the seen-record.
-    return json({ ok: true, unhandled: true }, 200);
+    return { status: 200, body: { ok: true, unhandled: true } };
   }
 
   try {
     await handler(envelope, { installation, topic, eventId: id });
   } catch {
     await options.store.releaseWebhookId(id);
-    return json({ ok: false, error: "handler_failed" }, 500);
+    return { status: 500, body: { ok: false, error: "handler_failed" } };
   }
-  return json({ ok: true }, 200);
+  return { status: 200, body: { ok: true } };
+}
+
+/**
+ * Layer 2: the Web-standard wrapper, built ONLY on layer 1 — reads
+ * `await request.arrayBuffer()` + headers, calls the core, builds the
+ * `Response`. Only `POST` is served; anything else answers 405.
+ */
+export async function handleWebhookRequest(
+  request: Request,
+  options: WebhookHandlerOptions,
+): Promise<Response> {
+  if (request.method !== "POST") {
+    return toResponse({ status: 405, body: { ok: false, error: "method_not_allowed" } });
+  }
+  return toResponse(
+    await handleWebhookDelivery(
+      {
+        rawBody: new Uint8Array(await request.arrayBuffer()),
+        headers: request.headers,
+      },
+      options,
+    ),
+  );
 }
