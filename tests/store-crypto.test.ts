@@ -57,7 +57,10 @@ describe("at-rest encryption (AES-256-GCM via node:crypto)", () => {
   it("fails closed on tampered envelopes and wrong keys", () => {
     const key = parseStoreKey(KEY_B64);
     const envelope = encryptSecret("not-a-secret-plaintext", key);
-    expect(() => decryptSecret(`${envelope}tampered`, key)).toThrow();
+    // Flip one IV character (index 10 sits inside the base64 IV): same
+    // lengths, different IV — GCM auth must fail regardless of padding.
+    const flipped = envelope.slice(0, 10) + (envelope[10] === "A" ? "B" : "A") + envelope.slice(11);
+    expect(() => decryptSecret(flipped, key)).toThrow();
     expect(() => decryptSecret(envelope, Buffer.alloc(32, 9))).toThrow();
     expect(() => decryptSecret("not-an-envelope", key)).toThrow();
   });
