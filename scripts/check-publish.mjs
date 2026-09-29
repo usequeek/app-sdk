@@ -31,7 +31,6 @@ const ALLOWED_FILES = new Set([
   "openapi/merchant.json",
   "README.md",
   "LICENSE",
-  "CHANGELOG.md",
 ]);
 function allowedFile(path) {
   return ALLOWED_FILES.has(path) || path.startsWith("dist/");

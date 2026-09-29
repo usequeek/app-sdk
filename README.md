@@ -1,5 +1,7 @@
 # @usequeek/app-sdk
 
+> In development — not yet released. APIs may change before 1.0.
+
 The SDK for building a Queek app on the public Merchant API and signed webhooks. Framework-agnostic Web-standard handlers for the install handoff and topic webhooks (`Request` in, `Response` out — use them from Next.js route handlers, Express, or any runtime), a typed Merchant API client (types generated from the live contract), GitHub-style app credentials (one asymmetric key per app, short-lived per-installation tokens minted on demand), resync recovery, and an encrypted installation store (SQLite for local/test, Postgres in production). Optional Hono wrappers live under `@usequeek/app-sdk/hono`.
 
 ```sh
@@ -126,7 +128,7 @@ Signature verification covers the exact bytes Queek sent (`{id}.{timestamp}.{bod
 
 ### Body-size posture
 
-The SDK itself imposes no maximum body size (`arrayBuffer` / `TextDecoder` / `JSON.parse` are unbounded, as in 0.4.0) — the cap belongs to the framework parser in front of it, which already rejects oversized bodies before the SDK ever sees them. Queek deliveries are small JSON payloads, so the framework defaults are plenty; if you set them explicitly, `express.raw({ type: "application/json", limit: "1mb" })` and Fastify's default `bodyLimit` of 1 MiB are the recommended ceilings. No SDK option is needed unless Queek ever ships large deliveries.
+The SDK itself imposes no maximum body size (`arrayBuffer` / `TextDecoder` / `JSON.parse` are unbounded) — the cap belongs to the framework parser in front of it, which already rejects oversized bodies before the SDK ever sees them. Queek deliveries are small JSON payloads, so the framework defaults are plenty; if you set them explicitly, `express.raw({ type: "application/json", limit: "1mb" })` and Fastify's default `bodyLimit` of 1 MiB are the recommended ceilings. No SDK option is needed unless Queek ever ships large deliveries.
 
 (If you already run Hono on Node, `@hono/node-server`'s `getRequestListener` bridges serving for you — but the adapters above need no extra dependency.)
 
@@ -161,8 +163,6 @@ app.route(
 
 export default app;
 ```
-
-> Migrating from 0.4.x: `import { createInstallHandlers } from "@usequeek/app-sdk/hono"` — the creators moved out of the root entry so non-Hono apps never install `hono`. The options objects are unchanged.
 
 Every Merchant API call goes through `createInstallationClient({ installationId, apiBase, tokens })`,
 which resolves the installation's token via `acquireToken()` and sends it as `X-Client-Key`.
