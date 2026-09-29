@@ -9,6 +9,7 @@ import {
   verifySessionToken,
   verifySessionTokenDetailed,
 } from "../src/session.js";
+import { fakeSecret } from "./helpers.js";
 
 /**
  * Dashboard session-token verification (S4 stage 2): the app backend's view
@@ -81,7 +82,9 @@ describe("verifySessionToken", () => {
 
   it("refuses an empty token and a non-embed secret", async () => {
     expect(await verifySessionToken("", OPTIONS)).toBe(false);
-    expect(await verifySessionTokenDetailed("x.y.z", { ...OPTIONS, secret: "whsec_wrong-prefix" })).toEqual({
+    expect(
+      await verifySessionTokenDetailed("x.y.z", { ...OPTIONS, secret: fakeSecret("wrong-prefix") }),
+    ).toEqual({
       ok: false,
       reason: "missing_secret",
     });

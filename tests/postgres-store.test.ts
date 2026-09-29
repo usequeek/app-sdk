@@ -12,6 +12,7 @@ import {
 } from "../src/store.js";
 import { AppTokenProvider } from "../src/tokens.js";
 import { fakeQueekAppApi, testAppKeypair } from "./fake-queek-app-api.js";
+import { fakeEmbedSecret, fakeSecret } from "./helpers.js";
 
 /**
  * Postgres store suite. Runs when `DATABASE_URL` points at a Postgres
@@ -41,9 +42,9 @@ function record(id: string): InstallationRecord {
     pending: false,
     scopes: ["merchant-orders-read"],
     settings: { greeting: "hello" },
-    webhookSecret: `whsec_secret_${id}`,
-    proxySecret: `whsec_proxy_${id}`,
-    embedSecret: `embsec_embed_${id}`,
+    webhookSecret: fakeSecret(`pg-secret-${id}`),
+    proxySecret: fakeSecret(`pg-proxy-${id}`),
+    embedSecret: fakeEmbedSecret(`pg-embed-${id}`),
     appId: `app-uuid-${id}`,
     webhookUrl: null,
     webhookTopics: [],
@@ -76,8 +77,8 @@ describePg("PostgresInstallationStore", () => {
       installationPid: `inst_${id.slice(0, 4)}`,
       token: `tok_secret_${id}`,
       tokenKid: "kid-1",
-      webhookSecret: `whsec_secret_${id}`,
-      proxySecret: `whsec_proxy_${id}`,
+      webhookSecret: fakeSecret(`pg-secret-${id}`),
+      proxySecret: fakeSecret(`pg-proxy-${id}`),
       settings: { greeting: "hello" },
     });
     expect(loaded?.tokenExpiresAt).toContain("20");
@@ -94,9 +95,9 @@ describePg("PostgresInstallationStore", () => {
     const row = result.rows[0] as Record<string, unknown>;
     const raw = JSON.stringify(row);
     expect(raw).not.toContain(`tok_secret_${id}`);
-    expect(raw).not.toContain(`whsec_secret_${id}`);
-    expect(raw).not.toContain(`whsec_proxy_${id}`);
-    expect(raw).not.toContain(`embsec_embed_${id}`);
+    expect(raw).not.toContain(fakeSecret(`pg-secret-${id}`));
+    expect(raw).not.toContain(fakeSecret(`pg-proxy-${id}`));
+    expect(raw).not.toContain(fakeEmbedSecret(`pg-embed-${id}`));
     expect(String(row.embed_secret_enc)).toMatch(/^v1\./);
     expect(row.app_id).toBe(`app-uuid-${id}`);
     expect(String(row.token_enc)).toMatch(/^v1\./);

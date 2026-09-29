@@ -3,13 +3,13 @@ import { createInstallHandlers, createWebhookHandler } from "../src/hono.js";
 import { handleInstallRequest, type InstallHandlerOptions } from "../src/install-handlers.js";
 import { SqliteInstallationStore } from "../src/store.js";
 import { handleWebhookRequest, type WebhookHandlerFn } from "../src/webhooks.js";
-import { installBody, resyncBody, signedHeaders } from "./helpers.js";
+import { fakeSecret, installBody, resyncBody, signedHeaders } from "./helpers.js";
 
-const APP_SECRET = "whsec_YXBwc2lnbmluZ3NlY3JldGFwcHNlY3JldA==";
+const APP_SECRET = fakeSecret("app-signing");
 const STORE_KEY = Buffer.alloc(32, 7).toString("base64");
 const NOW = 1758685600;
 
-const WEBHOOK_SECRET = "whsec_ZW5kcG9pbnRzZWNyZXRlbmRwb2ludHNlY3I=";
+const WEBHOOK_SECRET = fakeSecret("endpoint");
 const INSTALLATION_ID = "11111111-1111-1111-1111-111111111111";
 
 function installOptions(
@@ -84,7 +84,7 @@ describe("handleInstallRequest (framework-agnostic core)", () => {
       webRequest(
         "/install",
         body,
-        signedHeaders("evt-install-1", NOW, body, "whsec_d3JvbmdzZWNyZXR3cm9uZ3NlY3JldHhy"),
+        signedHeaders("evt-install-1", NOW, body, fakeSecret("wrong")),
       ),
       installOptions(store),
     );
@@ -223,7 +223,7 @@ describe("handleInstallRequest (framework-agnostic core)", () => {
     );
     const before = await store.getInstallation(INSTALLATION_ID);
 
-    const viaInstall = resyncBody({ webhook_secret: "whsec_rotated_via_install" });
+    const viaInstall = resyncBody({ webhook_secret: fakeSecret("rotated-via-install") });
     expect(
       (
         await handleInstallRequest(
@@ -232,10 +232,12 @@ describe("handleInstallRequest (framework-agnostic core)", () => {
         )
       ).status,
     ).toBe(200);
-    expect((await store.getInstallation(INSTALLATION_ID))?.webhookSecret).toBe("whsec_rotated_via_install");
+    expect((await store.getInstallation(INSTALLATION_ID))?.webhookSecret).toBe(
+      fakeSecret("rotated-via-install"),
+    );
     expect((await store.getInstallation(INSTALLATION_ID))?.installedAt).toBe(before?.installedAt);
 
-    const viaSettings = resyncBody({ webhook_secret: "whsec_rotated_via_settings" });
+    const viaSettings = resyncBody({ webhook_secret: fakeSecret("rotated-via-settings") });
     expect(
       (
         await handleInstallRequest(
@@ -244,7 +246,9 @@ describe("handleInstallRequest (framework-agnostic core)", () => {
         )
       ).status,
     ).toBe(200);
-    expect((await store.getInstallation(INSTALLATION_ID))?.webhookSecret).toBe("whsec_rotated_via_settings");
+    expect((await store.getInstallation(INSTALLATION_ID))?.webhookSecret).toBe(
+      fakeSecret("rotated-via-settings"),
+    );
   });
 
   it("answers 405 for non-POST and 404 for an unknown trailing segment", async () => {
@@ -393,7 +397,7 @@ describe("core ↔ hono parity", () => {
     await expectParity(
       "/install",
       body,
-      signedHeaders("evt-p2", NOW, body, "whsec_d3JvbmdzZWNyZXR3cm9uZ3NlY3JldHhy"),
+      signedHeaders("evt-p2", NOW, body, fakeSecret("wrong")),
       installSetup,
     );
     const wrongType = JSON.stringify({

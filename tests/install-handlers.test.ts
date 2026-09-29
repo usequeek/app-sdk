@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { createInstallHandlers } from "../src/hono.js";
 import { SqliteInstallationStore } from "../src/store.js";
-import { installBody, postRaw, resyncBody, signedHeaders } from "./helpers.js";
+import { fakeEmbedSecret, fakeSecret, installBody, postRaw, resyncBody, signedHeaders } from "./helpers.js";
 
-const APP_SECRET = "whsec_YXBwc2lnbmluZ3NlY3JldGFwcHNlY3JldA==";
+const APP_SECRET = fakeSecret("app-signing");
 const STORE_KEY = Buffer.alloc(32, 7).toString("base64");
 const NOW = 1758685600;
 
@@ -45,7 +45,7 @@ describe("install handler", () => {
 
   it("answers 401 on a bad signature and stores nothing", async () => {
     const body = installBody();
-    const headers = signedHeaders("evt-install-1", NOW, body, "whsec_d3JvbmdzZWNyZXR3cm9uZ3NlY3JldHhy");
+    const headers = signedHeaders("evt-install-1", NOW, body, fakeSecret("wrong"));
     const response = await postRaw(ctx.app, "/install", body, headers);
 
     expect(response.status).toBe(401);
@@ -279,9 +279,9 @@ describe("platform resync handoff (type app/resync)", () => {
     await ctx.store.saveInstallation({ ...wiped, embedSecret: null, appId: null });
 
     const body = resyncBody({
-      webhook_secret: "whsec_rotated_secret_after_resync",
-      proxy_secret: "whsec_proxy_after_resync",
-      embed_secret: "embsec_restored_after_resync",
+      webhook_secret: fakeSecret("rotated-secret-after-resync"),
+      proxy_secret: fakeSecret("proxy-after-resync"),
+      embed_secret: fakeEmbedSecret("restored-after-resync"),
       app_id: "app-uuid-restored",
     });
     const response = await postRaw(
@@ -294,9 +294,9 @@ describe("platform resync handoff (type app/resync)", () => {
     expect(await response.json()).toEqual({ ok: true });
 
     const after = await ctx.store.getInstallation(INSTALLATION_ID);
-    expect(after?.webhookSecret).toBe("whsec_rotated_secret_after_resync");
-    expect(after?.proxySecret).toBe("whsec_proxy_after_resync");
-    expect(after?.embedSecret).toBe("embsec_restored_after_resync");
+    expect(after?.webhookSecret).toBe(fakeSecret("rotated-secret-after-resync"));
+    expect(after?.proxySecret).toBe(fakeSecret("proxy-after-resync"));
+    expect(after?.embedSecret).toBe(fakeEmbedSecret("restored-after-resync"));
     expect(after?.appId).toBe("app-uuid-restored");
     expect(after?.settings).toEqual({ greeting: "resynced" });
     expect(after?.installedAt).toBe(before?.installedAt);
@@ -323,7 +323,7 @@ describe("platform resync handoff (type app/resync)", () => {
   it("/install refuses a resync with a bad signature and stores nothing", async () => {
     const ctx = setup();
     const body = resyncBody();
-    const headers = signedHeaders("evt-resync-1", NOW, body, "whsec_d3JvbmdzZWNyZXR3cm9uZ3NlY3JldHhy");
+    const headers = signedHeaders("evt-resync-1", NOW, body, fakeSecret("wrong"));
     expect((await postRaw(ctx.app, "/install", body, headers)).status).toBe(401);
     expect(await ctx.store.getInstallation(INSTALLATION_ID)).toBeNull();
   });
@@ -333,9 +333,9 @@ describe("platform resync handoff (type app/resync)", () => {
     const before = await installFirst(ctx);
 
     const body = resyncBody({
-      webhook_secret: "whsec_rotated_via_settings",
-      proxy_secret: "whsec_proxy_via_settings",
-      embed_secret: "embsec_via_settings",
+      webhook_secret: fakeSecret("rotated-via-settings"),
+      proxy_secret: fakeSecret("proxy-via-settings"),
+      embed_secret: fakeEmbedSecret("via-settings"),
       app_id: "app-uuid-via-settings",
       settings: { color: "resynced-blue" },
     });
@@ -349,9 +349,9 @@ describe("platform resync handoff (type app/resync)", () => {
     expect(await response.json()).toEqual({ ok: true });
 
     const after = await ctx.store.getInstallation(INSTALLATION_ID);
-    expect(after?.webhookSecret).toBe("whsec_rotated_via_settings");
-    expect(after?.proxySecret).toBe("whsec_proxy_via_settings");
-    expect(after?.embedSecret).toBe("embsec_via_settings");
+    expect(after?.webhookSecret).toBe(fakeSecret("rotated-via-settings"));
+    expect(after?.proxySecret).toBe(fakeSecret("proxy-via-settings"));
+    expect(after?.embedSecret).toBe(fakeEmbedSecret("via-settings"));
     expect(after?.appId).toBe("app-uuid-via-settings");
     expect(after?.settings).toEqual({ color: "resynced-blue" });
     expect(after?.installedAt).toBe(before?.installedAt);
@@ -401,7 +401,7 @@ describe("platform resync handoff (type app/resync)", () => {
           ctx.app,
           "/settings",
           forged,
-          signedHeaders("evt-resync-bad", NOW, forged, "whsec_d3JvbmdzZWNyZXR3cm9uZ3NlY3JldHhy"),
+          signedHeaders("evt-resync-bad", NOW, forged, fakeSecret("wrong")),
         )
       ).status,
     ).toBe(401);
@@ -461,9 +461,9 @@ describe("resync delivery (install envelope for an existing installation)", () =
       created_at: "2026-09-25T00:00:00+00:00",
       data: {
         ...(parsed.data as object),
-        webhook_secret: "whsec_rotated_secret_after_resync",
-        proxy_secret: "whsec_proxy_after_resync",
-        embed_secret: "embsec_after_resync",
+        webhook_secret: fakeSecret("rotated-secret-after-resync"),
+        proxy_secret: fakeSecret("proxy-after-resync"),
+        embed_secret: fakeEmbedSecret("after-resync"),
         settings: { greeting: "rotated" },
       },
     });
@@ -476,9 +476,9 @@ describe("resync delivery (install envelope for an existing installation)", () =
     expect(response.status).toBe(200);
 
     const after = await store.getInstallation("11111111-1111-1111-1111-111111111111");
-    expect(after?.webhookSecret).toBe("whsec_rotated_secret_after_resync");
-    expect(after?.proxySecret).toBe("whsec_proxy_after_resync");
-    expect(after?.embedSecret).toBe("embsec_after_resync");
+    expect(after?.webhookSecret).toBe(fakeSecret("rotated-secret-after-resync"));
+    expect(after?.proxySecret).toBe(fakeSecret("proxy-after-resync"));
+    expect(after?.embedSecret).toBe(fakeEmbedSecret("after-resync"));
     expect(after?.appId).toBe("app-uuid-hello");
     expect(after?.settings).toEqual({ greeting: "rotated" });
     expect(after?.installedAt).toBe(before?.installedAt);
@@ -499,7 +499,7 @@ describe("resync delivery (install envelope for an existing installation)", () =
     );
     expect(kept.status).toBe(200);
     const afterOlder = await store.getInstallation("11111111-1111-1111-1111-111111111111");
-    expect(afterOlder?.embedSecret).toBe("embsec_after_resync");
+    expect(afterOlder?.embedSecret).toBe(fakeEmbedSecret("after-resync"));
     expect(afterOlder?.appId).toBe("app-uuid-hello");
   });
 });

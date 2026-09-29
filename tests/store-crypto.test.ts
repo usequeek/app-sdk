@@ -5,9 +5,13 @@ import { DatabaseSync } from "node:sqlite";
 import { afterEach, describe, expect, it } from "vitest";
 import { decryptSecret, encryptSecret, parseStoreKey, storeKeyFingerprint } from "../src/crypto.js";
 import { type InstallationRecord, SqliteInstallationStore } from "../src/store.js";
+import { fakeSecret } from "./helpers.js";
 
 const KEY_B64 = Buffer.alloc(32, 3).toString("base64");
 const KEY_HEX = Buffer.alloc(32, 3).toString("hex");
+const WEBHOOK_SECRET = fakeSecret("super-secret-webhook-material");
+const PROXY_SECRET = fakeSecret("super-secret-proxy-material");
+const MERCHANT_KEY_VALUE = "fake-chowdeck-merchant-key-value";
 
 function record(): InstallationRecord {
   return {
@@ -22,9 +26,9 @@ function record(): InstallationRecord {
     tokenKid: "kid-1",
     pending: false,
     scopes: ["merchant-orders-read"],
-    settings: { greeting: "hello", chowdeck_api_key: "sk_chowdeck_merchant_secret_value" },
-    webhookSecret: "whsec_super_secret_webhook_material",
-    proxySecret: "whsec_super_secret_proxy_material",
+    settings: { greeting: "hello", chowdeck_api_key: MERCHANT_KEY_VALUE },
+    webhookSecret: WEBHOOK_SECRET,
+    proxySecret: PROXY_SECRET,
     webhookUrl: "https://hello.apps.usequeek.com/webhooks",
     webhookTopics: ["orders/updated"],
     installedAt: new Date().toISOString(),
@@ -35,9 +39,9 @@ function record(): InstallationRecord {
 describe("at-rest encryption (AES-256-GCM via node:crypto)", () => {
   it("round-trips through encrypt/decrypt", () => {
     const key = parseStoreKey(KEY_B64);
-    const envelope = encryptSecret("sk_test_abc", key);
+    const envelope = encryptSecret("not-a-secret-plaintext", key);
     expect(envelope.startsWith("v1.")).toBe(true);
-    expect(decryptSecret(envelope, key)).toBe("sk_test_abc");
+    expect(decryptSecret(envelope, key)).toBe("not-a-secret-plaintext");
   });
 
   it("accepts base64 or hex keys (same bytes, same ciphertext readability)", () => {
@@ -52,7 +56,7 @@ describe("at-rest encryption (AES-256-GCM via node:crypto)", () => {
 
   it("fails closed on tampered envelopes and wrong keys", () => {
     const key = parseStoreKey(KEY_B64);
-    const envelope = encryptSecret("sk_test_abc", key);
+    const envelope = encryptSecret("not-a-secret-plaintext", key);
     expect(() => decryptSecret(`${envelope}tampered`, key)).toThrow();
     expect(() => decryptSecret(envelope, Buffer.alloc(32, 9))).toThrow();
     expect(() => decryptSecret("not-an-envelope", key)).toThrow();
@@ -88,9 +92,9 @@ describe("SqliteInstallationStore", () => {
       installationPid: "inst_abc123",
       token: "tok_supersecret_cached_token_material",
       tokenKid: "kid-1",
-      webhookSecret: "whsec_super_secret_webhook_material",
-      proxySecret: "whsec_super_secret_proxy_material",
-      settings: { greeting: "hello", chowdeck_api_key: "sk_chowdeck_merchant_secret_value" },
+      webhookSecret: WEBHOOK_SECRET,
+      proxySecret: PROXY_SECRET,
+      settings: { greeting: "hello", chowdeck_api_key: MERCHANT_KEY_VALUE },
     });
     expect(loaded?.tokenExpiresAt).toContain("20");
     expect(store.getInstallation("missing")).toBeNull();
@@ -108,9 +112,9 @@ describe("SqliteInstallationStore", () => {
 
     const raw = readFileSync(file);
     expect(raw.includes(Buffer.from("tok_supersecret_cached_token_material"))).toBe(false);
-    expect(raw.includes(Buffer.from("whsec_super_secret_webhook_material"))).toBe(false);
-    expect(raw.includes(Buffer.from("whsec_super_secret_proxy_material"))).toBe(false);
-    expect(raw.includes(Buffer.from("sk_chowdeck_merchant_secret_value"))).toBe(false);
+    expect(raw.includes(Buffer.from(WEBHOOK_SECRET))).toBe(false);
+    expect(raw.includes(Buffer.from(PROXY_SECRET))).toBe(false);
+    expect(raw.includes(Buffer.from(MERCHANT_KEY_VALUE))).toBe(false);
 
     const db = new DatabaseSync(file);
     const row = db
@@ -131,7 +135,7 @@ describe("SqliteInstallationStore", () => {
     expect(
       (JSON.parse(decryptSecret(row.settings_json, parseStoreKey(KEY_B64))) as Record<string, unknown>)
         .chowdeck_api_key,
-    ).toBe("sk_chowdeck_merchant_secret_value");
+    ).toBe(MERCHANT_KEY_VALUE);
   });
 
   it("listWebhookSecrets exposes secrets without tokens", () => {
@@ -141,7 +145,7 @@ describe("SqliteInstallationStore", () => {
     expect(candidates).toHaveLength(1);
     expect(candidates[0]).toEqual({
       installationId: "11111111-1111-1111-1111-111111111111",
-      secret: "whsec_super_secret_webhook_material",
+      secret: WEBHOOK_SECRET,
     });
     expect("token" in (candidates[0] as object)).toBe(false);
     store.close();

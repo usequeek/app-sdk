@@ -7,9 +7,10 @@ import {
   QueekApiError,
   resolveApiBase,
 } from "../src/client.js";
+import { fakeApiKey } from "./helpers.js";
 
 const API_BASE = "https://api.usequeek.com/api/v1/merchant";
-const API_KEY = "sk_test_installation_key";
+const API_KEY = fakeApiKey("installation");
 
 function mockFetch(handler: (url: string, init: RequestInit) => Response | Promise<Response>) {
   return vi.fn(async (url: string | URL | Request, init?: RequestInit) => {

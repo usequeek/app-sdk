@@ -4,13 +4,13 @@ import { createInstallHandlers, createWebhookHandler } from "../src/hono.js";
 import { handleInstallDelivery, handleInstallRequest } from "../src/install-handlers.js";
 import { SqliteInstallationStore } from "../src/store.js";
 import { handleWebhookDelivery, handleWebhookRequest, type WebhookHandlerFn } from "../src/webhooks.js";
-import { installBody, signedHeaders } from "./helpers.js";
+import { fakeSecret, installBody, signedHeaders } from "./helpers.js";
 
-const APP_SECRET = "whsec_YXBwc2lnbmluZ3NlY3JldGFwcHNlY3JldA==";
+const APP_SECRET = fakeSecret("app-signing");
 const STORE_KEY = Buffer.alloc(32, 7).toString("base64");
 const NOW = 1758685600;
 
-const WEBHOOK_SECRET = "whsec_ZW5kcG9pbnRzZWNyZXRlbmRwb2ludHNlY3I=";
+const WEBHOOK_SECRET = fakeSecret("endpoint");
 const INSTALLATION_ID = "11111111-1111-1111-1111-111111111111";
 
 function newStore() {
@@ -249,7 +249,7 @@ describe("cross-layer parity: identical results for the same inputs", () => {
       "install",
       "/install",
       body,
-      signedHeaders("evt-p2", NOW, body, "whsec_d3JvbmdzZWNyZXR3cm9uZ3NlY3JldHhy"),
+      signedHeaders("evt-p2", NOW, body, fakeSecret("wrong")),
     );
     const wrongType = JSON.stringify({
       id: "evt-x",
@@ -276,7 +276,7 @@ describe("cross-layer parity: identical results for the same inputs", () => {
         api_base: "https://api.usequeek.com/api/v1/merchant",
         scopes: ["merchant-business_profile-read"],
         settings: { greeting: "resynced" },
-        webhook_secret: "whsec_resync_secret",
+        webhook_secret: fakeSecret("resync-secret"),
         webhook_url: "https://hello.apps.usequeek.com/webhooks",
         webhook_topics: ["orders/updated"],
       },

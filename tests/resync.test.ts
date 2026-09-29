@@ -15,10 +15,10 @@ import { resyncFromQueek } from "../src/resync.js";
 import { type InstallationRecord, SqliteInstallationStore } from "../src/store.js";
 import { AppTokenProvider, createInstallationClient } from "../src/tokens.js";
 import { fakeQueekAppApi, testAppKeypair } from "./fake-queek-app-api.js";
-import { installBody, postRaw, signedHeaders } from "./helpers.js";
+import { fakeSecret, installBody, postRaw, signedHeaders } from "./helpers.js";
 
 const STORE_KEY = Buffer.alloc(32, 43).toString("base64");
-const APP_SECRET = "whsec_YXBwc2lnbmluZ3NlY3JldGFwcHNlY3JldA==";
+const APP_SECRET = fakeSecret("app-signing");
 const API_BASE = "https://api.usequeek.com";
 const NOW = 1758685600;
 const ID_A = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
@@ -38,8 +38,8 @@ function installationRecord(id: string, overrides: Partial<InstallationRecord> =
     pending: false,
     scopes: [],
     settings: {},
-    webhookSecret: "whsec_old_secret",
-    proxySecret: "whsec_old_proxy_secret",
+    webhookSecret: fakeSecret("old-secret"),
+    proxySecret: fakeSecret("old-proxy-secret"),
     webhookUrl: null,
     webhookTopics: [],
     installedAt: new Date().toISOString(),
@@ -101,7 +101,7 @@ async function deliverHandoff(
   installationId: string,
   headerId: string,
   webhookSecret: string,
-  proxySecret = "whsec_proxy_after_wipe",
+  proxySecret = fakeSecret("proxy-after-wipe"),
 ): Promise<void> {
   const app = createInstallHandlers({ appSecret: APP_SECRET, store: ctx.store, nowSeconds: NOW });
   const parsed = JSON.parse(installBody()) as { data: Record<string, unknown> };
@@ -138,9 +138,9 @@ describe("resyncFromQueek", () => {
     expect(ctx.fake.resyncCalls).toEqual([ID_A]);
 
     // The rotated secret arrives over the signed install channel…
-    await deliverHandoff(ctx, ID_A, "evt-resync-1", "whsec_fresh_after_wipe");
+    await deliverHandoff(ctx, ID_A, "evt-resync-1", fakeSecret("fresh-after-wipe"));
     const row = await ctx.store.getInstallation(ID_A);
-    expect(row?.webhookSecret).toBe("whsec_fresh_after_wipe");
+    expect(row?.webhookSecret).toBe(fakeSecret("fresh-after-wipe"));
 
     // …and the installation can call Queek again (connectivity restored).
     const client = createInstallationClient({

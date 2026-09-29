@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createLogger } from "../src/logger.js";
+import { fakeApiKey, fakeSecret } from "./helpers.js";
 
 describe("structured logger", () => {
   function capture(level = "info" as const) {
@@ -28,11 +29,12 @@ describe("structured logger", () => {
 
   it("redacts secret-shaped fields and values, in fields and messages", () => {
     const { log, lines } = capture();
-    log.info("proof-call with sk_test_abc123XYZ failed", {
+        const apiKey = fakeApiKey("abc123XYZ");
+    log.info(`proof-call with ${apiKey} failed`, {
       installation: "inst_abc",
-      api_key: "sk_test_abc123XYZ",
-      webhook_secret: "whsec_c2VjcmV0dmVjcmV0c2VjcmV0",
-      proxy_secret: "whsec_cHJveHlzZWNyZXRwcm94eXNlY3JldA",
+      api_key: apiKey,
+      webhook_secret: fakeSecret("logger-webhook"),
+      proxy_secret: fakeSecret("logger-proxy"),
       nested: { token: "Bearer eyJhbGciOiJIUzI1NiJ9.payload.sig", keep: "yes" },
     });
     const parsed = JSON.parse(lines[0] as string) as Record<string, unknown>;
@@ -41,7 +43,7 @@ describe("structured logger", () => {
     expect((parsed.nested as Record<string, unknown>).token).toBe("[redacted]");
     expect((parsed.nested as Record<string, unknown>).keep).toBe("yes");
     expect(parsed.installation).toBe("inst_abc");
-    expect(parsed.msg).not.toContain("sk_test_abc123XYZ");
+    expect(parsed.msg).not.toContain(apiKey);
     expect(parsed.msg).toContain("[redacted]");
   });
 

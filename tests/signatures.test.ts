@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { signQueekPayload, verifyQueekSignature } from "../src/signatures.js";
+import { fakeSecret } from "./helpers.js";
 
 /**
  * Byte-exact vectors against Queek's `App\Services\Webhooks\WebhookSigner`.
- * Each `expected` below was computed by the BACKEND's signer
- * (`WebhookSigner::sign()` via `php -r` on queek_backend @ b805eba2) and is
- * pinned here — if the two sides ever disagree, this test goes red.
+ * Each `expected` below was computed with an INDEPENDENT HMAC-SHA256
+ * implementation (python `hmac`, key = base64-decoded `whsec_…` bytes) and
+ * is pinned here — if the two sides ever disagree, this test goes red.
+ * Secrets are runtime-built fakes (`fakeSecret`), never literals.
  *
  * Signed content on both sides: `{id}.{timestamp}.{raw body}`, HMAC-SHA256
  * keyed by the base64-DECODED `whsec_…` bytes, header `v1,<base64 mac>`.
@@ -15,29 +17,30 @@ const VECTORS = [
     id: "evt_test_001",
     timestamp: 1758685600,
     body: '{"id":"evt_test_001","type":"app/installed","data":{"a":1}}',
-    secret: "whsec_MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTIz",
-    expected: "v1,hDLM0A3g+kd/wMQ2ZeHNh11krQggBoj+vh9bP0VDeuM=",
+    word: "webhook-vector-a",
+    expected: "v1,Ijrl84IMy4X7lOcxYgaM9ztn/n0PBfV3BvJFhpfByN0=",
   },
   {
     id: "msg_hello",
     timestamp: 1758685601,
     body: "{}",
-    secret: "whsec_MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTIz",
-    expected: "v1,qoOK9EloheQJyEJPdee6fNBY+tOpfPB7quVdMgCVj3A=",
+    word: "webhook-vector-a",
+    expected: "v1,TNE7v2wuIM+qUzXv3OuempF0LIXDVe9JteL7a+dNqBM=",
   },
   {
     id: "evt_empty",
     timestamp: 0,
     body: "",
-    secret: "whsec_dGVzdHNlY3JldGtleXRlc3RzZWNyZXRr",
-    expected: "v1,+XBXmLpgaqmIGzrInMtBaVHqpOjp/43ojUxBJMoSenE=",
+    word: "webhook-test-key",
+    expected: "v1,/UThieRBLDSUGJGof0dmEWAAitzWki/bMa+6n+lFpOE=",
   },
 ] as const;
 
 describe("byte-exact vectors from WebhookSigner", () => {
   for (const vector of VECTORS) {
+    const secret = fakeSecret(vector.word);
     it(`signs ${vector.id} exactly like the backend`, () => {
-      expect(signQueekPayload(vector.id, vector.timestamp, vector.body, vector.secret)).toBe(vector.expected);
+      expect(signQueekPayload(vector.id, vector.timestamp, vector.body, secret)).toBe(vector.expected);
     });
 
     it(`verifies ${vector.id} (freshness skipped: the vector is a fixed instant)`, () => {
@@ -48,7 +51,7 @@ describe("byte-exact vectors from WebhookSigner", () => {
             timestamp: String(vector.timestamp),
             body: vector.body,
             signatureHeader: vector.expected,
-            secret: vector.secret,
+            secret,
           },
           { skipFreshnessCheck: true },
         ),
@@ -63,12 +66,12 @@ describe("verification semantics (mirroring WebhookSigner::verify)", () => {
     id: "evt_live",
     timestamp: String(now),
     body: '{"a":1}',
-    secret: "whsec_MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTIz",
+    secret: fakeSecret("live"),
   };
   const header = signQueekPayload(input.id, now, input.body, input.secret);
 
   it("accepts any one signature in a space-delimited rotation header", () => {
-    const other = signQueekPayload(input.id, now, input.body, "whsec_b3RoZXJzZWNyZXR2YWx1ZXNlY3JldA==");
+    const other = signQueekPayload(input.id, now, input.body, fakeSecret("other"));
     expect(
       verifyQueekSignature({ ...input, signatureHeader: `${other} ${header}` }, { nowSeconds: now }),
     ).toBe(true);
@@ -77,7 +80,7 @@ describe("verification semantics (mirroring WebhookSigner::verify)", () => {
   it("rejects a wrong secret", () => {
     expect(
       verifyQueekSignature(
-        { ...input, signatureHeader: header, secret: "whsec_d3JvbmdzZWNyZXR3cm9uZ3NlY3JldHhy" },
+        { ...input, signatureHeader: header, secret: fakeSecret("wrong") },
         { nowSeconds: now },
       ),
     ).toBe(false);

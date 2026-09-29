@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createWebhookHandler, type WebhookHandlerFn } from "../src/hono.js";
 import { type InstallationRecord, SqliteInstallationStore } from "../src/store.js";
-import { postRaw, signedHeaders } from "./helpers.js";
+import { fakeSecret, postRaw, signedHeaders } from "./helpers.js";
 
 const STORE_KEY = Buffer.alloc(32, 9).toString("base64");
 const NOW = 1758685600;
 const INSTALLATION_ID = "11111111-1111-1111-1111-111111111111";
-const WEBHOOK_SECRET = "whsec_ZW5kcG9pbnRzZWNyZXRlbmRwb2ludHNlY3I=";
+const WEBHOOK_SECRET = fakeSecret("endpoint");
 
 function record(): InstallationRecord {
   return {
