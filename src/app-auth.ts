@@ -178,8 +178,36 @@ export interface AppCredentialOptions {
 }
 
 /**
+ * Accepted `APP_PRIVATE_KEY` forms (env files are one line per variable):
+ * raw PEM text, one-line PEM with literal `\n` escapes, or base64 of the
+ * full PEM text (one line, no wrapping — what the Developer page shows).
+ */
+export const APP_PRIVATE_KEY_FORMS =
+  "raw PEM text, one-line PEM with literal \\n escapes, or base64 of the PEM text";
+
+/**
+ * Normalize an `APP_PRIVATE_KEY` value to PEM text. Detection: a trimmed
+ * value starting with `-----BEGIN` is PEM (literal `\n` unescaped first);
+ * anything else is base64-decoded and must decode to `-----BEGIN…`.
+ * Never echoes the value.
+ */
+export function decodePrivateKeyInput(raw: string): string {
+  const trimmed = raw.trim();
+  if (trimmed.startsWith("-----BEGIN")) {
+    return trimmed.replace(/\\n/g, "\n").trim();
+  }
+  const decoded = Buffer.from(trimmed, "base64").toString("utf8");
+  if (!decoded.trimStart().startsWith("-----BEGIN")) {
+    throw new InvalidAppCredentialError(
+      `Invalid APP_PRIVATE_KEY: not a PEM and not base64 of a PEM. Accepted forms: ${APP_PRIVATE_KEY_FORMS}.`,
+    );
+  }
+  return decoded.trim();
+}
+
+/**
  * Load the app credential: explicit options win, otherwise `APP_SLUG`,
- * `APP_KEY_ID`, `APP_PRIVATE_KEY` from env. The PEM must parse as an RSA
+ * `APP_KEY_ID`, `APP_PRIVATE_KEY` from env. The key must parse as an RSA
  * private key here, once, so a broken key fails at boot — never mid-mint.
  * Throws `InvalidAppCredentialError` before any fetch.
  */
@@ -197,12 +225,13 @@ export function loadAppCredential(options: AppCredentialOptions = {}): AppCreden
       "Missing APP_KEY_ID: set it to the kid registered with Queek (`php artisan app:register --public-key=…`).",
     );
   }
-  const privateKeyPem = (options.privateKeyPem ?? env.APP_PRIVATE_KEY ?? "").trim();
-  if (privateKeyPem === "") {
+  const privateKeyInput = (options.privateKeyPem ?? env.APP_PRIVATE_KEY ?? "").trim();
+  if (privateKeyInput === "") {
     throw new InvalidAppCredentialError(
-      "Missing APP_PRIVATE_KEY: set it to the app's PEM-encoded RSA private key.",
+      `Missing APP_PRIVATE_KEY: set it to base64 of the app's RSA private key PEM (one line). Accepted forms: ${APP_PRIVATE_KEY_FORMS}.`,
     );
   }
+  const privateKeyPem = decodePrivateKeyInput(privateKeyInput);
   try {
     const key = createPrivateKey(privateKeyPem);
     if (key.asymmetricKeyType !== "rsa") {
@@ -213,7 +242,7 @@ export function loadAppCredential(options: AppCredentialOptions = {}): AppCreden
   } catch (error) {
     if (error instanceof InvalidAppCredentialError) throw error;
     throw new InvalidAppCredentialError(
-      `Invalid APP_PRIVATE_KEY: not a parseable PEM private key (${error instanceof Error ? error.message : "undecodable"}).`,
+      `Invalid APP_PRIVATE_KEY: not a parseable PEM private key (${error instanceof Error ? error.message : "undecodable"}). Accepted forms: ${APP_PRIVATE_KEY_FORMS}.`,
     );
   }
   // The PEM stays in this object only; callers must never log it (see

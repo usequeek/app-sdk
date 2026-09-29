@@ -44,6 +44,48 @@ describe("app credential", () => {
     );
   });
 
+  it("loads raw PEM, \\n-escaped one-line PEM, and base64-of-PEM as the same key", () => {
+    const keypair = KEYPAIR;
+    const base = { appSlug: keypair.slug, keyId: keypair.kid };
+    const fromRaw = loadAppCredential({ ...base, privateKeyPem: keypair.privateKeyPem });
+
+    const oneLine = keypair.privateKeyPem.replace(/\n/g, "\\n");
+    expect(oneLine).not.toContain("\n");
+    const fromEscaped = loadAppCredential({ ...base, privateKeyPem: oneLine });
+
+    const b64 = Buffer.from(keypair.privateKeyPem, "utf8").toString("base64");
+    expect(b64).not.toContain("\n");
+    const fromB64 = loadAppCredential({ ...base, privateKeyPem: b64 });
+
+    expect(fromEscaped.privateKeyPem).toBe(fromRaw.privateKeyPem);
+    expect(fromB64.privateKeyPem).toBe(fromRaw.privateKeyPem);
+    for (const credential of [fromRaw, fromEscaped, fromB64]) {
+      const jwt = signAppJwt({ credential, nowSeconds: 1_758_685_600 });
+      const [headerSeg, payloadSeg, sigSeg] = jwt.split(".");
+      const verifier = createVerify("RSA-SHA256");
+      verifier.update(`${headerSeg}.${payloadSeg}`, "utf8");
+      expect(verifier.verify(keypair.publicKeyPem, sigSeg as string, "base64url")).toBe(true);
+    }
+  });
+
+  it("rejects garbage base64 and base64 of non-PEM text with the clear message, never echoing the value", () => {
+    const keypair = KEYPAIR;
+    const base = { appSlug: keypair.slug, keyId: keypair.kid };
+    const notPemB64 = Buffer.from("hello, not a key", "utf8").toString("base64");
+    for (const bad of ["!!!not-base64!!!", notPemB64, "not-a-pem"]) {
+      let message = "";
+      try {
+        loadAppCredential({ ...base, privateKeyPem: bad });
+      } catch (error) {
+        expect(error).toBeInstanceOf(InvalidAppCredentialError);
+        message = (error as Error).message;
+      }
+      expect(message).toContain("APP_PRIVATE_KEY");
+      expect(message).toContain("base64 of a PEM");
+      expect(message).not.toContain(bad);
+    }
+  });
+
   it("reads APP_SLUG / APP_KEY_ID / APP_PRIVATE_KEY from env", () => {
     const keypair = testAppKeypair("env-app", "env-kid");
     const credential = loadAppCredential({

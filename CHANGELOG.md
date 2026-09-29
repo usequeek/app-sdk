@@ -2,6 +2,18 @@
 
 All notable changes to `@usequeek/app-sdk` are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.5.1] - 2026-09-29
+
+Patch: `APP_PRIVATE_KEY` accepts the one-line form env files need.
+
+### Changed
+
+- `loadAppCredential` accepts `APP_PRIVATE_KEY` as base64 of the full PEM text (one line, no
+  wrapping — what the Developer page shows), a one-line PEM with literal `\n` escapes, or raw
+  PEM as before. Detection: a trimmed value starting with `-----BEGIN` is PEM; anything else is
+  base64-decoded and must decode to `-----BEGIN…`. Same RSA validation afterwards; errors name
+  the accepted forms and never echo the value.
+
 ## [0.5.0] - 2026-09-29
 
 Framework-agnostic core: the install handoff and webhook receivers no longer require Hono.

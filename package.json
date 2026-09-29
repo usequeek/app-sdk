@@ -1,6 +1,6 @@
 {
   "name": "@usequeek/app-sdk",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "private": false,
   "license": "MIT",
   "description": "SDK for Queek installable apps: webhook signature verification, install handlers, typed Merchant API client, webhook dispatch, encrypted installation store.",

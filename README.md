@@ -28,7 +28,7 @@ const store = new SqliteInstallationStore({
   storeKey: process.env.APP_ENCRYPTION_KEY!,
 });
 const tokens = createAppTokenProvider({
-  credential: loadAppCredential({ appSlug: "hello" }), // APP_SLUG/APP_KEY_ID/APP_PRIVATE_KEY
+  credential: loadAppCredential({ appSlug: "hello" }), // APP_SLUG/APP_KEY_ID/APP_PRIVATE_KEY (base64 of the PEM, one line)
   store,
 });
 const installOptions = { appSecret: process.env.QUEEK_APP_SECRET!, store };
@@ -187,7 +187,8 @@ One asymmetric credential per app — no per-installation secrets cross the hand
 
    Queek prints the app secret (`QUEEK_APP_SECRET`, verifies the handoff) and the key id
    (`APP_KEY_ID`, rides the JWT `kid` header). Configure the app with `APP_SLUG` (= `iss`),
-   `APP_KEY_ID`, and `APP_PRIVATE_KEY` (the PEM — never logged, never shipped to clients).
+   `APP_KEY_ID`, and `APP_PRIVATE_KEY` (base64 of the private key PEM, one line — the
+   Developer page shows it; raw PEM also accepted — never logged, never shipped to clients).
 
 3. **Acquire / cache / re-mint.** `acquireToken(installationId)` serves the cached token while
    its expiry is more than 5 minutes away; otherwise it signs an RS256 app JWT
@@ -248,8 +249,9 @@ retries (~4 h) are gone; resync cannot backfill them. Full runbook: `docs/deploy
 
 ## API surface
 
-- **app-auth** (`app-auth.ts`): `loadAppCredential` (`APP_SLUG`/`APP_KEY_ID`/`APP_PRIVATE_KEY`,
-  PEM validated at boot), `signAppJwt` (RS256, `iat` now − 60 s, `exp` window 540 s ≤ 600 s,
+- **app-auth** (`app-auth.ts`): `loadAppCredential` (`APP_SLUG`/`APP_KEY_ID`/`APP_PRIVATE_KEY`
+  — base64 of the PEM, raw PEM, or `\n`-escaped one-line PEM; RSA validated at boot),
+  `signAppJwt` (RS256, `iat` now − 60 s, `exp` window 540 s ≤ 600 s,
   `kid` header), the wire-contract error codes in one place (`INVALID_CLIENT_CODE`,
   `APP_TOKEN_REVOKED_CODE`, `APP_INSTALLATION_GONE_CODE`, `APP_INSTALLATION_PENDING_CODE`,
   `RESYNC_COOLDOWN_CODE`, `TOO_MANY_REQUESTS_CODE`), `AppMintHaltedError`.
