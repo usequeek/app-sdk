@@ -147,6 +147,28 @@ export {
   REDACTED,
 } from "./logger.js";
 export {
+  PROXY_CUSTOMER_PARAM,
+  PROXY_KID_PARAM,
+  PROXY_MAX_SKEW_SECONDS,
+  PROXY_NONCE_PARAM,
+  PROXY_SHOP_PARAM,
+  PROXY_SIGNATURE_PARAM,
+  PROXY_TIMESTAMP_PARAM,
+  type ProxyFailure,
+  type ProxyQuery,
+  type ProxyRequestOptions,
+  type ProxyResponder,
+  type ProxyStoreOptions,
+  type ProxyVerification,
+  type ProxyVerifyOptions,
+  buildProxyCanonicalString,
+  handleProxyRequest,
+  signProxyQuery,
+  verifyProxyDelivery,
+  verifyProxyQuery,
+  verifyProxyQueryDetailed,
+} from "./proxy.js";
+export {
   type ResyncListItem,
   type ResyncOptions,
   type ResyncResult,
