@@ -126,6 +126,33 @@ const direct = await handleInstallDelivery(
 );
 if (direct.status !== 409) throw new Error("layer-1 replay should dedupe, got: " + direct.status);
 
+// README Express shape: lowercased names, array-valued signature header, Buffer body.
+const expressSigned = signedHeaders("evt-install-express", NOW, installBody, APP_SECRET);
+const expressHeaders = {
+  "webhook-id": expressSigned["webhook-id"],
+  "webhook-timestamp": expressSigned["webhook-timestamp"],
+  "webhook-signature": [expressSigned["webhook-signature"]],
+};
+const expressRes = await handleInstallDelivery(
+  { rawBody: Buffer.from(installBody), headers: expressHeaders, method: "POST", path: "/api/install" },
+  { appSecret: APP_SECRET, store },
+);
+if (expressRes.status !== 200) throw new Error("layer-1 Express shape failed: " + expressRes.status);
+
+// README Fastify shape: plain IncomingHttpHeaders-like object, Buffer body from parseAs buffer.
+const fastifySigned = signedHeaders("evt-install-fastify", NOW, installBody, APP_SECRET);
+const fastifyHeaders = {
+  "webhook-id": fastifySigned["webhook-id"],
+  "webhook-timestamp": fastifySigned["webhook-timestamp"],
+  "webhook-signature": fastifySigned["webhook-signature"],
+  "content-type": "application/json",
+};
+const fastifyRes = await handleInstallDelivery(
+  { rawBody: Buffer.from(installBody), headers: fastifyHeaders, method: "POST", path: "/api/install" },
+  { appSecret: APP_SECRET, store },
+);
+if (fastifyRes.status !== 200) throw new Error("layer-1 Fastify shape failed: " + fastifyRes.status);
+
 const delivery = JSON.stringify({
   id: "evt-1",
   topic: "orders/updated",
@@ -154,7 +181,7 @@ try {
   honoFailed = true;
 }
 if (!honoFailed) throw new Error("@usequeek/app-sdk/hono loaded without hono installed");
-console.log("core ok: install handoff + webhook dispatch with plain Request, no hono");
+console.log("core ok: install handoff + webhook dispatch with plain Request, layer-1 Express/Fastify shapes, no hono");
 `;
 
 /** Sandbox B: WITH `hono` — the thin wrappers serve the same handoff + webhooks. */

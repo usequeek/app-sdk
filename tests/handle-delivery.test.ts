@@ -110,6 +110,17 @@ describe("layer 1: handleInstallDelivery with plain inputs", () => {
     expect(result).toEqual({ status: 200, body: { ok: true } });
   });
 
+  it("treats the method case-insensitively and strips query/fragment when routing", async () => {
+    const store = newStore();
+    const body = installBody();
+    const headers = signedHeaders("evt-install-1", NOW, body, APP_SECRET);
+    const result = await handleInstallDelivery(
+      { rawBody: body, headers, method: "post", path: "/api/install?retry=1#frag" },
+      installOpts(store),
+    );
+    expect(result).toEqual({ status: 200, body: { ok: true } });
+  });
+
   it("answers 405 for non-POST and 404 for an unknown path", async () => {
     const store = newStore();
     const body = installBody();

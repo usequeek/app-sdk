@@ -62,7 +62,7 @@ export function readHeader(headers: CoreHeaders, name: string): string | undefin
 /** Decode untouched body bytes to the exact string Queek signed. */
 export function decodeBody(rawBody: Uint8Array | Buffer | string): string {
   if (typeof rawBody === "string") return rawBody;
-  return new TextDecoder().decode(rawBody);
+  return new TextDecoder("utf-8").decode(rawBody);
 }
 
 /** Build the layer-2 `Response` from a layer-1 result. */

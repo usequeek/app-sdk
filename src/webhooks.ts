@@ -220,7 +220,7 @@ export async function handleWebhookRequest(
   request: Request,
   options: WebhookHandlerOptions,
 ): Promise<Response> {
-  if (request.method !== "POST") {
+  if (request.method.toUpperCase() !== "POST") {
     return toResponse({ status: 405, body: { ok: false, error: "method_not_allowed" } });
   }
   return toResponse(

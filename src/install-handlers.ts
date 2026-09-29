@@ -168,10 +168,11 @@ export async function handleInstallDelivery(
   return { status: 404, body: { ok: false, error: "unknown_route" } };
 }
 
-/** Last path segment of a pathname or full URL (query stripped, trailing slashes ignored). */
+/** Last path segment of a pathname or full URL (query/fragment stripped, trailing slashes ignored). */
 function trailingSegment(path: string): string {
   const withoutQuery = path.split("?", 1)[0] ?? "";
-  const trimmed = withoutQuery.replace(/\/+$/, "");
+  const withoutFragment = withoutQuery.split("#", 1)[0] ?? "";
+  const trimmed = withoutFragment.replace(/\/+$/, "");
   return trimmed.slice(trimmed.lastIndexOf("/") + 1);
 }
 
