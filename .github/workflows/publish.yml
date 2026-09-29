@@ -1,6 +1,6 @@
 name: Publish
 
-# Tags are the release: `git tag v0.4.0 && git push origin main --tags`.
+# Tags are the release: `git tag vX.Y.Z && git push origin main --tags`.
 # The workflow re-runs every gate, then publishes the exact source it verified.
 # Requires the NPM_TOKEN secret (an npm access token with publish rights on
 # @usequeek/app-sdk) — the founder owns that secret.

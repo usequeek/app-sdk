@@ -60,7 +60,7 @@ import {
 } from "@usequeek/app-sdk";
 import { verifySessionToken } from "@usequeek/app-sdk/server";
 
-const APP_SECRET = "whsec_YXBwc2lnbmluZ3NlY3JldEFwcHNlY3JldA";
+const APP_SECRET = "whsec_" + Buffer.from("appsigningsecretAppsecret").toString("base64url"); // fixture, not a credential
 const NOW = Math.floor(Date.now() / 1000);
 const store = new SqliteInstallationStore({
   path: ":memory:",
@@ -190,7 +190,7 @@ import { SqliteInstallationStore, signQueekPayload } from "@usequeek/app-sdk";
 import { createInstallHandlers, createWebhookHandler } from "@usequeek/app-sdk/hono";
 import { Hono } from "hono";
 
-const APP_SECRET = "whsec_YXBwc2lnbmluZ3NlY3JldEFwcHNlY3JldA";
+const APP_SECRET = "whsec_" + Buffer.from("appsigningsecretAppsecret").toString("base64url"); // fixture, not a credential
 const NOW = Math.floor(Date.now() / 1000);
 const store = new SqliteInstallationStore({
   path: ":memory:",
