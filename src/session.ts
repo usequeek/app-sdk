@@ -54,7 +54,11 @@ export interface VerifySessionTokenOptions {
   secret: string;
   /** Single expected audience: the app slug. */
   audience: string;
-  /** Expected issuer: the Queek api_base. */
+  /**
+   * Expected issuer: the handoff `api_base` VERBATIM
+   * (`installation.apiBase` — it equals the bare `app.url` the backend
+   * signs as `iss`). Never a prefix or a suffix of it.
+   */
   issuer: string;
   /**
    * The installation row the token must belong to (the app backend's own

@@ -247,6 +247,44 @@ settings) does NOT come back from resync: it needs the per-app `pg_dump` backup
 (RPO ≤ 24 h) plus the `APP_ENCRYPTION_KEY` backup. Events missed beyond Queek's webhook
 retries (~4 h) are gone; resync cannot backfill them. Full runbook: `docs/deploy.md` + O1.
 
+## Data deletion
+
+Treat the uninstall handoff (`app/uninstalled`) as the deletion trigger: the default
+`onUninstall` already deletes the installation row (secrets, token cache, settings) —
+keep that delete when you override it, and purge any app-side working data keyed by the
+installation there too.
+
+Unknown topics answer 200 without running a handler (forward compatibility, not consent):
+that 200 must not swallow a future privacy topic. If Queek ships mandatory privacy
+topics, register explicit handlers for them — an unhandled topic only reports
+`unhandled: true`, it deletes nothing.
+
+## Storefront app-proxy (signed reads)
+
+Queek signs each storefront proxy fetch with the installation's `proxy_secret`
+(`AppProxyService::signQuery`); verify before answering the shopper:
+
+```ts
+import { handleProxyRequest } from "@usequeek/app-sdk";
+
+export async function GET(request: Request) {
+  return handleProxyRequest(
+    request,
+    { store, path: "/apps/booking/availability" }, // Queek-side canonical path, not the local route
+    ({ installation, params }) =>
+      Response.json({ slots: slotsFor(params.date, installation.storePid) }),
+  );
+}
+```
+
+The canonical string is `path + "\n" + shop + "\n" + ts + "\n" + sorted(k=v&...)`
+(`sig` excluded), hex HMAC-SHA256 over the FULL `whsec_…` string — no base64 decode
+step. `kid` routes to the installation whose `proxy_secret` verifies (previous-secret
+grace: pass every active secret to `verifyProxyQuery`); timestamps skew at most 5
+minutes, each `jti` is single-use, and only `GET` is served (phase 1 is read-only).
+Hono: mount `createProxyHandler({ store, path, onVerified })` from
+`@usequeek/app-sdk/hono`.
+
 ## API surface
 
 - **app-auth** (`app-auth.ts`): `loadAppCredential` (`APP_SLUG`/`APP_KEY_ID`/`APP_PRIVATE_KEY`
@@ -268,7 +306,8 @@ retries (~4 h) are gone; resync cannot backfill them. Full runbook: `docs/deploy
 - **delivery core** (`delivery.ts`): `CoreDelivery` (`rawBody` + `headers`) / `InstallDelivery` (+ `method`/`path`) / `DeliveryResult` (`{ status, body }`) / `CoreHeaders`, plus `readHeader` (case-insensitive, array-tolerant), `decodeBody`, and `toResponse`. Zero request/response types.
 - **install handlers** (`install-handlers.ts`): layer 1 `handleInstallDelivery(input, { appSecret, store, onInstall?, onUninstall?, onSettings? })` serves the signed install/uninstall/settings handoff from raw bytes + headers (routes on the path's trailing segment); layer 2 `handleInstallRequest(request, …)` adapts `Request` → `Response` onto it. Defaults persist the installation (encrypted) in the store; a redelivered install for an existing installation merges idempotently (`saveResyncedInstallation`). The Hono wrapper `createInstallHandlers` lives under `@usequeek/app-sdk/hono` (`hono.ts`).
 - **client** (`client.ts`): `createQueekClient({ apiBase, apiKey })` — the low-level typed fetch client over the Merchant API (`X-Client-Key`), with `Idempotency-Key` on writes, typed `QueekApiError`s, and 429 retry helpers. Types come from `openapi/merchant.json`, the committed snapshot of the live contract. Prefer `createInstallationClient` in apps.
-- **webhooks** (`webhooks.ts`): layer 1 `handleWebhookDelivery(input, { store, handlers })` verifies each delivery against the installation's endpoint secret, dedupes on `webhook-id`, and dispatches `topic → handler` at most once; layer 2 `handleWebhookRequest(request, …)` adapts `Request` → `Response` onto it. The Hono wrapper `createWebhookHandler` lives under `@usequeek/app-sdk/hono` (`hono.ts`).
+- **webhooks** (`webhooks.ts`): layer 1 `handleWebhookDelivery(input, { store, handlers })` verifies each delivery against the installation's endpoint secret, dedupes on `webhook-id`, and dispatches `topic → handler` at most once; layer 2 `handleWebhookRequest(request, …)` adapts `Request` → `Response` onto it. The Hono wrapper `createWebhookHandler` lives under `@usequeek/app-sdk/hono` (`hono.ts`). Unknown topics answer 200 `unhandled` — see Data deletion before relying on that.
+- **proxy** (`proxy.ts`): `verifyProxyQuery` / `verifyProxyQueryDetailed` — app-proxy query verification byte-exact with the backend (`path\nshop\nts\nsorted(k=v&...)`, hex HMAC-SHA256 over the FULL `whsec_…` string, 5-minute skew floored at 60 s, `timingSafeEqual`, previous-secret grace over the secrets list); layer 1 `verifyProxyDelivery(input, { store, … })` resolves the installation from the store by `kid` and claims single-use `jti`; layer 2 `handleProxyRequest(request, { store, path, … }, onVerified)` serves GET only. The Hono wrapper `createProxyHandler` lives under `@usequeek/app-sdk/hono` (`hono.ts`).
 - **store** (`store.ts`): `SqliteInstallationStore` (local/dev/test) and `PostgresInstallationStore`
   (`pg`, pool max 2, advisory-locked schema + `schema_version` row so two containers boot
   safely) — installations encrypted at rest (AES-GCM via `APP_ENCRYPTION_KEY`), plus the
@@ -284,8 +323,9 @@ retries (~4 h) are gone; resync cannot backfill them. Full runbook: `docs/deploy
   PEM private-key blocks — the app JWT and private key can never reach logs.
 - **session** (`session.ts`, server-only via `@usequeek/app-sdk/server`):
   `verifySessionToken` — HS256 dashboard session tokens minted per installation
-  (`embsec_…` secret, raw UTF-8 key bytes, 20 s clock tolerance, slug audience
-  + api_base issuer, full installation binding). The secret never enters a
+  (`embsec_…` secret, raw UTF-8 key bytes, 20 s clock tolerance, slug audience,
+  issuer = the handoff `apiBase` verbatim (`installation.apiBase` — it equals the
+  bare `app.url` the backend signs as `iss`), full installation binding). The secret never enters a
   browser bundle: the main entry does not export the verifier. The install
   and resync handoffs deliver `embed_secret` + `app_id`; the store keeps
   them on the installation (`embedSecret` encrypted, `appId`), and
