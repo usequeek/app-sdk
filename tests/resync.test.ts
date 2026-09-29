@@ -9,7 +9,7 @@ import {
   RESYNC_COOLDOWN_CODE,
 } from "../src/app-auth.js";
 import { QueekApiError } from "../src/client.js";
-import { createInstallHandlers } from "../src/install-handlers.js";
+import { createInstallHandlers } from "../src/hono.js";
 import { createLogger } from "../src/logger.js";
 import { resyncFromQueek } from "../src/resync.js";
 import { type InstallationRecord, SqliteInstallationStore } from "../src/store.js";

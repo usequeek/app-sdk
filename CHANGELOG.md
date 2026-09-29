@@ -2,6 +2,31 @@
 
 All notable changes to `@usequeek/app-sdk` are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.5.0] - 2026-09-29
+
+Framework-agnostic core: the install handoff and webhook receivers no longer require Hono.
+
+### Changed
+
+- **BREAKING:** `createInstallHandlers` and `createWebhookHandler` moved from the package root to
+  the `@usequeek/app-sdk/hono` subpath (thin wrappers over the new core — same options objects,
+  same behaviour, same errors/status codes). Migration:
+  `import { createInstallHandlers } from "@usequeek/app-sdk/hono"`. `hono` is now an optional
+  peer (`peerDependenciesMeta: { hono: { optional: true } }`), so non-Hono apps install zero
+  framework code. `./server` keeps working as today.
+- The root entry is framework-free: `handleInstallRequest(request, options)` (routes on the
+  request URL's trailing `install` / `uninstall` / `settings` segment) and
+  `handleWebhookRequest(request, options)` take a plain `Request` and answer a plain `Response`
+  — wire them into Next.js route handlers, Express (via a small `Request`/`Response` adapter),
+  or any runtime.
+
+### Added
+
+- `hono.ts` behind the `./hono` export: the Hono wrappers.
+- `scripts/verify-package.mjs` now proves the split in two sandboxes: the root entry plus
+  `./server` work with NO `hono` installed (and importing `/hono` there fails — the proof the
+  root carries zero framework imports), while `/hono` works with it.
+
 ## [0.2.0] - 2026-09-25
 
 GitHub-style app credentials (slice S1 of `app-credentials-and-databases`, built against the

@@ -1,4 +1,3 @@
-import { Hono } from "hono";
 import {
   MAX_TIMESTAMP_SKEW_SECONDS,
   verifyQueekSignature,
@@ -9,8 +8,12 @@ import {
 import type { InstallationRecord, InstallationStore } from "./store.js";
 
 /**
- * Receiver for Queek topic deliveries (`DeliverWebhookJob` in
- * queek_backend, one signed POST per installation endpoint).
+ * Framework-agnostic receiver for Queek topic deliveries
+ * (`DeliverWebhookJob` in queek_backend, one signed POST per installation
+ * endpoint), built on the Web standard: `handleWebhookRequest(request,
+ * options)` takes a plain `Request` and answers with a plain `Response`.
+ * Wire it into any framework (Next.js route handlers, Express, Hono — see
+ * `@usequeek/app-sdk/hono` for the Hono wrapper).
  *
  * Delivery envelope: `{ id, topic, api_version: "v1", created_at, data }`
  * with `X-Queek-Topic` echoing `topic`. Verification uses the
@@ -113,85 +116,94 @@ async function defaultResolveSecret(
   return null;
 }
 
-export function createWebhookHandler(options: WebhookHandlerOptions): Hono {
-  const app = new Hono();
+function json(body: unknown, status: number): Response {
+  return Response.json(body, { status });
+}
+
+/**
+ * Handle one signed Queek topic delivery and answer with a plain
+ * `Response` — same options, same behaviour, same errors/status codes as
+ * the Hono wrapper. Only `POST` is served; anything else answers 405.
+ */
+export async function handleWebhookRequest(
+  request: Request,
+  options: WebhookHandlerOptions,
+): Promise<Response> {
+  if (request.method !== "POST") {
+    return json({ ok: false, error: "method_not_allowed" }, 405);
+  }
   const maxSkew = options.maxSkewSeconds ?? MAX_TIMESTAMP_SKEW_SECONDS;
+  const rawBody = await request.text();
+  const id = request.headers.get(WEBHOOK_ID_HEADER);
+  const timestamp = request.headers.get(WEBHOOK_TIMESTAMP_HEADER);
+  const signatureHeader = request.headers.get(WEBHOOK_SIGNATURE_HEADER);
+  if (!id || !timestamp || !signatureHeader) {
+    return json({ ok: false, error: "missing signature headers" }, 401);
+  }
 
-  app.post("/", async (c) => {
-    const rawBody = await c.req.text();
-    const id = c.req.header(WEBHOOK_ID_HEADER);
-    const timestamp = c.req.header(WEBHOOK_TIMESTAMP_HEADER);
-    const signatureHeader = c.req.header(WEBHOOK_SIGNATURE_HEADER);
-    if (!id || !timestamp || !signatureHeader) {
-      return c.json({ ok: false, error: "missing signature headers" }, 401);
-    }
+  let envelope: QueekWebhookEnvelope | null = null;
+  try {
+    const parsed = JSON.parse(rawBody) as unknown;
+    if (typeof parsed === "object" && parsed !== null) envelope = parsed as QueekWebhookEnvelope;
+  } catch {
+    return json({ ok: false, error: "invalid_json" }, 400);
+  }
+  if (!envelope || typeof envelope.topic !== "string") {
+    return json({ ok: false, error: "invalid_envelope" }, 400);
+  }
 
-    let envelope: QueekWebhookEnvelope | null = null;
-    try {
-      const parsed = JSON.parse(rawBody) as unknown;
-      if (typeof parsed === "object" && parsed !== null) envelope = parsed as QueekWebhookEnvelope;
-    } catch {
-      return c.json({ ok: false, error: "invalid_json" }, 400);
-    }
-    if (!envelope || typeof envelope.topic !== "string") {
-      return c.json({ ok: false, error: "invalid_envelope" }, 400);
-    }
+  const headers = { id, timestamp, signatureHeader };
+  const resolution = options.resolveSecret
+    ? await options.resolveSecret(envelope, rawBody, headers)
+    : await defaultResolveSecret(options.store, rawBody, headers, envelope);
+  if (!resolution) {
+    return json({ ok: false, error: "unknown_installation" }, 401);
+  }
 
-    const headers = { id, timestamp, signatureHeader };
-    const resolution = options.resolveSecret
-      ? await options.resolveSecret(envelope, rawBody, headers)
-      : await defaultResolveSecret(options.store, rawBody, headers, envelope);
-    if (!resolution) {
-      return c.json({ ok: false, error: "unknown_installation" }, 401);
-    }
+  // Freshness is enforced HERE, once, against the resolved secret — the
+  // lookup above deliberately skips it so a stale delivery cannot be
+  // misattributed before it is rejected.
+  const now = options.nowSeconds ?? Math.floor(Date.now() / 1000);
+  const ts = Number(timestamp);
+  if (!Number.isFinite(ts) || Math.abs(now - ts) > maxSkew) {
+    return json({ ok: false, error: "stale timestamp" }, 401);
+  }
+  // Freshness was enforced above; this re-checks the MAC only, so a
+  // custom resolver cannot claim an installation without its secret.
+  if (
+    !verifyQueekSignature(
+      { ...headers, body: rawBody, secret: resolution.secret },
+      { skipFreshnessCheck: true },
+    )
+  ) {
+    return json({ ok: false, error: "signature mismatch" }, 401);
+  }
 
-    // Freshness is enforced HERE, once, against the resolved secret — the
-    // lookup above deliberately skips it so a stale delivery cannot be
-    // misattributed before it is rejected.
-    const now = options.nowSeconds ?? Math.floor(Date.now() / 1000);
-    const ts = Number(timestamp);
-    if (!Number.isFinite(ts) || Math.abs(now - ts) > maxSkew) {
-      return c.json({ ok: false, error: "stale timestamp" }, 401);
-    }
-    // Freshness was enforced above; this re-checks the MAC only, so a
-    // custom resolver cannot claim an installation without its secret.
-    if (
-      !verifyQueekSignature(
-        { ...headers, body: rawBody, secret: resolution.secret },
-        { skipFreshnessCheck: true },
-      )
-    ) {
-      return c.json({ ok: false, error: "signature mismatch" }, 401);
-    }
+  const installation = await options.store.getInstallation(resolution.installationId);
+  if (!installation) {
+    return json({ ok: false, error: "unknown_installation" }, 401);
+  }
 
-    const installation = await options.store.getInstallation(resolution.installationId);
-    if (!installation) {
-      return c.json({ ok: false, error: "unknown_installation" }, 401);
-    }
+  // Atomic claim on the HEADER id: exactly one concurrent same-id
+  // delivery runs the handler; the rest answer deduped.
+  if (!(await options.store.claimWebhookId(id))) {
+    return json({ ok: true, deduped: true }, 200);
+  }
 
-    // Atomic claim on the HEADER id: exactly one concurrent same-id
-    // delivery runs the handler; the rest answer deduped.
-    if (!(await options.store.claimWebhookId(id))) {
-      return c.json({ ok: true, deduped: true });
-    }
+  const topic = request.headers.get(QUEEK_TOPIC_HEADER) ?? envelope.topic;
+  const handler = options.handlers[topic];
+  if (!handler) {
+    // No handler for this topic is NOT a failure: answering non-2xx would
+    // retry for hours something the app will never handle. The claim
+    // stands as the seen-record.
+    return json({ ok: true, unhandled: true }, 200);
+  }
 
-    const topic = c.req.header(QUEEK_TOPIC_HEADER) ?? envelope.topic;
-    const handler = options.handlers[topic];
-    if (!handler) {
-      // No handler for this topic is NOT a failure: answering non-2xx would
-      // retry for hours something the app will never handle. The claim
-      // stands as the seen-record.
-      return c.json({ ok: true, unhandled: true });
-    }
-
-    try {
-      await handler(envelope, { installation, topic, eventId: id });
-    } catch {
-      await options.store.releaseWebhookId(id);
-      return c.json({ ok: false, error: "handler_failed" }, 500);
-    }
-    return c.json({ ok: true });
-  });
-
-  return app;
+  try {
+    await handler(envelope, { installation, topic, eventId: id });
+  } catch {
+    await options.store.releaseWebhookId(id);
+    return json({ ok: false, error: "handler_failed" }, 500);
+  }
+  return json({ ok: true }, 200);
 }

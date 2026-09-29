@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { createWebhookHandler, type WebhookHandlerFn } from "../src/hono.js";
 import { type InstallationRecord, SqliteInstallationStore } from "../src/store.js";
-import { createWebhookHandler, type WebhookHandlerFn } from "../src/webhooks.js";
 import { postRaw, signedHeaders } from "./helpers.js";
 
 const STORE_KEY = Buffer.alloc(32, 9).toString("base64");

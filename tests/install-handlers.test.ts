@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { createInstallHandlers } from "../src/install-handlers.js";
+import { createInstallHandlers } from "../src/hono.js";
 import { SqliteInstallationStore } from "../src/store.js";
 import { installBody, postRaw, resyncBody, signedHeaders } from "./helpers.js";
 

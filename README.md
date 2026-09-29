@@ -1,26 +1,27 @@
 # @usequeek/app-sdk
 
-The SDK for building a Queek app on the public Merchant API and signed webhooks. Hono route helpers for the install handoff and topic webhooks, a typed Merchant API client (types generated from the live contract), GitHub-style app credentials (one asymmetric key per app, short-lived per-installation tokens minted on demand), resync recovery, and an encrypted installation store (SQLite for local/test, Postgres in production).
+The SDK for building a Queek app on the public Merchant API and signed webhooks. Framework-agnostic Web-standard handlers for the install handoff and topic webhooks (`Request` in, `Response` out — use them from Next.js route handlers, Express, or any runtime), a typed Merchant API client (types generated from the live contract), GitHub-style app credentials (one asymmetric key per app, short-lived per-installation tokens minted on demand), resync recovery, and an encrypted installation store (SQLite for local/test, Postgres in production). Optional Hono wrappers live under `@usequeek/app-sdk/hono`.
 
 ```sh
-npm i @usequeek/app-sdk hono pg
+npm i @usequeek/app-sdk pg
 ```
 
-Requires Node `>=22.14`. `hono` is a peer dependency so your app never carries two copies. `pg` is a regular dependency (the production store).
+Requires Node `>=22.14`. `pg` is a regular dependency (the production store). `hono` is an optional peer — install it (`npm i hono`) only if you use the Hono wrappers.
 
-## Example
+The shape follows [`@shopify/shopify-api`](https://github.com/Shopify/shopify-app-js/blob/main/packages/apps/shopify-api/README.md): the core "doesn't rely on any specific framework, so you can include it alongside your preferred stack" (runtime differences are covered by adapters such as `@shopify/shopify-api/adapters/node`), and framework integrations are separate packages in the [shopify-app-js monorepo](https://github.com/Shopify/shopify-app-js) (e.g. `@shopify/shopify-app-express` and `@shopify/shopify-app-remix` build on `@shopify/shopify-api`).
 
-A minimal app: health check, install/uninstall/settings handlers, and one webhook topic:
+## Example (any framework)
+
+A minimal app with plain Web-standard handlers — no framework import:
 
 ```ts
 import {
   createAppTokenProvider,
-  createInstallHandlers,
-  createWebhookHandler,
+  handleInstallRequest,
+  handleWebhookRequest,
   loadAppCredential,
   SqliteInstallationStore,
 } from "@usequeek/app-sdk";
-import { Hono } from "hono";
 
 const store = new SqliteInstallationStore({
   path: "./data/installations.db",
@@ -29,6 +30,91 @@ const store = new SqliteInstallationStore({
 const tokens = createAppTokenProvider({
   credential: loadAppCredential({ appSlug: "hello" }), // APP_SLUG/APP_KEY_ID/APP_PRIVATE_KEY
   store,
+});
+const installOptions = { appSecret: process.env.QUEEK_APP_SECRET!, store };
+const webhookOptions = {
+  store,
+  handlers: {
+    "orders/updated": async (envelope, context) => {
+      console.log("order update:", context.installation.storePid, envelope.data);
+    },
+  },
+};
+```
+
+Next.js App Router — one route file per handoff path (`handleInstallRequest` routes on the request URL's trailing `install` / `uninstall` / `settings` segment, so one shared options object serves all three):
+
+```ts
+// app/api/install/route.ts (and uninstall/route.ts, settings/route.ts likewise)
+import { installOptions } from "./options";
+
+export async function POST(request: Request) {
+  return handleInstallRequest(request, installOptions);
+}
+
+// app/api/webhooks/route.ts
+import { webhookOptions } from "./options";
+
+export async function POST(request: Request) {
+  return handleWebhookRequest(request, webhookOptions);
+}
+```
+
+### Express (no new package)
+
+Express doesn't speak `Request`/`Response` natively — bridge it with a small adapter over the built-in `express.raw` body parser (raw bytes matter: the signature covers the exact body):
+
+```ts
+import express from "express";
+import type { ServerResponse } from "node:http";
+import { handleInstallRequest, handleWebhookRequest } from "@usequeek/app-sdk";
+
+const app = express();
+const raw = express.raw({ type: "*/*" });
+
+function toWebRequest(req: express.Request): Request {
+  const headers = new Headers();
+  for (const [key, value] of Object.entries(req.headers)) {
+    if (value === undefined) continue;
+    for (const v of Array.isArray(value) ? value : [value]) headers.append(key, v);
+  }
+  return new Request(`http${req.secure ? "s" : ""}://${req.headers.host}${req.url}`, {
+    method: req.method,
+    headers,
+    body: req.method === "GET" || req.method === "HEAD" ? undefined : (req.body as Buffer),
+  });
+}
+
+async function sendWebResponse(res: ServerResponse, response: Response) {
+  res.statusCode = response.status;
+  response.headers.forEach((value, key) => res.setHeader(key, value));
+  res.end(Buffer.from(await response.arrayBuffer()));
+}
+
+for (const route of ["install", "uninstall", "settings"]) {
+  app.post(`/api/${route}`, raw, async (req, res) => {
+    await sendWebResponse(res, await handleInstallRequest(toWebRequest(req), installOptions));
+  });
+}
+app.post("/api/webhooks", raw, async (req, res) => {
+  await sendWebResponse(res, await handleWebhookRequest(toWebRequest(req), webhookOptions));
+});
+```
+
+(If you already run Hono on Node, `@hono/node-server`'s `getRequestListener` bridges this for you — but the adapter above needs no extra dependency.)
+
+### Hono
+
+Prefer Hono? The thin wrappers under `@usequeek/app-sdk/hono` (same options, same behaviour, same errors/status codes) mount the same core:
+
+```ts
+import { SqliteInstallationStore } from "@usequeek/app-sdk";
+import { createInstallHandlers, createWebhookHandler } from "@usequeek/app-sdk/hono";
+import { Hono } from "hono";
+
+const store = new SqliteInstallationStore({
+  path: "./data/installations.db",
+  storeKey: process.env.APP_ENCRYPTION_KEY!,
 });
 
 const app = new Hono();
@@ -48,6 +134,8 @@ app.route(
 
 export default app;
 ```
+
+> Migrating from 0.4.x: `import { createInstallHandlers } from "@usequeek/app-sdk/hono"` — the creators moved out of the root entry so non-Hono apps never install `hono`. The options objects are unchanged.
 
 Every Merchant API call goes through `createInstallationClient({ installationId, apiBase, tokens })`,
 which resolves the installation's token via `acquireToken()` and sends it as `X-Client-Key`.
@@ -148,9 +236,9 @@ retries (~4 h) are gone; resync cannot backfill them. Full runbook: `docs/deploy
   429 `resync_cooldown` → skip + record; other 429 → backoff + retry) → drop tokens →
   purge absent except known-pending. Connectivity scope only.
 - **verify** (`signatures.ts`): `verifyQueekSignature` — Standard Webhooks verification (`webhook-id`, `webhook-timestamp`, `webhook-signature` over `{id}.{timestamp}.{body}`, keyed by the decoded `whsec_…` bytes), with timestamp-skew enforcement.
-- **install handlers** (`install-handlers.ts`): `createInstallHandlers({ appSecret, store, onInstall?, onUninstall?, onSettings? })` — serves the signed install/uninstall/settings handoff. Defaults persist the installation (encrypted) in the store; a redelivered install for an existing installation merges idempotently (`saveResyncedInstallation`).
+- **install handlers** (`install-handlers.ts`): `handleInstallRequest(request, { appSecret, store, onInstall?, onUninstall?, onSettings? })` — serves the signed install/uninstall/settings handoff over plain `Request`/`Response` (routes on the URL's trailing segment). Defaults persist the installation (encrypted) in the store; a redelivered install for an existing installation merges idempotently (`saveResyncedInstallation`). The Hono wrapper `createInstallHandlers` lives under `@usequeek/app-sdk/hono` (`hono.ts`).
 - **client** (`client.ts`): `createQueekClient({ apiBase, apiKey })` — the low-level typed fetch client over the Merchant API (`X-Client-Key`), with `Idempotency-Key` on writes, typed `QueekApiError`s, and 429 retry helpers. Types come from `openapi/merchant.json`, the committed snapshot of the live contract. Prefer `createInstallationClient` in apps.
-- **webhooks** (`webhooks.ts`): `createWebhookHandler({ store, handlers })` — verifies each delivery against the installation's endpoint secret, dedupes on `webhook-id`, and dispatches `topic → handler` at most once.
+- **webhooks** (`webhooks.ts`): `handleWebhookRequest(request, { store, handlers })` — verifies each delivery against the installation's endpoint secret, dedupes on `webhook-id`, and dispatches `topic → handler` at most once. The Hono wrapper `createWebhookHandler` lives under `@usequeek/app-sdk/hono` (`hono.ts`).
 - **store** (`store.ts`): `SqliteInstallationStore` (local/dev/test) and `PostgresInstallationStore`
   (`pg`, pool max 2, advisory-locked schema + `schema_version` row so two containers boot
   safely) — installations encrypted at rest (AES-GCM via `APP_ENCRYPTION_KEY`), plus the

@@ -1,4 +1,3 @@
-import { Hono } from "hono";
 import {
   type HandoffEnvelopeAny,
   INSTALL_EVENT,
@@ -21,8 +20,13 @@ import {
 import type { InstallationRecord, InstallationStore } from "./store.js";
 
 /**
- * Hono handlers for Queek's signed server-to-server handoff
- * (`AppInstallService::deliver()` in queek_backend).
+ * Framework-agnostic handlers for Queek's signed server-to-server handoff
+ * (`AppInstallService::deliver()` in queek_backend), built on the Web
+ * standard: `handleInstallRequest(request, options)` routes on the request
+ * URL's last path segment (`install`, `uninstall`, `settings`) and answers
+ * with a plain `Response`. Wire it into any framework (Next.js route
+ * handlers, Express, Hono — see `@usequeek/app-sdk/hono` for the Hono
+ * wrappers).
  *
  * Every handoff — install, uninstall, settings, resync — carries the
  * Standard Webhooks headers signed with the APP signing secret (`whsec_…`,
@@ -34,7 +38,7 @@ import type { InstallationRecord, InstallationStore } from "./store.js";
  * `AppInstallService::resyncPayload()`) redelivers the install-shaped data
  * — rotated `webhook_secret`, non-secret settings, and recovery copies of
  * `proxy_secret` / `embed_secret` / `app_id` — to the app's `settings_url`,
- * falling back to `install_url`. Both `/install` and `/settings` accept it
+ * falling back to `install_url`. Both `install` and `settings` accept it
  * with the same signature/verification rules and apply it via the resync
  * merge (`saveResyncedInstallation`: refreshes secrets/settings/scopes,
  * keeps `installedAt` + the cached token, keeps stored values the resync
@@ -134,205 +138,228 @@ export function saveResyncedInstallation(
   };
 }
 
-export function createInstallHandlers(options: InstallHandlerOptions): Hono {
-  const app = new Hono();
-  const maxSkew = options.maxSkewSeconds ?? MAX_TIMESTAMP_SKEW_SECONDS;
+function json(body: unknown, status: number): Response {
+  return Response.json(body, { status });
+}
 
-  async function guard(
-    id: string | undefined,
-    timestamp: string | undefined,
-    signatureHeader: string | undefined,
-    rawBody: string,
-  ): Promise<{ ok: true; id: string } | { ok: false; status: 401; reason: string }> {
-    if (!id || !timestamp || !signatureHeader) {
-      return { ok: false, status: 401, reason: "missing signature headers" };
-    }
-    const checked = verifyQueekSignatureDetailed(
-      { id, timestamp, body: rawBody, signatureHeader, secret: options.appSecret },
-      { nowSeconds: options.nowSeconds, maxSkewSeconds: maxSkew },
-    );
-    if (!checked.ok) {
-      return {
-        ok: false,
-        status: 401,
-        reason: checked.reason === "stale_timestamp" ? "stale timestamp" : "signature mismatch",
-      };
-    }
-    return { ok: true, id };
+/**
+ * Handle one signed install-handoff delivery (`install`, `uninstall`, or
+ * `settings`, taken from the request URL's last path segment) and answer
+ * with a plain `Response` — same options, same behaviour, same
+ * errors/status codes as the Hono wrapper. Only `POST` is served; anything
+ * else answers 405, and an unrecognised trailing segment answers 404.
+ */
+export async function handleInstallRequest(
+  request: Request,
+  options: InstallHandlerOptions,
+): Promise<Response> {
+  if (request.method !== "POST") {
+    return json({ ok: false, error: "method_not_allowed" }, 405);
+  }
+  const pathname = new URL(request.url).pathname.replace(/\/+$/, "");
+  const route = pathname.slice(pathname.lastIndexOf("/") + 1);
+  if (route === "install") return handleInstall(request, options);
+  if (route === "uninstall") return handleUninstall(request, options);
+  if (route === "settings") return handleSettings(request, options);
+  return json({ ok: false, error: "unknown_route" }, 404);
+}
+
+async function guard(
+  options: InstallHandlerOptions,
+  id: string | null,
+  timestamp: string | null,
+  signatureHeader: string | null,
+  rawBody: string,
+): Promise<{ ok: true; id: string } | { ok: false; status: 401; reason: string }> {
+  if (!id || !timestamp || !signatureHeader) {
+    return { ok: false, status: 401, reason: "missing signature headers" };
+  }
+  const checked = verifyQueekSignatureDetailed(
+    { id, timestamp, body: rawBody, signatureHeader, secret: options.appSecret },
+    { nowSeconds: options.nowSeconds, maxSkewSeconds: options.maxSkewSeconds ?? MAX_TIMESTAMP_SKEW_SECONDS },
+  );
+  if (!checked.ok) {
+    return {
+      ok: false,
+      status: 401,
+      reason: checked.reason === "stale_timestamp" ? "stale timestamp" : "signature mismatch",
+    };
+  }
+  return { ok: true, id };
+}
+
+function parseEnvelope(rawBody: string): HandoffEnvelopeAny | null {
+  try {
+    const parsed = JSON.parse(rawBody) as unknown;
+    if (typeof parsed !== "object" || parsed === null) return null;
+    return parsed as HandoffEnvelopeAny;
+  } catch {
+    return null;
+  }
+}
+
+function isInstallPayload(data: unknown): data is InstallData {
+  return (
+    !!data &&
+    typeof data === "object" &&
+    typeof (data as InstallData).installation?.id === "string" &&
+    typeof (data as InstallData).api_base === "string"
+  );
+}
+
+/** Default resync apply: merge into the existing row (keeping
+ * `installedAt`, the cached token and stored values the resync omits) or
+ * store a fresh row when nothing is stored (post-outage recovery). */
+async function applyResync(store: InstallationStore, data: InstallData): Promise<void> {
+  const existing = await store.getInstallation(data.installation.id);
+  await store.saveInstallation(
+    existing
+      ? saveResyncedInstallation(existing, data, new Date().toISOString())
+      : installationRecordFromInstall(data, new Date().toISOString()),
+  );
+}
+
+async function handleInstall(request: Request, options: InstallHandlerOptions): Promise<Response> {
+  const rawBody = await request.text();
+  const checked = await guard(
+    options,
+    request.headers.get(WEBHOOK_ID_HEADER),
+    request.headers.get(WEBHOOK_TIMESTAMP_HEADER),
+    request.headers.get(WEBHOOK_SIGNATURE_HEADER),
+    rawBody,
+  );
+  if (!checked.ok) return json({ ok: false, error: checked.reason }, checked.status);
+
+  const envelope = parseEnvelope(rawBody);
+  if (!envelope) return json({ ok: false, error: "invalid_envelope" }, 400);
+  // The platform resync handoff redelivers the install-shaped data under
+  // `type: app/resync` (same signed channel, same verification): it lands
+  // here as well as on `settings` (the backend aims at `settings_url`
+  // first, falling back to `install_url`).
+  if (envelope.type !== INSTALL_EVENT && envelope.type !== RESYNC_EVENT) {
+    return json({ ok: false, error: "unexpected event type" }, 400);
+  }
+  if (!isInstallPayload(envelope.data)) {
+    return json({ ok: false, error: "invalid install payload" }, 400);
   }
 
-  function parseEnvelope(rawBody: string): HandoffEnvelopeAny | null {
-    try {
-      const parsed = JSON.parse(rawBody) as unknown;
-      if (typeof parsed !== "object" || parsed === null) return null;
-      return parsed as HandoffEnvelopeAny;
-    } catch {
-      return null;
+  // Atomic claim on the HEADER id (never the body id): exactly one
+  // same-id delivery runs the callback.
+  if (!(await options.store.claimWebhookId(checked.id))) {
+    return json({ ok: false, error: "duplicate delivery" }, 409);
+  }
+  try {
+    if (options.onInstall) {
+      // A resync envelope is install-shaped, so the install callback
+      // handles it (apps merge via `saveResyncedInstallation` there).
+      await options.onInstall(envelope as InstallEnvelope);
+    } else {
+      // A resync redelivers the install envelope for an EXISTING
+      // installation: merge idempotently (keep `installedAt` + the cached
+      // token) instead of resetting the row.
+      await applyResync(options.store, (envelope as ResyncEnvelope).data);
     }
+  } catch {
+    // Non-2xx on purpose: Queek revokes the key and the merchant retries
+    // as a fresh install. The claim is released so the retry can land.
+    await options.store.releaseWebhookId(checked.id);
+    return json({ ok: false, error: "install_failed" }, 500);
+  }
+  return json({ ok: true }, 200);
+}
+
+async function handleUninstall(request: Request, options: InstallHandlerOptions): Promise<Response> {
+  const rawBody = await request.text();
+  const checked = await guard(
+    options,
+    request.headers.get(WEBHOOK_ID_HEADER),
+    request.headers.get(WEBHOOK_TIMESTAMP_HEADER),
+    request.headers.get(WEBHOOK_SIGNATURE_HEADER),
+    rawBody,
+  );
+  if (!checked.ok) return json({ ok: false, error: checked.reason }, checked.status);
+
+  const envelope = parseEnvelope(rawBody);
+  if (!envelope) return json({ ok: false, error: "invalid_envelope" }, 400);
+  if (envelope.type !== UNINSTALL_EVENT) {
+    return json({ ok: false, error: "unexpected event type" }, 400);
   }
 
-  function isInstallPayload(data: unknown): data is InstallData {
-    return (
-      !!data &&
-      typeof data === "object" &&
-      typeof (data as InstallData).installation?.id === "string" &&
-      typeof (data as InstallData).api_base === "string"
-    );
+  if (!(await options.store.claimWebhookId(checked.id))) {
+    return json({ ok: false, error: "duplicate delivery" }, 409);
   }
-
-  /** Default resync apply: merge into the existing row (keeping
-   * `installedAt`, the cached token and stored values the resync omits) or
-   * store a fresh row when nothing is stored (post-outage recovery). */
-  async function applyResync(data: InstallData): Promise<void> {
-    const existing = await options.store.getInstallation(data.installation.id);
-    await options.store.saveInstallation(
-      existing
-        ? saveResyncedInstallation(existing, data, new Date().toISOString())
-        : installationRecordFromInstall(data, new Date().toISOString()),
-    );
-  }
-
-  app.post("/install", async (c) => {
-    const rawBody = await c.req.text();
-    const checked = await guard(
-      c.req.header(WEBHOOK_ID_HEADER),
-      c.req.header(WEBHOOK_TIMESTAMP_HEADER),
-      c.req.header(WEBHOOK_SIGNATURE_HEADER),
-      rawBody,
-    );
-    if (!checked.ok) return c.json({ ok: false, error: checked.reason }, checked.status);
-
-    const envelope = parseEnvelope(rawBody);
-    if (!envelope) return c.json({ ok: false, error: "invalid_envelope" }, 400);
-    // The platform resync handoff redelivers the install-shaped data under
-    // `type: app/resync` (same signed channel, same verification): it lands
-    // here as well as on `/settings` (the backend aims at `settings_url`
-    // first, falling back to `install_url`).
-    if (envelope.type !== INSTALL_EVENT && envelope.type !== RESYNC_EVENT) {
-      return c.json({ ok: false, error: "unexpected event type" }, 400);
+  try {
+    if (options.onUninstall) {
+      await options.onUninstall(envelope as UninstallEnvelope);
+    } else {
+      await options.store.deleteInstallation((envelope as UninstallEnvelope).data.installation.id);
     }
+  } catch {
+    await options.store.releaseWebhookId(checked.id);
+    return json({ ok: false, error: "uninstall_failed" }, 500);
+  }
+  return json({ ok: true }, 200);
+}
+
+async function handleSettings(request: Request, options: InstallHandlerOptions): Promise<Response> {
+  const rawBody = await request.text();
+  const checked = await guard(
+    options,
+    request.headers.get(WEBHOOK_ID_HEADER),
+    request.headers.get(WEBHOOK_TIMESTAMP_HEADER),
+    request.headers.get(WEBHOOK_SIGNATURE_HEADER),
+    rawBody,
+  );
+  if (!checked.ok) return json({ ok: false, error: checked.reason }, checked.status);
+
+  const envelope = parseEnvelope(rawBody);
+  if (!envelope) return json({ ok: false, error: "invalid_envelope" }, 400);
+  // The platform resync handoff (`type: app/resync`) is delivered to the
+  // app's `settings_url` first: it lands here with the install-shaped
+  // data, so it takes the resync merge — never the settings callback,
+  // whose envelope shape does not fit.
+  if (envelope.type !== SETTINGS_EVENT && envelope.type !== RESYNC_EVENT) {
+    return json({ ok: false, error: "unexpected event type" }, 400);
+  }
+
+  if (envelope.type === RESYNC_EVENT) {
     if (!isInstallPayload(envelope.data)) {
-      return c.json({ ok: false, error: "invalid install payload" }, 400);
+      return json({ ok: false, error: "invalid install payload" }, 400);
     }
-
-    // Atomic claim on the HEADER id (never the body id): exactly one
-    // same-id delivery runs the callback.
     if (!(await options.store.claimWebhookId(checked.id))) {
-      return c.json({ ok: false, error: "duplicate delivery" }, 409);
+      return json({ ok: false, error: "duplicate delivery" }, 409);
     }
     try {
-      if (options.onInstall) {
-        // A resync envelope is install-shaped, so the install callback
-        // handles it (apps merge via `saveResyncedInstallation` there).
-        await options.onInstall(envelope as InstallEnvelope);
-      } else {
-        // A resync redelivers the install envelope for an EXISTING
-        // installation: merge idempotently (keep `installedAt` + the cached
-        // token) instead of resetting the row.
-        await applyResync((envelope as ResyncEnvelope).data);
-      }
-    } catch {
-      // Non-2xx on purpose: Queek revokes the key and the merchant retries
-      // as a fresh install. The claim is released so the retry can land.
-      await options.store.releaseWebhookId(checked.id);
-      return c.json({ ok: false, error: "install_failed" }, 500);
-    }
-    return c.json({ ok: true });
-  });
-
-  app.post("/uninstall", async (c) => {
-    const rawBody = await c.req.text();
-    const checked = await guard(
-      c.req.header(WEBHOOK_ID_HEADER),
-      c.req.header(WEBHOOK_TIMESTAMP_HEADER),
-      c.req.header(WEBHOOK_SIGNATURE_HEADER),
-      rawBody,
-    );
-    if (!checked.ok) return c.json({ ok: false, error: checked.reason }, checked.status);
-
-    const envelope = parseEnvelope(rawBody);
-    if (!envelope) return c.json({ ok: false, error: "invalid_envelope" }, 400);
-    if (envelope.type !== UNINSTALL_EVENT) {
-      return c.json({ ok: false, error: "unexpected event type" }, 400);
-    }
-
-    if (!(await options.store.claimWebhookId(checked.id))) {
-      return c.json({ ok: false, error: "duplicate delivery" }, 409);
-    }
-    try {
-      if (options.onUninstall) {
-        await options.onUninstall(envelope as UninstallEnvelope);
-      } else {
-        await options.store.deleteInstallation((envelope as UninstallEnvelope).data.installation.id);
-      }
+      await applyResync(options.store, (envelope as ResyncEnvelope).data);
     } catch {
       await options.store.releaseWebhookId(checked.id);
-      return c.json({ ok: false, error: "uninstall_failed" }, 500);
+      return json({ ok: false, error: "settings_failed" }, 500);
     }
-    return c.json({ ok: true });
-  });
+    return json({ ok: true }, 200);
+  }
 
-  app.post("/settings", async (c) => {
-    const rawBody = await c.req.text();
-    const checked = await guard(
-      c.req.header(WEBHOOK_ID_HEADER),
-      c.req.header(WEBHOOK_TIMESTAMP_HEADER),
-      c.req.header(WEBHOOK_SIGNATURE_HEADER),
-      rawBody,
-    );
-    if (!checked.ok) return c.json({ ok: false, error: checked.reason }, checked.status);
-
-    const envelope = parseEnvelope(rawBody);
-    if (!envelope) return c.json({ ok: false, error: "invalid_envelope" }, 400);
-    // The platform resync handoff (`type: app/resync`) is delivered to the
-    // app's `settings_url` first: it lands here with the install-shaped
-    // data, so it takes the resync merge — never the settings callback,
-    // whose envelope shape does not fit.
-    if (envelope.type !== SETTINGS_EVENT && envelope.type !== RESYNC_EVENT) {
-      return c.json({ ok: false, error: "unexpected event type" }, 400);
-    }
-
-    if (envelope.type === RESYNC_EVENT) {
-      if (!isInstallPayload(envelope.data)) {
-        return c.json({ ok: false, error: "invalid install payload" }, 400);
-      }
-      if (!(await options.store.claimWebhookId(checked.id))) {
-        return c.json({ ok: false, error: "duplicate delivery" }, 409);
-      }
-      try {
-        await applyResync((envelope as ResyncEnvelope).data);
-      } catch {
+  if (!(await options.store.claimWebhookId(checked.id))) {
+    return json({ ok: false, error: "duplicate delivery" }, 409);
+  }
+  try {
+    if (options.onSettings) {
+      await options.onSettings(envelope as SettingsEnvelope);
+    } else {
+      const data = (envelope as SettingsEnvelope).data;
+      const existing = await options.store.getInstallation(data.installation.id);
+      if (!existing) {
         await options.store.releaseWebhookId(checked.id);
-        return c.json({ ok: false, error: "settings_failed" }, 500);
+        return json({ ok: false, error: "unknown_installation" }, 404);
       }
-      return c.json({ ok: true });
+      await options.store.saveInstallation({
+        ...existing,
+        settings: data.settings,
+        updatedAt: new Date().toISOString(),
+      });
     }
-
-    if (!(await options.store.claimWebhookId(checked.id))) {
-      return c.json({ ok: false, error: "duplicate delivery" }, 409);
-    }
-    try {
-      if (options.onSettings) {
-        await options.onSettings(envelope as SettingsEnvelope);
-      } else {
-        const data = (envelope as SettingsEnvelope).data;
-        const existing = await options.store.getInstallation(data.installation.id);
-        if (!existing) {
-          await options.store.releaseWebhookId(checked.id);
-          return c.json({ ok: false, error: "unknown_installation" }, 404);
-        }
-        await options.store.saveInstallation({
-          ...existing,
-          settings: data.settings,
-          updatedAt: new Date().toISOString(),
-        });
-      }
-    } catch {
-      await options.store.releaseWebhookId(checked.id);
-      return c.json({ ok: false, error: "settings_failed" }, 500);
-    }
-    return c.json({ ok: true });
-  });
-
-  return app;
+  } catch {
+    await options.store.releaseWebhookId(checked.id);
+    return json({ ok: false, error: "settings_failed" }, 500);
+  }
+  return json({ ok: true }, 200);
 }

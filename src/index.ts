@@ -122,7 +122,7 @@ export {
 } from "./handoff.js";
 export {
   buildInstallationRecord,
-  createInstallHandlers,
+  handleInstallRequest,
   type InstallCallbacks,
   type InstallHandlerOptions,
   saveResyncedInstallation,
@@ -180,7 +180,7 @@ export {
   type TokenProviderOptions,
 } from "./tokens.js";
 export {
-  createWebhookHandler,
+  handleWebhookRequest,
   QUEEK_TOPIC_HEADER,
   type QueekWebhookEnvelope,
   type SecretResolution,
