@@ -98,12 +98,9 @@ describe("backend-exact canonical string + HMAC (tinker vector)", () => {
 describe("verifyProxyQuery semantics (mirroring verifyQuery)", () => {
   it("rejects tampered params", () => {
     expect(
-      verifyProxyQueryDetailed(
-        PATH,
-        { ...BACKEND_QUERY, date: "2026-10-02" },
-        [BACKEND_SECRET],
-        { nowSeconds: NOW },
-      ),
+      verifyProxyQueryDetailed(PATH, { ...BACKEND_QUERY, date: "2026-10-02" }, [BACKEND_SECRET], {
+        nowSeconds: NOW,
+      }),
     ).toEqual({ ok: false, reason: "signature_mismatch" });
   });
 

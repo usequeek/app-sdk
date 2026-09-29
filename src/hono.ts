@@ -10,11 +10,7 @@
 
 import { Hono } from "hono";
 import { handleInstallRequest, type InstallHandlerOptions } from "./install-handlers.js";
-import {
-  handleProxyRequest,
-  type ProxyRequestOptions,
-  type ProxyResponder,
-} from "./proxy.js";
+import { handleProxyRequest, type ProxyRequestOptions, type ProxyResponder } from "./proxy.js";
 import { handleWebhookRequest, type WebhookHandlerOptions } from "./webhooks.js";
 
 export type { InstallCallbacks, InstallHandlerOptions } from "./install-handlers.js";
@@ -51,9 +47,7 @@ export function createWebhookHandler(options: WebhookHandlerOptions): Hono {
  * the Queek-side canonical path (`/apps/<subpath>/<rest>`) the backend
  * signed, and `onVerified` owns the shopper-facing body.
  */
-export function createProxyHandler(
-  options: ProxyRequestOptions & { onVerified: ProxyResponder },
-): Hono {
+export function createProxyHandler(options: ProxyRequestOptions & { onVerified: ProxyResponder }): Hono {
   const { onVerified, ...requestOptions } = options;
   const app = new Hono();
   app.get("*", (c) => handleProxyRequest(c.req.raw, requestOptions, onVerified));

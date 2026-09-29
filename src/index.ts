@@ -11,16 +11,16 @@
 
 export {
   API_KEY_EXPIRED_CODE,
-  APP_PRIVATE_KEY_FORMS,
-  decodePrivateKeyInput,
   API_KEY_REVOKED_CODE,
   APP_INSTALLATION_GONE_CODE,
   APP_INSTALLATION_PENDING_CODE,
   APP_JWT_SKEW_SECONDS,
   APP_JWT_TTL_SECONDS,
+  APP_PRIVATE_KEY_FORMS,
   APP_TOKEN_REVOKED_CODE,
   type AppCredential,
   AppMintHaltedError,
+  decodePrivateKeyInput,
   INVALID_CLIENT_CODE,
   INVALID_CLIENT_KEY_CODE,
   InvalidAppCredentialError,
@@ -99,8 +99,8 @@ export {
 export {
   type CoreDelivery,
   type CoreHeaders,
-  decodeBody,
   type DeliveryResult,
+  decodeBody,
   type InstallDelivery,
   readHeader,
 } from "./delivery.js";
@@ -147,6 +147,8 @@ export {
   REDACTED,
 } from "./logger.js";
 export {
+  buildProxyCanonicalString,
+  handleProxyRequest,
   PROXY_CUSTOMER_PARAM,
   PROXY_KID_PARAM,
   PROXY_MAX_SKEW_SECONDS,
@@ -161,8 +163,6 @@ export {
   type ProxyStoreOptions,
   type ProxyVerification,
   type ProxyVerifyOptions,
-  buildProxyCanonicalString,
-  handleProxyRequest,
   signProxyQuery,
   verifyProxyDelivery,
   verifyProxyQuery,

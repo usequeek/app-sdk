@@ -1,4 +1,12 @@
 import {
+  type CoreHeaders,
+  type DeliveryResult,
+  decodeBody,
+  type InstallDelivery,
+  readHeader,
+  toResponse,
+} from "./delivery.js";
+import {
   type HandoffEnvelopeAny,
   INSTALL_EVENT,
   type InstallData,
@@ -10,14 +18,6 @@ import {
   UNINSTALL_EVENT,
   type UninstallEnvelope,
 } from "./handoff.js";
-import {
-  type CoreHeaders,
-  decodeBody,
-  type DeliveryResult,
-  type InstallDelivery,
-  readHeader,
-  toResponse,
-} from "./delivery.js";
 import {
   MAX_TIMESTAMP_SKEW_SECONDS,
   verifyQueekSignatureDetailed,

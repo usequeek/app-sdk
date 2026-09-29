@@ -81,11 +81,7 @@ describe("handleInstallRequest (framework-agnostic core)", () => {
     const store = new SqliteInstallationStore({ path: ":memory:", storeKey: STORE_KEY });
     const body = installBody();
     const response = await handleInstallRequest(
-      webRequest(
-        "/install",
-        body,
-        signedHeaders("evt-install-1", NOW, body, fakeSecret("wrong")),
-      ),
+      webRequest("/install", body, signedHeaders("evt-install-1", NOW, body, fakeSecret("wrong"))),
       installOptions(store),
     );
     expect(response.status).toBe(401);

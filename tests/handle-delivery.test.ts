@@ -126,7 +126,10 @@ describe("layer 1: handleInstallDelivery with plain inputs", () => {
     const body = installBody();
     const headers = signedHeaders("evt-install-1", NOW, body, APP_SECRET);
     expect(
-      await handleInstallDelivery({ rawBody: body, headers, method: "GET", path: "/install" }, installOpts(store)),
+      await handleInstallDelivery(
+        { rawBody: body, headers, method: "GET", path: "/install" },
+        installOpts(store),
+      ),
     ).toEqual({ status: 405, body: { ok: false, error: "method_not_allowed" } });
     expect(
       await handleInstallDelivery({ rawBody: body, headers, path: "/billing" }, installOpts(store)),
@@ -258,7 +261,12 @@ describe("cross-layer parity: identical results for the same inputs", () => {
       created_at: "x",
       data: {},
     });
-    await expectIdentical("install", "/install", wrongType, signedHeaders("evt-x", NOW, wrongType, APP_SECRET));
+    await expectIdentical(
+      "install",
+      "/install",
+      wrongType,
+      signedHeaders("evt-x", NOW, wrongType, APP_SECRET),
+    );
     const resync = JSON.stringify({
       id: "evt-r",
       type: "app/resync",
@@ -295,7 +303,12 @@ describe("cross-layer parity: identical results for the same inputs", () => {
         store: { id: "22222222-2222-2222-2222-222222222222", p_id: "store_xyz", name: "Test", is_test: true },
       },
     });
-    await expectIdentical("install", "/uninstall", uninstall, signedHeaders("evt-u", NOW, uninstall, APP_SECRET));
+    await expectIdentical(
+      "install",
+      "/uninstall",
+      uninstall,
+      signedHeaders("evt-u", NOW, uninstall, APP_SECRET),
+    );
     const missing = JSON.stringify({
       id: "evt-s0",
       type: "app/settings_updated",

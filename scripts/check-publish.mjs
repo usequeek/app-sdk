@@ -26,12 +26,7 @@ import { fileURLToPath } from "node:url";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 
-const ALLOWED_FILES = new Set([
-  "package.json",
-  "openapi/merchant.json",
-  "README.md",
-  "LICENSE",
-]);
+const ALLOWED_FILES = new Set(["package.json", "openapi/merchant.json", "README.md", "LICENSE"]);
 function allowedFile(path) {
   return ALLOWED_FILES.has(path) || path.startsWith("dist/");
 }

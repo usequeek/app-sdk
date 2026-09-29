@@ -1,10 +1,4 @@
-import {
-  type CoreDelivery,
-  decodeBody,
-  type DeliveryResult,
-  readHeader,
-  toResponse,
-} from "./delivery.js";
+import { type CoreDelivery, type DeliveryResult, decodeBody, readHeader, toResponse } from "./delivery.js";
 import {
   MAX_TIMESTAMP_SKEW_SECONDS,
   verifyQueekSignature,

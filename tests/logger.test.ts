@@ -29,7 +29,7 @@ describe("structured logger", () => {
 
   it("redacts secret-shaped fields and values, in fields and messages", () => {
     const { log, lines } = capture();
-        const apiKey = fakeApiKey("abc123XYZ");
+    const apiKey = fakeApiKey("abc123XYZ");
     log.info(`proof-call with ${apiKey} failed`, {
       installation: "inst_abc",
       api_key: apiKey,

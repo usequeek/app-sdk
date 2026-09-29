@@ -246,9 +246,10 @@ export interface ProxyRequestOptions extends ProxyStoreOptions {
 }
 
 /** What the app answers once the query verifies (it owns the body — slots, JSON, …). */
-export type ProxyResponder = (
-  verified: { installation: InstallationRecord; params: Record<string, string> },
-) => Response | Promise<Response>;
+export type ProxyResponder = (verified: {
+  installation: InstallationRecord;
+  params: Record<string, string>;
+}) => Response | Promise<Response>;
 
 /**
  * Layer 2: the Web-standard wrapper, built ONLY on layer 1 — reads the query
@@ -269,10 +270,7 @@ export async function handleProxyRequest(
   for (const key of url.searchParams.keys()) {
     query[key] = url.searchParams.get(key);
   }
-  const verified = await verifyProxyDelivery(
-    { path: options.path, query },
-    options,
-  );
+  const verified = await verifyProxyDelivery({ path: options.path, query }, options);
   if (!verified.ok) {
     const result: DeliveryResult = { status: verified.status, body: { ok: false, error: verified.reason } };
     return toResponse(result);
