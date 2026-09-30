@@ -214,6 +214,11 @@ function bindingMatches(claims: SessionTokenClaims, expected: SessionTokenBindin
  * Launch-only hints off a verified payload. Tolerant by design (they steer
  * first paint, never auth): `store` is the integer p_id or null, `theme`
  * survives only as exactly `light` or `dark`.
+ *
+ * Boundary (deliberate, pinned both sides): this `store` claim is an INT,
+ * while install-handoff p_ids are STRINGS per the handoff contract — never
+ * accept a string here to "match" the handoff; a string claim nulls the
+ * hint (session.test.ts) exactly as the backend pins int (AppUiKitTest).
  */
 function readLaunchHints(payload: Record<string, unknown>): Pick<LaunchTokenClaims, "storePid" | "theme"> {
   const store = payload.store;
