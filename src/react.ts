@@ -1,3 +1,5 @@
+"use client";
+
 /**
  * Optional React bindings for `@usequeek/app-sdk` (U2).
  *
@@ -40,7 +42,10 @@ import {
   type TitleActionDef,
   type ToastTone,
 } from "./frame.js";
-import { applyTheme, getThemeModeFromUrl, type ThemeMode } from "./theme.js";
+import { applyTheme, getThemeModeFromUrl, rememberThemeMode, type ThemeMode } from "./theme.js";
+
+/** A pick with no dashboard answer settles after this long (never deadlocks). */
+export const PICK_TIMEOUT_MS = 5 * 60 * 1000;
 
 export type {
   BridgeTheme,
@@ -100,15 +105,13 @@ export interface QueekApi {
 interface PendingPick {
   resolve: (items: ResourceItem[] | null) => void;
   reject: (error: Error) => void;
+  timer: ReturnType<typeof setTimeout>;
 }
 
 interface BridgeState {
   dashboardOrigin: string;
-  postTarget: EmbedPostTarget | undefined;
-  listenTarget: EmbedEventTarget | undefined;
-  capabilities: string[];
-  sdkVersion: string | undefined;
-  getHref: () => string;
+  /** Run a core sender against the latest wiring (never a stale render's). */
+  post: (send: (dashboardOrigin: string, target: EmbedPostTarget | undefined) => void) => void;
   subscribeTheme: (handler: (mode: ThemeMode) => void) => () => void;
   subscribeTitleAction: (handler: (id: string) => void) => () => void;
   subscribeSaveBarAction: (handler: (action: SaveBarAction) => void) => () => void;
@@ -137,32 +140,90 @@ export interface QueekProviderProps {
   /** Declared in `ready{capabilities}` so old dashboards degrade gracefully. */
   capabilities?: string[];
   sdkVersion?: string;
+  /**
+   * The dashboard's own capabilities when known. When present without
+   * `pick-resource`, `pickResource` rejects at once instead of waiting on a
+   * dashboard that will never answer (old-dashboard case).
+   */
+  dashboardCapabilities?: string[];
   postTarget?: EmbedPostTarget;
   listenTarget?: EmbedEventTarget;
   getHref?: () => string;
+  /**
+   * Required `event.source` for bridge messages. Defaults to the global
+   * window's parent when present; pass `null` to disable the source check.
+   */
+  expectSource?: unknown;
 }
 
 export function QueekProvider(props: QueekProviderProps): ReactNode {
-  const { dashboardOrigin, children } = props;
+  const { dashboardOrigin, children, sdkVersion } = props;
   const win = useMemo(() => globalWindow(), []);
-  const postTarget = props.postTarget ?? win?.parent;
-  const listenTarget = props.listenTarget ?? (win as unknown as EmbedEventTarget | null) ?? undefined;
-  const getHref = props.getHref ?? (() => win?.location.href ?? "");
-  const capabilities = useMemo(() => props.capabilities ?? [], [props.capabilities]);
-  const sdkVersion = props.sdkVersion;
+  // Latest wiring lives in a ref: parent re-renders (inline arrays, fresh
+  // closures) must NOT resubscribe the bridge or re-announce ready.
+  const configRef = useRef({
+    postTarget: props.postTarget ?? win?.parent,
+    listenTarget: props.listenTarget ?? (win as unknown as EmbedEventTarget | null) ?? undefined,
+    getHref: props.getHref ?? (() => win?.location.href ?? ""),
+    capabilities: props.capabilities ?? [],
+    dashboardCapabilities: props.dashboardCapabilities,
+    expectSource: props.expectSource !== undefined ? props.expectSource : (win?.parent ?? undefined),
+  });
+  configRef.current = {
+    postTarget: props.postTarget ?? win?.parent,
+    listenTarget: props.listenTarget ?? (win as unknown as EmbedEventTarget | null) ?? undefined,
+    getHref: props.getHref ?? (() => win?.location.href ?? ""),
+    capabilities: props.capabilities ?? [],
+    dashboardCapabilities: props.dashboardCapabilities,
+    expectSource: props.expectSource !== undefined ? props.expectSource : (win?.parent ?? undefined),
+  };
+  // Capabilities keyed by content: a new inline array with the same entries
+  // keeps the subscription (and the single ready) stable.
+  const capKey = JSON.stringify(props.capabilities ?? []);
 
-  const modeRef = useRef<ThemeMode>(getThemeModeFromUrl(getHref()));
+  // "light" until the mount effect reads the URL — the first render must
+  // match SSR to avoid a hydration mismatch.
+  const modeRef = useRef<ThemeMode>("light");
   const themeHandlers = useRef(new Set<(mode: ThemeMode) => void>());
   const titleHandlers = useRef(new Set<(id: string) => void>());
   const saveBarHandlers = useRef(new Set<(action: SaveBarAction) => void>());
   const navigateHandlers = useRef(new Set<(path: string) => void>());
   const pendingPick = useRef<PendingPick | null>(null);
 
+  const settlePick = useCallback((value: ResourceItem[] | null) => {
+    const pending = pendingPick.current;
+    pendingPick.current = null;
+    if (pending !== null) {
+      clearTimeout(pending.timer);
+      pending.resolve(value);
+    }
+  }, []);
+
+  const failPick = useCallback((error: Error) => {
+    const pending = pendingPick.current;
+    pendingPick.current = null;
+    if (pending !== null) {
+      clearTimeout(pending.timer);
+      pending.reject(error);
+    }
+  }, []);
+
   useEffect(() => {
-    sendReady(dashboardOrigin, postTarget, { capabilities, sdkVersion });
+    const config = configRef.current;
+    sendReady(dashboardOrigin, config.postTarget, { capabilities: config.capabilities, sdkVersion });
+    // Sync the URL theme after mount (render stayed SSR-safe "light").
+    const initial = getThemeModeFromUrl(config.getHref());
+    if (initial !== modeRef.current) {
+      modeRef.current = initial;
+      applyTheme(initial);
+      for (const handler of themeHandlers.current) {
+        handler(initial);
+      }
+    }
     const stop = listenToDashboard({
       dashboardOrigin,
-      target: listenTarget,
+      target: config.listenTarget,
+      expectSource: config.expectSource ?? undefined,
       onTheme: (theme) => {
         modeRef.current = theme.mode;
         applyTheme(theme.mode);
@@ -185,30 +246,19 @@ export function QueekProvider(props: QueekProviderProps): ReactNode {
           handler(path);
         }
       },
-      onResourcePicked: (items) => {
-        pendingPick.current?.resolve(items);
-        pendingPick.current = null;
-      },
-      onResourcePickCancelled: () => {
-        pendingPick.current?.resolve(null);
-        pendingPick.current = null;
-      },
+      onResourcePicked: (items) => settlePick(items),
+      onResourcePickCancelled: () => settlePick(null),
     });
     return () => {
-      pendingPick.current?.reject(new Error("QueekProvider unmounted"));
-      pendingPick.current = null;
+      failPick(new Error("QueekProvider unmounted"));
       stop();
     };
-  }, [dashboardOrigin, postTarget, listenTarget, capabilities, sdkVersion]);
+  }, [dashboardOrigin, capKey, sdkVersion, settlePick, failPick]);
 
   const state = useMemo<BridgeState>(
     () => ({
       dashboardOrigin,
-      postTarget,
-      listenTarget,
-      capabilities,
-      sdkVersion,
-      getHref,
+      post: (send) => send(dashboardOrigin, configRef.current.postTarget),
       subscribeTheme: (handler) => {
         themeHandlers.current.add(handler);
         return () => {
@@ -234,17 +284,35 @@ export function QueekProvider(props: QueekProviderProps): ReactNode {
         };
       },
       requestPick: (request) => {
+        // Validate BEFORE registering: an invalid request rejects at once
+        // and can never deadlock a later pick.
+        if (
+          typeof request !== "object" ||
+          request === null ||
+          (request as { resourceType?: unknown }).resourceType !== "product"
+        ) {
+          return Promise.reject(new Error("pickResource supports product resources only"));
+        }
         if (pendingPick.current !== null) {
           return Promise.reject(new Error("pickResource already in progress"));
         }
-        sendPickResource(dashboardOrigin, postTarget, request);
+        const supported = configRef.current.dashboardCapabilities;
+        if (supported !== undefined && !supported.includes("pick-resource")) {
+          return Promise.reject(new Error("dashboard does not support pick-resource"));
+        }
+        const config = configRef.current;
+        sendPickResource(dashboardOrigin, config.postTarget, request);
         return new Promise<ResourceItem[] | null>((resolve, reject) => {
-          pendingPick.current = { resolve, reject };
+          const timer = setTimeout(() => {
+            failPick(new Error("pickResource timed out"));
+          }, PICK_TIMEOUT_MS);
+          (timer as unknown as { unref?: () => void }).unref?.();
+          pendingPick.current = { resolve, reject, timer };
         });
       },
       currentMode: () => modeRef.current,
     }),
-    [dashboardOrigin, postTarget, listenTarget, capabilities, sdkVersion, getHref],
+    [dashboardOrigin, capKey, sdkVersion],
   );
 
   return createElement(QueekBridgeContext.Provider, { value: state }, children);
@@ -261,43 +329,48 @@ function useBridge(): BridgeState {
 /** Bridge actions + live theme over the framework-free core. */
 export function useQueek(): QueekApi {
   const bridge = useBridge();
-  const { dashboardOrigin, postTarget } = bridge;
-  const [mode, setMode] = useState<ThemeMode>(() => bridge.currentMode());
+  const { post } = bridge;
+  // "light" first (matches SSR); the effect below syncs the live mode, so a
+  // dark URL theme never causes a hydration mismatch.
+  const [mode, setMode] = useState<ThemeMode>("light");
 
-  useEffect(() => bridge.subscribeTheme(setMode), [bridge]);
+  useEffect(() => {
+    setMode(bridge.currentMode());
+    return bridge.subscribeTheme(setMode);
+  }, [bridge]);
 
   const toast = useCallback(
     (message: string, options?: ToastOptions) => {
-      sendToast(dashboardOrigin, postTarget, message, options);
+      post((origin, target) => sendToast(origin, target, message, options));
     },
-    [dashboardOrigin, postTarget],
+    [post],
   );
 
   const saveBar = useMemo<SaveBarApi>(
     () => ({
-      dirty: () => sendSaveBar(dashboardOrigin, postTarget, "dirty"),
-      clean: () => sendSaveBar(dashboardOrigin, postTarget, "clean"),
+      dirty: () => post((origin, target) => sendSaveBar(origin, target, "dirty")),
+      clean: () => post((origin, target) => sendSaveBar(origin, target, "clean")),
       onAction: (handler) => bridge.subscribeSaveBarAction(handler),
     }),
-    [bridge, dashboardOrigin, postTarget],
+    [bridge, post],
   );
 
   const title = useMemo<TitleApi>(
     () => ({
       set: (heading: string, actions?: TitleActions) =>
-        sendTitle(dashboardOrigin, postTarget, heading, actions),
+        post((origin, target) => sendTitle(origin, target, heading, actions)),
       onAction: (handler) => bridge.subscribeTitleAction(handler),
     }),
-    [bridge, dashboardOrigin, postTarget],
+    [bridge, post],
   );
 
   const navigate = useMemo<NavigateApi>(
     () => ({
-      report: (path: string) => sendNavigated(dashboardOrigin, postTarget, path),
+      report: (path: string) => post((origin, target) => sendNavigated(origin, target, path)),
       onNavigate: (handler) => bridge.subscribeNavigate(handler),
-      open: (target: string) => sendOpen(dashboardOrigin, postTarget, target),
+      open: (openTarget: string) => post((origin, target) => sendOpen(origin, target, openTarget)),
     }),
-    [bridge, dashboardOrigin, postTarget],
+    [bridge, post],
   );
 
   const pickResource = useCallback((request: PickResourceRequest) => bridge.requestPick(request), [bridge]);

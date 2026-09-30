@@ -181,7 +181,16 @@ try {
   honoFailed = true;
 }
 if (!honoFailed) throw new Error("@usequeek/app-sdk/hono loaded without hono installed");
-console.log("core ok: install handoff + webhook dispatch with plain Request, layer-1 Express/Fastify shapes, no hono");
+// The React subpath MUST NOT load here either: no react is installed, and
+// the root entry must not need it.
+let reactFailed = false;
+try {
+  await import("@usequeek/app-sdk/react");
+} catch {
+  reactFailed = true;
+}
+if (!reactFailed) throw new Error("@usequeek/app-sdk/react loaded without react installed");
+console.log("core ok: install handoff + webhook dispatch with plain Request, layer-1 Express/Fastify shapes, no hono, no react");
 `;
 
 /** Sandbox B: WITH `hono` — the thin wrappers serve the same handoff + webhooks. */
@@ -260,11 +269,41 @@ if (webhookRes.status !== 200) throw new Error("hono webhook dispatch failed: " 
 console.log("hono ok: install handlers + webhooks via /hono wrappers");
 `;
 
-function sandbox(pkgName, tarballPath, withHono, exampleSource) {
+/** Sandbox C: WITH `react` — the ./react entry resolves and renders once. */
+const REACT_EXAMPLE = `import { createElement } from "react";
+import { renderToString } from "react-dom/server";
+import { QueekProvider, useQueek } from "@usequeek/app-sdk/react";
+
+if (typeof QueekProvider !== "function") throw new Error("missing QueekProvider");
+if (typeof useQueek !== "function") throw new Error("missing useQueek");
+
+function Probe() {
+  const queek = useQueek();
+  if (typeof queek.toast !== "function") throw new Error("missing toast");
+  if (typeof queek.saveBar.dirty !== "function") throw new Error("missing saveBar");
+  if (typeof queek.title.set !== "function") throw new Error("missing title");
+  if (typeof queek.navigate.report !== "function") throw new Error("missing navigate");
+  if (typeof queek.pickResource !== "function") throw new Error("missing pickResource");
+  if (queek.theme.mode !== "light") throw new Error("SSR first render must be light, got: " + queek.theme.mode);
+  return null;
+}
+const html = renderToString(
+  createElement(
+    QueekProvider,
+    { dashboardOrigin: "https://merchant.example.com" },
+    createElement(Probe),
+  ),
+);
+if (typeof html !== "string") throw new Error("react SSR render failed");
+console.log("react ok: ./react resolves QueekProvider + useQueek and renders once via react-dom/server");
+`;
+
+function sandbox(pkgName, tarballPath, withHono, exampleSource, extraDeps) {
   const dir = mkdtempSync(join(tmpdir(), withHono ? "sdk-consumer-hono-" : "sdk-consumer-core-"));
   try {
     const dependencies = { [pkgName]: `file:${tarballPath}` };
     if (withHono) dependencies.hono = "^4";
+    Object.assign(dependencies, extraDeps ?? {});
     writeFileSync(
       join(dir, "package.json"),
       JSON.stringify(
@@ -273,7 +312,10 @@ function sandbox(pkgName, tarballPath, withHono, exampleSource) {
         2,
       ),
     );
-    console.log(`verify-package: installing from the tarball (${withHono ? "with" : "without"} hono)…`);
+    const extras = Object.keys(extraDeps ?? {}).join("+");
+    console.log(
+      `verify-package: installing from the tarball (${withHono ? "with" : "without"} hono${extras ? `, with ${extras}` : ""})…`,
+    );
     run("npm", ["install", "--no-audit", "--no-fund"], dir);
     writeFileSync(join(dir, "example.mjs"), exampleSource);
     const out = run("node", ["example.mjs"], dir);
@@ -288,7 +330,10 @@ function main() {
   try {
     sandbox(pkg.name, tarballPath, false, CORE_EXAMPLE);
     sandbox(pkg.name, tarballPath, true, HONO_EXAMPLE);
-    console.log("verify-package: outsider consumer passed (core without hono, wrappers with hono)");
+    sandbox(pkg.name, tarballPath, false, REACT_EXAMPLE, { react: "^19", "react-dom": "^19" });
+    console.log(
+      "verify-package: outsider consumer passed (core without hono/react, wrappers with hono, react entry with react)",
+    );
   } finally {
     rmSync(join(tarballPath, ".."), { recursive: true, force: true });
   }

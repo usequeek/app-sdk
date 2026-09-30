@@ -337,9 +337,13 @@ Hono: mount `createProxyHandler({ store, path, onVerified })` from
   `navigate`/`navigated`, `open`, `pick-resource`/`resource-picked`/
   `resource-pick-cancelled`), unknown types ignored, every outbound string
   length-capped client-side. `listenToDashboard` (accepts only the exact
-  dashboard origin) and typed senders (`sendReady`, `sendToast`,
-  `sendSaveBar`, `sendTitle`, `sendNavigated`, `sendOpen`,
-  `sendPickResource`, …) to the exact target origin, never `"*"`.
+  dashboard origin, plus an `expectSource` window check) and typed senders
+  (`sendReady`, `sendToast`, `sendSaveBar`, `sendTitle`, `sendNavigated`,
+  `sendOpen`, `sendPickResource`, …) to the exact target origin, never `"*"`.
+  `parseOutboundMessage` runs the same per-type validation the dashboard
+  runs — the dashboard re-validates everything before acting (open targets,
+  title/toast/pick content), so a compromised frame cannot smuggle
+  `javascript:` URLs or uncapped strings through the bridge.
 - **auth** (`auth-fetch.ts`, browser-safe, no secret): `installAuthFetch({ exchange })`
   — reads the launch token (`id_token` query param) from the signed first
   load, strips it with `history.replaceState`, exchanges it once for the

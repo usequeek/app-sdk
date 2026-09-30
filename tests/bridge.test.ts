@@ -2,8 +2,10 @@ import { describe, expect, it, vi } from "vitest";
 import {
   APP_SOURCE,
   type AppInboundMessage,
+  clipOutbound,
   DASHBOARD_SOURCE,
   type EmbedEvent,
+  isAllowedOpenTarget,
   listenToDashboard,
   parseInboundMessage,
   parseOutboundMessage,
@@ -39,9 +41,9 @@ function fakeTargets() {
       posts.push({ message, origin });
     },
   };
-  const fire = (origin: string, data: unknown) => {
+  const fire = (origin: string, data: unknown, source?: unknown) => {
     for (const listener of listeners.get("message") ?? []) {
-      listener({ origin, data });
+      listener({ origin, data, source });
     }
   };
   return { listenTarget, postTarget, posts, fire };
@@ -204,6 +206,7 @@ describe("outbound length caps", () => {
       secondaryActions: [{ id: "s", label: "x" }],
     });
     sendNavigated(ORIGIN, postTarget, `/p/${"y".repeat(3000)}`);
+    sendOpen(ORIGIN, postTarget, `https://merchant.example.com/${"z".repeat(1900)}`);
     sendOpen(ORIGIN, postTarget, `https://merchant.example.com/${"z".repeat(3000)}`);
     expect(posts).toHaveLength(4);
     const toast = posts[0]?.message as { message: string; tone: string; durationMs: number };
@@ -251,6 +254,8 @@ describe("outbound length caps", () => {
     sendSaveBar(ORIGIN, postTarget, "maybe" as "dirty");
     sendNavigated(ORIGIN, postTarget, "");
     sendOpen(ORIGIN, postTarget, "");
+    sendOpen(ORIGIN, postTarget, "javascript:alert(1)");
+    sendOpen(ORIGIN, postTarget, "//evil.example.com/x");
     sendPickResource(ORIGIN, postTarget, { resourceType: "order" as "product" });
     sendToast(ORIGIN, postTarget, "ok", { tone: "loud" as "info" });
     expect(posts).toHaveLength(1);
@@ -262,5 +267,148 @@ describe("outbound length caps", () => {
     sendSaveBar(ORIGIN, postTarget, "dirty");
     expect(posts[0]?.message).toEqual({ source: APP_SOURCE, type: "resize", height: 2001 });
     expect(posts[1]?.message).toEqual({ source: APP_SOURCE, type: "save-bar", state: "dirty" });
+  });
+});
+
+describe("isAllowedOpenTarget", () => {
+  it.each([
+    ["/apps/orders", true],
+    ["settings/general", true],
+    ["https://merchant.example.com/apps/x", true],
+    ["https://other.example.com/page", true],
+    ["javascript:alert(1)", false],
+    ["  javascript:alert(1)", false],
+    ["JaVaScRiPt:alert(1)", false],
+    ["data:text/html,<h1>x</h1>", false],
+    ["vbscript:msgbox(1)", false],
+    ["file:///etc/passwd", false],
+    ["//evil.example.com/x", false],
+    ["http://other.example.com/x", false],
+    ["java\tscript:alert(1)", false],
+    ["", false],
+    ["   ", false],
+  ])("target %j allowed=%j", (target, allowed) => {
+    expect(isAllowedOpenTarget(target, ORIGIN)).toBe(allowed);
+  });
+
+  it("fails closed on an unparsable dashboard origin", () => {
+    expect(isAllowedOpenTarget("/apps/x", "not a url")).toBe(false);
+  });
+});
+
+describe("parseOutboundMessage as the dashboard gate", () => {
+  it("validates every type with the sender caps", () => {
+    expect(
+      parseOutboundMessage({ source: APP_SOURCE, type: "toast", message: "hi", tone: "success" }),
+    ).toEqual({ source: APP_SOURCE, type: "toast", message: "hi", tone: "success" });
+    expect(
+      parseOutboundMessage({ source: APP_SOURCE, type: "toast", message: "x".repeat(600) }),
+    ).toMatchObject({ type: "toast", message: expect.any(String) });
+    const long = parseOutboundMessage({ source: APP_SOURCE, type: "toast", message: "x".repeat(600) });
+    expect((long as { message: string }).message).toHaveLength(500);
+  });
+
+  it.each([
+    { source: APP_SOURCE, type: "toast", message: "hi", tone: "loud" },
+    { source: APP_SOURCE, type: "toast", message: "" },
+    { source: APP_SOURCE, type: "save-bar", state: "maybe" },
+    { source: APP_SOURCE, type: "title", heading: "" },
+    { source: APP_SOURCE, type: "navigated", path: "" },
+    { source: APP_SOURCE, type: "open", target: "" },
+    { source: APP_SOURCE, type: "pick-resource", resourceType: "order" },
+    { source: APP_SOURCE, type: "pick-resource", resourceType: "product", multiple: "yes" },
+    { source: APP_SOURCE, type: "pick-resource", resourceType: "product", filter: 42 },
+    { source: APP_SOURCE, type: "ready", capabilities: "title" },
+    { source: APP_SOURCE, type: "ready", sdkVersion: 42 },
+    { source: APP_SOURCE, type: "title", heading: "h", secondaryActions: "x" },
+  ])("rejects %j", (data) => {
+    expect(parseOutboundMessage(data)).toBeNull();
+  });
+
+  it("gates open targets when the dashboard origin is passed", () => {
+    const open = { source: APP_SOURCE, type: "open", target: "javascript:alert(1)" };
+    expect(parseOutboundMessage(open, ORIGIN)).toBeNull();
+    expect(parseOutboundMessage({ ...open, target: "/apps/x" }, ORIGIN)).toMatchObject({
+      type: "open",
+      target: "/apps/x",
+    });
+    // Without the origin the parser can only cap, not judge relativity.
+    expect(parseOutboundMessage(open)).toMatchObject({ type: "open" });
+  });
+
+  it("clamps duration and drops invalid multiple through the parser", () => {
+    expect(
+      parseOutboundMessage({ source: APP_SOURCE, type: "toast", message: "hi", durationMs: 99_999 }),
+    ).toMatchObject({ durationMs: 10_000 });
+    expect(
+      parseOutboundMessage({ source: APP_SOURCE, type: "toast", message: "hi", durationMs: -5 }),
+    ).not.toMatchObject({
+      durationMs: expect.anything(),
+    });
+  });
+});
+
+describe("resource-picked bounds", () => {
+  it("caps items at 100 and drops non-https images", () => {
+    const message = parseInboundMessage({
+      source: DASHBOARD_SOURCE,
+      type: "resource-picked",
+      items: Array.from({ length: 120 }, (_, i) => ({
+        p_id: `p_${i}`,
+        title: `Item ${i}`,
+        image:
+          i % 3 === 0
+            ? "https://cdn.example.com/x.png"
+            : i % 3 === 1
+              ? "/files/x.png"
+              : "javascript:alert(1)",
+      })),
+    });
+    expect(message?.type).toBe("resource-picked");
+    const items = (message as { items: { p_id: string; title: string; image?: string }[] }).items;
+    expect(items).toHaveLength(100);
+    expect(items[0]?.image).toBe("https://cdn.example.com/x.png");
+    expect(items[1]?.image).toBe("/files/x.png");
+    expect(items[2]?.image).toBeUndefined();
+  });
+});
+
+describe("clipOutbound sanitization", () => {
+  it("allow-lists tone/duration/multiple", () => {
+    expect(
+      clipOutbound({ source: APP_SOURCE, type: "toast", message: "hi", tone: "loud" as "info" }),
+    ).toEqual({ source: APP_SOURCE, type: "toast", message: "hi" });
+    expect(
+      clipOutbound({ source: APP_SOURCE, type: "toast", message: "hi", durationMs: 99_999 }),
+    ).toMatchObject({
+      durationMs: 10_000,
+    });
+    expect(
+      clipOutbound({
+        source: APP_SOURCE,
+        type: "pick-resource",
+        resourceType: "product",
+        multiple: "yes" as unknown as boolean,
+      }),
+    ).toEqual({ source: APP_SOURCE, type: "pick-resource", resourceType: "product" });
+  });
+});
+
+describe("expectSource gate", () => {
+  it("ignores events from the wrong sender window", () => {
+    const { listenTarget, fire } = fakeTargets();
+    const onToken = vi.fn();
+    const parent = { name: "parent" };
+    const stop = listenToDashboard({
+      dashboardOrigin: ORIGIN,
+      target: listenTarget,
+      expectSource: parent,
+      onToken,
+    });
+    fire(ORIGIN, { source: DASHBOARD_SOURCE, type: "token", token: "nope" });
+    fire(ORIGIN, { source: DASHBOARD_SOURCE, type: "token", token: "yes" }, parent);
+    expect(onToken).toHaveBeenCalledTimes(1);
+    expect(onToken).toHaveBeenCalledWith("yes");
+    stop();
   });
 });

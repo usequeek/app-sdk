@@ -35,6 +35,12 @@ export interface AuthFetchOptions {
   postTarget?: EmbedPostTarget;
   /** message-event target for the token reply (defaults to the global window). */
   listenTarget?: EmbedEventTarget;
+  /**
+   * Required `event.source` for bridge messages. Defaults to the global
+   * window's parent when present (the embedding dashboard); pass `null` to
+   * disable the source check.
+   */
+  expectSource?: unknown;
   /** fetch implementation (defaults to the global fetch). */
   fetchImpl?: typeof fetch;
   /** Current href (defaults to the global window location). */
@@ -45,7 +51,7 @@ export interface AuthFetchOptions {
 
 export interface InstalledAuth {
   /** Session-carrying fetch: same-origin requests gain the Bearer [REDACTED] 401 retries once after refresh. */
-  fetch: (input: string | URL, init?: RequestInit) => Promise<Response>;
+  fetch: (input: string | URL | Request, init?: RequestInit) => Promise<Response>;
   /** Current app session, or null before the exchange settles / without a token. */
   getSession: () => string | null;
   /** Settles to the session, or null when there is no launch token to exchange. */
@@ -147,9 +153,12 @@ export function installAuthFetch(options: AuthFetchOptions): InstalledAuth {
 
   let pendingToken: { resolve: (token: string) => void; reject: (error: Error) => void } | null = null;
 
+  const expectSource = options.expectSource !== undefined ? options.expectSource : (win?.parent ?? undefined);
+
   const stopListening = listenToDashboard({
     dashboardOrigin: options.dashboardOrigin,
     target: listenTarget,
+    expectSource: expectSource ?? undefined,
     onToken: (token) => {
       pendingToken?.resolve(token);
       pendingToken = null;
@@ -184,37 +193,76 @@ export function installAuthFetch(options: AuthFetchOptions): InstalledAuth {
     return refreshPromise;
   };
 
-  const isSameOrigin = (input: string | URL): boolean => {
+  /**
+   * Resolve the request URL without coercing: a `Request` carries its URL in
+   * `.url` (`String(request)` is `"[object Request]"` and would resolve
+   * same-origin — leaking the bearer cross-origin). Anything that is not a
+   * string, URL, or Request resolves to null and never gains a bearer.
+   */
+  const requestUrl = (input: string | URL | Request): string | null => {
     try {
-      return new URL(String(input), getHref()).origin === new URL(getHref()).origin;
+      if (typeof Request !== "undefined" && input instanceof Request) {
+        return input.url;
+      }
+      if (input instanceof URL) {
+        return input.href;
+      }
+      if (typeof input === "string") {
+        return input;
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  };
+
+  const isSameOrigin = (url: string): boolean => {
+    try {
+      return new URL(url, getHref()).origin === new URL(getHref()).origin;
     } catch {
       return false;
     }
   };
 
   const withSession = async (
-    input: string | URL,
+    input: string | URL | Request,
     init: RequestInit | undefined,
     token: string,
   ): Promise<Response> => {
-    const headers = new Headers(init?.headers);
+    // Merge: the Request's own headers first, the explicit init wins.
+    const headers = new Headers(
+      typeof Request !== "undefined" && input instanceof Request ? input.headers : undefined,
+    );
+    if (init?.headers !== undefined) {
+      new Headers(init.headers).forEach((value, key) => {
+        headers.set(key, value);
+      });
+    }
     if (!headers.has("authorization")) {
       headers.set("authorization", `Bearer ${token}`);
     }
     return fetchFn(input as string, { ...init, headers, credentials: "omit" });
   };
 
-  const authFetch = async (input: string | URL, init?: RequestInit): Promise<Response> => {
-    if (!isSameOrigin(input)) {
+  const authFetch = async (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
+    const url = requestUrl(input);
+    if (url === null || !isSameOrigin(url)) {
       return fetchFn(input as string, init);
     }
-    const current = session ?? (await ready);
-    if (current === null) {
+    // No session yet (e.g. no launch token after an in-frame hard reload):
+    // recover via the bridge ready→token flow before giving up.
+    const used = session ?? (await ready) ?? (await refresh().catch(() => null));
+    if (used === null) {
       return fetchFn(input as string, { ...init, credentials: "omit" });
     }
-    const first = await withSession(input, init, current);
+    const first = await withSession(input, init, used);
     if (first.status !== 401) {
       return first;
+    }
+    // Someone else already refreshed while we were in flight: retry once
+    // with the current session instead of refreshing again.
+    if (session !== null && session !== used) {
+      return withSession(input, init, session);
     }
     // One re-establishment per 401, then exactly one retry.
     try {

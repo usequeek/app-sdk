@@ -3,7 +3,7 @@ import { act, Component, createElement, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DASHBOARD_SOURCE } from "../src/frame.js";
-import { type QueekApi, QueekProvider, useQueek } from "../src/react.js";
+import { PICK_TIMEOUT_MS, type QueekApi, QueekProvider, useQueek } from "../src/react.js";
 
 /** ./react: useQueek() posts the right bridge messages over the core. */
 
@@ -32,8 +32,8 @@ function fakeBridge() {
       posts.push({ message, origin });
     },
   };
-  const fire = (origin: string, data: unknown) => {
-    listener?.({ origin, data });
+  const fire = (origin: string, data: unknown, source: unknown = window.parent) => {
+    listener?.({ origin, data, source });
   };
   return { posts, listenTarget, postTarget, fire };
 }
@@ -227,6 +227,194 @@ describe("useQueek", () => {
       bridge.fire(ORIGIN, { source: DASHBOARD_SOURCE, type: "theme", mode: "light" });
     });
     expect(document.documentElement.classList.contains("dark")).toBe(false);
+  });
+
+  it("syncs the URL theme after mount (SSR-safe first render)", async () => {
+    const bridge = fakeBridge();
+    let api: QueekApi | null = null;
+    await render(
+      createElement(
+        QueekProvider,
+        {
+          dashboardOrigin: ORIGIN,
+          postTarget: bridge.postTarget,
+          listenTarget: bridge.listenTarget,
+          getHref: () => "https://app.example.test/admin?theme=dark",
+        },
+        createElement(
+          probe((next) => {
+            api = next;
+          }),
+        ),
+      ),
+    );
+    expect(api?.theme.mode).toBe("dark");
+  });
+
+  it("ignores bridge messages from the wrong sender window", async () => {
+    const bridge = fakeBridge();
+    let api: QueekApi | null = null;
+    await render(
+      createElement(
+        QueekProvider,
+        {
+          dashboardOrigin: ORIGIN,
+          postTarget: bridge.postTarget,
+          listenTarget: bridge.listenTarget,
+          getHref: () => "https://app.example.test/admin",
+        },
+        createElement(
+          probe((next) => {
+            api = next;
+          }),
+        ),
+      ),
+    );
+    await act(async () => {
+      bridge.fire(ORIGIN, { source: DASHBOARD_SOURCE, type: "theme", mode: "dark" }, { name: "stranger" });
+    });
+    expect(api?.theme.mode).toBe("light");
+    await act(async () => {
+      bridge.fire(ORIGIN, { source: DASHBOARD_SOURCE, type: "theme", mode: "dark" });
+    });
+    expect(api?.theme.mode).toBe("dark");
+  });
+
+  it("survives parent re-renders: one ready, in-flight pick intact", async () => {
+    const bridge = fakeBridge();
+    let api: QueekApi | null = null;
+    const shell = (bump: number) =>
+      createElement(
+        QueekProvider,
+        {
+          dashboardOrigin: ORIGIN,
+          // Fresh inline props every render — the bridge must NOT resubscribe.
+          capabilities: ["title", "toast"],
+          postTarget: bridge.postTarget,
+          listenTarget: bridge.listenTarget,
+          getHref: () => `https://app.example.test/admin?n=${bump}`,
+        },
+        createElement(
+          probe((next) => {
+            api = next;
+          }),
+        ),
+      );
+    await render(shell(0));
+    const picking = api?.pickResource({ resourceType: "product" });
+    await render(shell(1));
+    await render(shell(2));
+    expect(bridge.posts.filter((post) => (post.message as { type: string }).type === "ready")).toHaveLength(
+      1,
+    );
+    await act(async () => {
+      bridge.fire(ORIGIN, {
+        source: DASHBOARD_SOURCE,
+        type: "resource-picked",
+        items: [{ p_id: "p_9", title: "Kept" }],
+      });
+    });
+    await expect(picking).resolves.toEqual([{ p_id: "p_9", title: "Kept" }]);
+  });
+
+  it("rejects invalid picks before registering (no deadlock)", async () => {
+    const bridge = fakeBridge();
+    let api: QueekApi | null = null;
+    await render(
+      createElement(
+        QueekProvider,
+        {
+          dashboardOrigin: ORIGIN,
+          postTarget: bridge.postTarget,
+          listenTarget: bridge.listenTarget,
+          getHref: () => "https://app.example.test/admin",
+        },
+        createElement(
+          probe((next) => {
+            api = next;
+          }),
+        ),
+      ),
+    );
+    const readyPosts = bridge.posts.length;
+    await expect(api?.pickResource({ resourceType: "order" as "product" })).rejects.toThrow(
+      /product resources only/,
+    );
+    expect(bridge.posts).toHaveLength(readyPosts);
+    const valid = api?.pickResource({ resourceType: "product" });
+    await act(async () => {
+      bridge.fire(ORIGIN, {
+        source: DASHBOARD_SOURCE,
+        type: "resource-picked",
+        items: [{ p_id: "p_1", title: "Shirt" }],
+      });
+    });
+    await expect(valid).resolves.toEqual([{ p_id: "p_1", title: "Shirt" }]);
+  });
+
+  it("rejects at once when the dashboard lacks pick-resource", async () => {
+    const bridge = fakeBridge();
+    let api: QueekApi | null = null;
+    await render(
+      createElement(
+        QueekProvider,
+        {
+          dashboardOrigin: ORIGIN,
+          dashboardCapabilities: ["title", "toast"],
+          postTarget: bridge.postTarget,
+          listenTarget: bridge.listenTarget,
+          getHref: () => "https://app.example.test/admin",
+        },
+        createElement(
+          probe((next) => {
+            api = next;
+          }),
+        ),
+      ),
+    );
+    const readyPosts = bridge.posts.length;
+    await expect(api?.pickResource({ resourceType: "product" })).rejects.toThrow(/does not support/);
+    expect(bridge.posts).toHaveLength(readyPosts);
+  });
+
+  it("times out a pick the dashboard never answers", async () => {
+    const bridge = fakeBridge();
+    let api: QueekApi | null = null;
+    await render(
+      createElement(
+        QueekProvider,
+        {
+          dashboardOrigin: ORIGIN,
+          postTarget: bridge.postTarget,
+          listenTarget: bridge.listenTarget,
+          getHref: () => "https://app.example.test/admin",
+        },
+        createElement(
+          probe((next) => {
+            api = next;
+          }),
+        ),
+      ),
+    );
+    vi.useFakeTimers();
+    try {
+      const picking = api?.pickResource({ resourceType: "product" });
+      const assertion = expect(picking).rejects.toThrow(/timed out/);
+      await vi.advanceTimersByTimeAsync(PICK_TIMEOUT_MS);
+      await assertion;
+      // The slot is free again after the timeout.
+      const retry = api?.pickResource({ resourceType: "product" });
+      await act(async () => {
+        bridge.fire(ORIGIN, {
+          source: DASHBOARD_SOURCE,
+          type: "resource-picked",
+          items: [{ p_id: "p_2", title: "Again" }],
+        });
+      });
+      await expect(retry).resolves.toEqual([{ p_id: "p_2", title: "Again" }]);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("throws outside the provider", async () => {

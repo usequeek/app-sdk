@@ -40,6 +40,8 @@ export const MAX_IMAGE_URL_LENGTH = 2048;
 export const MAX_FILTER_LENGTH = 64;
 export const MAX_TOAST_DURATION_MS = 10_000;
 export const MAX_RESIZE_HEIGHT = 10_000;
+/** Dashboard answers carry at most this many picked items; the rest is dropped. */
+export const MAX_PICKED_ITEMS = 100;
 
 export type ThemeMode = "light" | "dark";
 export type SaveBarState = "dirty" | "clean";
@@ -108,6 +110,8 @@ export type AppInboundMessage =
 export interface EmbedEvent {
   origin: string;
   data: unknown;
+  /** The sender window (`MessageEvent.source`); checked when `expectSource` is set. */
+  source?: unknown;
 }
 
 export interface EmbedEventTarget {
@@ -123,6 +127,12 @@ export interface FrameBridgeOptions {
   /** Exact dashboard origin (e.g. from the embed query or app config). */
   dashboardOrigin: string;
   target?: EmbedEventTarget;
+  /**
+   * When set, only events whose `source` is this exact value are accepted
+   * (normally the embedding window — an origin check alone does not bind
+   * WHICH frame sent the message).
+   */
+  expectSource?: unknown;
   onToken?: (token: string) => void;
   onResizeAck?: () => void;
   onTheme?: (theme: BridgeTheme) => void;
@@ -198,11 +208,78 @@ function parseResourceItem(value: unknown): ResourceItem | null {
     return null;
   }
   const item: ResourceItem = { p_id: pId, title };
-  const image = optText(value.image, MAX_IMAGE_URL_LENGTH);
-  if (image !== undefined) {
-    item.image = image;
+  // Optional decoration: kept only when it is an https URL or a
+  // dashboard-relative path — never javascript:/data:/etc.
+  if (typeof value.image === "string" && isAllowedImageUrl(value.image)) {
+    item.image = capText(value.image.trim(), MAX_IMAGE_URL_LENGTH);
   }
   return item;
+}
+
+/** Image URLs the dashboard may attach to picked items. */
+export function isAllowedImageUrl(image: unknown): boolean {
+  if (typeof image !== "string" || image.length === 0 || image.length > MAX_IMAGE_URL_LENGTH) {
+    return false;
+  }
+  const trimmed = image.trim();
+  if (trimmed.length === 0 || /[\u0000-\u001f\u007f]/.test(trimmed)) {
+    return false;
+  }
+  const lower = trimmed.toLowerCase();
+  if (/^(javascript|data|vbscript|file):/.test(lower)) {
+    return false;
+  }
+  if (trimmed.startsWith("//")) {
+    return false;
+  }
+  if (trimmed.startsWith("/")) {
+    return true;
+  }
+  try {
+    return new URL(trimmed).protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Open targets the app may ask the dashboard to open: a dashboard-relative
+ * reference (resolves under the dashboard origin) or an absolute https URL
+ * (the dashboard applies its own allowlist on top). Everything else —
+ * javascript:/data:/vbscript:/file:, protocol-relative, non-https, control
+ * characters — is refused. The dashboard re-validates every target.
+ */
+export function isAllowedOpenTarget(target: unknown, dashboardOrigin: string): boolean {
+  if (typeof target !== "string" || target.length === 0 || target.length > MAX_TARGET_LENGTH) {
+    return false;
+  }
+  const trimmed = target.trim();
+  if (trimmed.length === 0 || /[\u0000-\u001f\u007f]/.test(trimmed)) {
+    return false;
+  }
+  const lower = trimmed.toLowerCase();
+  if (/^(javascript|data|vbscript|file):/.test(lower)) {
+    return false;
+  }
+  if (trimmed.startsWith("//")) {
+    return false;
+  }
+  let base: URL;
+  try {
+    base = new URL(dashboardOrigin);
+  } catch {
+    return false;
+  }
+  let url: URL;
+  try {
+    url = new URL(trimmed, base);
+  } catch {
+    return false;
+  }
+  if (url.origin === base.origin) {
+    return true;
+  }
+  return url.protocol === "https:";
 }
 
 /**
@@ -253,7 +330,7 @@ export function parseInboundMessage(data: unknown): AppInboundMessage | null {
         return null;
       }
       const items: ResourceItem[] = [];
-      for (const raw of data.items) {
+      for (const raw of data.items.slice(0, MAX_PICKED_ITEMS)) {
         const item = parseResourceItem(raw);
         if (item === null) {
           return null;
@@ -269,11 +346,26 @@ export function parseInboundMessage(data: unknown): AppInboundMessage | null {
   }
 }
 
+function isToastTone(value: unknown): value is ToastTone {
+  return value === "info" || value === "success" || value === "warning" || value === "critical";
+}
+
+function clampDurationMs(value: unknown): number | undefined {
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
+    return undefined;
+  }
+  return Math.min(MAX_TOAST_DURATION_MS, Math.floor(value));
+}
+
 /**
- * Parse one app→dashboard message (the dashboard runs the same check).
- * Unknown types return null — ignored, never acted on.
+ * Parse one app→dashboard message with the same per-type validation + caps
+ * the senders apply — this parser is what the dashboard runs, so it must be
+ * trustworthy: malformed required fields reject the message (null), malformed
+ * optional fields are dropped, and every string is length-capped.
+ * Unknown types return null — ignored, never acted on. Pass the dashboard
+ * origin to also gate `open` targets via `isAllowedOpenTarget`.
  */
-export function parseOutboundMessage(data: unknown): AppOutboundMessage | null {
+export function parseOutboundMessage(data: unknown, dashboardOrigin?: string): AppOutboundMessage | null {
   if (!isRecord(data)) {
     return null;
   }
@@ -281,22 +373,139 @@ export function parseOutboundMessage(data: unknown): AppOutboundMessage | null {
     return null;
   }
   switch (data.type) {
-    case "ready":
-    case "ack":
-      return { source: APP_SOURCE, type: data.type };
+    case "ready": {
+      const out: AppOutboundMessage = { source: APP_SOURCE, type: "ready" };
+      if (data.capabilities !== undefined) {
+        if (!Array.isArray(data.capabilities)) {
+          return null;
+        }
+        out.capabilities = data.capabilities
+          .filter((entry): entry is string => typeof entry === "string" && entry.length > 0)
+          .slice(0, MAX_CAPABILITIES)
+          .map((entry) => capText(entry, MAX_CAPABILITY_LENGTH));
+      }
+      if (data.sdkVersion !== undefined) {
+        if (typeof data.sdkVersion !== "string" || data.sdkVersion.length === 0) {
+          return null;
+        }
+        out.sdkVersion = capText(data.sdkVersion, MAX_SDK_VERSION_LENGTH);
+      }
+      return out;
+    }
     case "resize":
       return typeof data.height === "number" && Number.isFinite(data.height)
-        ? { source: APP_SOURCE, type: "resize", height: data.height }
+        ? {
+            source: APP_SOURCE,
+            type: "resize",
+            height: Math.min(MAX_RESIZE_HEIGHT, Math.max(0, Math.round(data.height))),
+          }
         : null;
-    case "title":
-    case "toast":
+    case "ack":
+      return { source: APP_SOURCE, type: "ack" };
+    case "title": {
+      if (typeof data.heading !== "string" || data.heading.length === 0) {
+        return null;
+      }
+      const out: AppOutboundMessage = {
+        source: APP_SOURCE,
+        type: "title",
+        heading: capText(data.heading, MAX_HEADING_LENGTH),
+      };
+      if (data.primaryAction !== undefined) {
+        const primary = parseTitleActionDef(data.primaryAction);
+        if (primary !== null) {
+          out.primaryAction = primary;
+        }
+      }
+      if (data.secondaryActions !== undefined) {
+        if (!Array.isArray(data.secondaryActions)) {
+          return null;
+        }
+        const rest: TitleActionDef[] = [];
+        for (const raw of data.secondaryActions.slice(0, MAX_SECONDARY_ACTIONS)) {
+          const def = parseTitleActionDef(raw);
+          if (def !== null) {
+            rest.push(def);
+          }
+        }
+        if (rest.length > 0) {
+          out.secondaryActions = rest;
+        }
+      }
+      return out;
+    }
+    case "toast": {
+      if (typeof data.message !== "string" || data.message.length === 0) {
+        return null;
+      }
+      const out: AppOutboundMessage = {
+        source: APP_SOURCE,
+        type: "toast",
+        message: capText(data.message, MAX_TOAST_LENGTH),
+      };
+      if (data.tone !== undefined) {
+        if (!isToastTone(data.tone)) {
+          return null;
+        }
+        out.tone = data.tone;
+      }
+      const durationMs = clampDurationMs(data.durationMs);
+      if (durationMs !== undefined) {
+        out.durationMs = durationMs;
+      }
+      return out;
+    }
     case "save-bar":
+      return data.state === "dirty" || data.state === "clean"
+        ? { source: APP_SOURCE, type: "save-bar", state: data.state }
+        : null;
     case "navigated":
-    case "open":
-    case "pick-resource":
-      // Shape-checked by the matching sender; the envelope check above is
-      // the dashboard's only gate for v1 additive types.
-      return data as AppOutboundMessage;
+      return typeof data.path === "string" && data.path.length > 0
+        ? { source: APP_SOURCE, type: "navigated", path: capText(data.path, MAX_PATH_LENGTH) }
+        : null;
+    case "open": {
+      if (typeof data.target !== "string" || data.target.length === 0) {
+        return null;
+      }
+      if (dashboardOrigin !== undefined && !isAllowedOpenTarget(data.target, dashboardOrigin)) {
+        return null;
+      }
+      return { source: APP_SOURCE, type: "open", target: capText(data.target, MAX_TARGET_LENGTH) };
+    }
+    case "pick-resource": {
+      if (data.resourceType !== "product") {
+        return null;
+      }
+      const out: AppOutboundMessage = { source: APP_SOURCE, type: "pick-resource", resourceType: "product" };
+      if (data.multiple !== undefined) {
+        if (typeof data.multiple !== "boolean") {
+          return null;
+        }
+        out.multiple = data.multiple;
+      }
+      if (data.filter !== undefined) {
+        if (typeof data.filter !== "string") {
+          return null;
+        }
+        const filter = optText(data.filter, MAX_FILTER_LENGTH);
+        if (filter !== undefined) {
+          out.filter = filter;
+        }
+      }
+      if (data.selectionIds !== undefined) {
+        if (!Array.isArray(data.selectionIds)) {
+          return null;
+        }
+        const ids = data.selectionIds
+          .filter((entry): entry is string => typeof entry === "string" && entry.length > 0)
+          .slice(0, MAX_SELECTION_IDS)
+          .map((entry) => capText(entry, MAX_SELECTION_ID_LENGTH));
+        if (ids.length > 0) {
+          out.selectionIds = ids;
+        }
+      }
+      return out;
+    }
     default:
       return null;
   }
@@ -437,13 +646,17 @@ export function sendNavigated(
   });
 }
 
-/** Ask the dashboard to open a dashboard path or https URL (sandbox-safe). */
+/**
+ * Ask the dashboard to open a dashboard path or https URL (sandbox-safe).
+ * Anything `isAllowedOpenTarget` refuses is never posted — the dashboard
+ * re-validates every target before acting on it.
+ */
 export function sendOpen(
   dashboardOrigin: string,
   target: EmbedPostTarget | undefined,
   openTarget: string,
 ): void {
-  if (typeof openTarget !== "string" || openTarget.length === 0) {
+  if (!isAllowedOpenTarget(openTarget, dashboardOrigin)) {
     return;
   }
   sendBridgeMessage(dashboardOrigin, target, {
@@ -500,8 +713,12 @@ export function listenToDashboard(options: FrameBridgeOptions): () => void {
     onResourcePickCancelled,
   } = options;
   const target = options.target;
+  const expectSource = options.expectSource;
   const onMessage = (event: EmbedEvent) => {
     if (event.origin !== dashboardOrigin) {
+      return;
+    }
+    if (expectSource !== undefined && event.source !== expectSource) {
       return;
     }
     const message = parseInboundMessage(event.data);
@@ -601,11 +818,12 @@ export function clipOutbound(message: AppOutboundMessage): AppOutboundMessage {
         type: "toast",
         message: capText(message.message, MAX_TOAST_LENGTH),
       };
-      if (message.tone !== undefined) {
+      if (message.tone !== undefined && isToastTone(message.tone)) {
         out.tone = message.tone;
       }
-      if (message.durationMs !== undefined) {
-        out.durationMs = message.durationMs;
+      const durationMs = clampDurationMs(message.durationMs);
+      if (durationMs !== undefined) {
+        out.durationMs = durationMs;
       }
       return out;
     }
@@ -621,7 +839,7 @@ export function clipOutbound(message: AppOutboundMessage): AppOutboundMessage {
         type: "pick-resource",
         resourceType: "product",
       };
-      if (message.multiple !== undefined) {
+      if (message.multiple !== undefined && typeof message.multiple === "boolean") {
         out.multiple = message.multiple;
       }
       const filter = optText(message.filter, MAX_FILTER_LENGTH);

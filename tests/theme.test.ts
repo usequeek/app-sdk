@@ -4,6 +4,7 @@ import {
   applyTheme,
   getThemeModeFromUrl,
   installThemeListener,
+  rememberThemeMode,
   type ThemeDocument,
   themeBootstrapScript,
 } from "../src/theme.js";
@@ -40,6 +41,34 @@ describe("getThemeModeFromUrl", () => {
     expect(getThemeModeFromUrl("https://app.example.test/admin")).toBe("light");
     expect(getThemeModeFromUrl("https://app.example.test/admin?theme=sepia")).toBe("light");
     expect(getThemeModeFromUrl("not a url at all")).toBe("light");
+  });
+
+  it("falls back to the remembered mode when the URL has no theme param", () => {
+    const store = new Map<string, string>();
+    const storage = {
+      getItem: (key: string) => store.get(key) ?? null,
+      setItem: (key: string, value: string) => {
+        store.set(key, value);
+      },
+    };
+    expect(getThemeModeFromUrl("https://app.example.test/admin", "theme", storage)).toBe("light");
+    rememberThemeMode("dark", storage);
+    expect(getThemeModeFromUrl("https://app.example.test/admin", "theme", storage)).toBe("dark");
+    // The URL param always wins over memory.
+    expect(getThemeModeFromUrl("https://app.example.test/admin?theme=light", "theme", storage)).toBe("light");
+  });
+
+  it("survives denied storage", () => {
+    const denied = {
+      getItem: (): string | null => {
+        throw new Error("denied");
+      },
+      setItem: (): void => {
+        throw new Error("denied");
+      },
+    };
+    expect(() => rememberThemeMode("dark", denied)).not.toThrow();
+    expect(getThemeModeFromUrl("https://app.example.test/admin", "theme", denied)).toBe("light");
   });
 });
 
@@ -101,7 +130,27 @@ describe("installThemeListener", () => {
     };
     const doc = fakeDocument();
     const onChange = vi.fn();
-    const stop = installThemeListener({ dashboardOrigin: ORIGIN, target, onChange, doc });
+    const posts: { message: unknown; origin: string }[] = [];
+    const store = new Map<string, string>();
+    const stop = installThemeListener({
+      dashboardOrigin: ORIGIN,
+      target,
+      onChange,
+      doc,
+      postTarget: {
+        postMessage: (message: unknown, origin: string) => {
+          posts.push({ message, origin });
+        },
+      },
+      storage: {
+        getItem: (key: string) => store.get(key) ?? null,
+        setItem: (key: string, value: string) => {
+          store.set(key, value);
+        },
+      },
+    });
+    // Non-React apps get the mode after an in-frame reload via ready.
+    expect(posts).toEqual([{ message: { source: "queek-app", type: "ready" }, origin: ORIGIN }]);
     const fire = (data: unknown) => {
       for (const listener of listeners.get("message") ?? []) {
         listener({ origin: ORIGIN, data });
@@ -110,6 +159,7 @@ describe("installThemeListener", () => {
     fire({ source: DASHBOARD_SOURCE, type: "theme", mode: "dark" });
     expect(doc.documentElement.style.colorScheme).toBe("dark");
     expect(onChange).toHaveBeenCalledWith("dark");
+    expect(store.get("queek.theme")).toBe("dark");
     fire({ source: DASHBOARD_SOURCE, type: "bogus" });
     expect(onChange).toHaveBeenCalledTimes(1);
     stop();
