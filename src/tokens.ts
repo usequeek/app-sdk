@@ -26,6 +26,7 @@ import {
   type QueekClient,
   queekApiErrorFromResponse,
   type RequestOptions,
+  type ResolvedPaths,
   type RetryOptions,
   resolveApiBase,
   type StoreProfile,
@@ -461,16 +462,16 @@ export interface InstallationClientOptions {
  */
 export function createInstallationClient<TPaths = MerchantPaths>(
   options: InstallationClientOptions,
-): QueekClient<TPaths> {
+): QueekClient<ResolvedPaths<TPaths>> {
   // Validated here, once, before any fetch — same rules as the static client.
   const probe = resolveApiBase(options.apiBase, options.allowedApiHosts ?? []);
   void probe;
   const fetchImpl = options.fetchImpl ?? fetch;
   const userAgent = options.userAgent ?? "queek-app/1.0";
   const allowedApiHosts = options.allowedApiHosts ?? [];
-  let cached: { token: string; client: QueekClient<TPaths> } | null = null;
+  let cached: { token: string; client: QueekClient<ResolvedPaths<TPaths>> } | null = null;
 
-  async function clientForToken(token: string): Promise<QueekClient<TPaths>> {
+  async function clientForToken(token: string): Promise<QueekClient<ResolvedPaths<TPaths>>> {
     if (!cached || cached.token !== token) {
       cached = {
         token,
@@ -563,7 +564,8 @@ export function createInstallationClient<TPaths = MerchantPaths>(
   }
 
   return {
-    getStore: (signal?: AbortSignal) => request<StoreProfile<TPaths>>("GET", "/store", { signal }),
+    getStore: (signal?: AbortSignal) =>
+      request<StoreProfile<ResolvedPaths<TPaths>>>("GET", "/store", { signal }),
     request,
     requestWithRetry,
   };

@@ -1,5 +1,10 @@
 import { describe, expect, expectTypeOf, it, vi } from "vitest";
-import { createQueekClient, type OperationResponse, type StoreProfile } from "../src/client.js";
+import {
+  createQueekClient,
+  type OperationResponse,
+  type QueekClient,
+  type StoreProfile,
+} from "../src/client.js";
 import { createInstallationClient } from "../src/tokens.js";
 import { fakeApiKey } from "./helpers.js";
 
@@ -46,6 +51,25 @@ describe("generic client types (enforced by `npm run typecheck:tests`)", () => {
   it("paths without /store resolve to unknown, never `never` (empty-paths guard)", () => {
     // biome-ignore lint/complexity/noBannedTypes: `{}` IS the edge under test (a paths object with no keys).
     expectTypeOf<StoreProfile<{}>>().toEqualTypeOf<unknown>();
+  });
+
+  it("ReturnType<typeof createInstallationClient> is exactly the default QueekClient", () => {
+    // The alias every real app uses. TS instantiates the unconstrained
+    // generic at `unknown` (ignoring `= paths`); without the StoreProfile
+    // collapse this became QueekClient<unknown> and broke Booking/Forms/Chowdeck.
+    expectTypeOf<ReturnType<typeof createInstallationClient>>().toEqualTypeOf<QueekClient>();
+    expectTypeOf<ReturnType<typeof createQueekClient>>().toEqualTypeOf<QueekClient>();
+  });
+
+  it("consumer pattern: the ReturnType alias is mutually assignable with QueekClient", () => {
+    type InstallationClient = ReturnType<typeof createInstallationClient>;
+    expectTypeOf<InstallationClient>().toExtend<QueekClient>();
+    expectTypeOf<QueekClient>().toExtend<InstallationClient>();
+    // Alias passed where a QueekClient is expected and back (lifecycle.ts pattern).
+    const take = (c: QueekClient): InstallationClient => c;
+    const give = (c: InstallationClient): QueekClient => c;
+    expect(typeof take).toBe("function");
+    expect(typeof give).toBe("function");
   });
 
   it("OperationResponse extracts the app's body over app-owned paths", () => {

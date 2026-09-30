@@ -64,6 +64,17 @@ export type StoreProfile<TPaths = paths> = "get" extends keyof TPaths[Extract<"/
     >
   : unknown;
 
+/**
+ * The paths a generic client is actually typed over. An UNRESOLVED
+ * `TPaths` collapses to the bundled default: TypeScript instantiates an
+ * unconstrained type parameter at `unknown` (ignoring `= paths`) wherever a
+ * generic function's type is inspected without type arguments, e.g.
+ * `ReturnType<typeof createInstallationClient>` — the alias every app uses.
+ * Without this collapse that alias is `QueekClient<unknown>`, not
+ * assignable with `QueekClient`, and existing apps fail to compile on upgrade.
+ */
+export type ResolvedPaths<TPaths> = unknown extends TPaths ? paths : TPaths;
+
 /** Path of the public Merchant API below the store host. */
 export const MERCHANT_API_PATH = "/api/v1/merchant";
 
@@ -338,7 +349,9 @@ function retryDelayMs(
   return Math.min(maxDelayMs, baseDelayMs * 2 ** attempt);
 }
 
-export function createQueekClient<TPaths = paths>(clientOptions: QueekClientOptions): QueekClient<TPaths> {
+export function createQueekClient<TPaths = paths>(
+  clientOptions: QueekClientOptions,
+): QueekClient<ResolvedPaths<TPaths>> {
   const base = resolveApiBase(clientOptions.apiBase, clientOptions.allowedApiHosts ?? []);
   const fetchImpl = clientOptions.fetchImpl ?? fetch;
   const userAgent = clientOptions.userAgent ?? "queek-app/1.0";
@@ -413,7 +426,8 @@ export function createQueekClient<TPaths = paths>(clientOptions: QueekClientOpti
   }
 
   return {
-    getStore: (signal?: AbortSignal) => request<StoreProfile<TPaths>>("GET", "/store", { signal }),
+    getStore: (signal?: AbortSignal) =>
+      request<StoreProfile<ResolvedPaths<TPaths>>>("GET", "/store", { signal }),
     request,
     requestWithRetry,
   };
