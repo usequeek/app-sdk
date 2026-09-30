@@ -452,12 +452,39 @@ export class SqliteInstallationStore implements InstallationStore {
   }
 }
 
+/**
+ * Canonical integer-string form of a Queek `p_id`: the handoff contract
+ * types p_ids as strings, but a backend that sends a JSON integer reaches
+ * here as a JS number — and `node:sqlite` binds that number into a TEXT
+ * column as `"1021.0"`, which never equals the proxy `kid` (`"1021"`).
+ * Non-numeric pids pass through untouched.
+ */
+export function normalisePid(value: unknown): string {
+  if (typeof value === "number" && Number.isFinite(value)) return String(Math.trunc(value));
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (/^[+-]?\d+(\.\d+)?$/.test(trimmed)) {
+      const parsed = Number(trimmed);
+      if (Number.isFinite(parsed)) return String(Math.trunc(parsed));
+    }
+    return value;
+  }
+  return String(value);
+}
+
+/** Nullable form for the store `p_id` (null stays null). */
+export function normaliseNullablePid(value: unknown): string | null {
+  if (value === null || value === undefined) return null;
+  return normalisePid(value);
+}
+
 function rowToRecord(row: Record<string, string | null>, key: Buffer): InstallationRecord {
   return {
     installationId: column(row.installation_id),
-    installationPid: column(row.installation_pid),
+    // Heals rows written before normalisation (`"1021.0"` reads as `"1021"`).
+    installationPid: normalisePid(column(row.installation_pid)),
     vendorId: column(row.vendor_id),
-    storePid: (row.store_pid as string | null) ?? null,
+    storePid: normaliseNullablePid(row.store_pid as string | null),
     storeName: column(row.store_name),
     apiBase: column(row.api_base),
     token: row.token_enc === null ? null : decryptSecret(column(row.token_enc), key),

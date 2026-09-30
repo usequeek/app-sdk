@@ -26,6 +26,7 @@ import {
   WEBHOOK_TIMESTAMP_HEADER,
 } from "./signatures.js";
 import type { InstallationRecord, InstallationStore } from "./store.js";
+import { normaliseNullablePid, normalisePid } from "./store.js";
 
 /**
  * Framework-agnostic handlers for Queek's signed server-to-server handoff
@@ -95,9 +96,12 @@ export function buildInstallationRecord(
 function installationRecordFromInstall(data: InstallData, nowIso: string): InstallationRecord {
   return {
     installationId: data.installation.id,
-    installationPid: data.installation.p_id,
+    // Defensive: a backend sending JSON integers reaches here as JS
+    // numbers, which `node:sqlite` would store as `"1021.0"` in the TEXT
+    // column — never equal to the proxy `kid`. Normalise to integer strings.
+    installationPid: normalisePid(data.installation.p_id),
     vendorId: data.store.id,
-    storePid: data.store.p_id,
+    storePid: normaliseNullablePid(data.store.p_id),
     storeName: data.store.name,
     apiBase: data.api_base,
     // No credential crosses the handoff (S1): a fresh row caches no token

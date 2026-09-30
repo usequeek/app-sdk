@@ -589,4 +589,55 @@ describe("grant change drops the cached installation token", () => {
     expect(after?.scopes).toEqual(["merchant-business_profile-read", "merchant-items-detail"]);
     expect(after?.token).toBeNull();
   });
+
+  it("normalises numeric handoff p_ids to integer strings so the proxy kid matches", async () => {
+    const ctx = setup();
+    // The backend once sent p_ids as JSON integers; node:sqlite binds a JS
+    // number into a TEXT column as "1021.0", so the stored pid never equalled
+    // the proxy `kid` ("1021") and every proxy read 404d. The SDK normalises
+    // defensively even though the backend now sends strings.
+    const body = installBody({
+      installation: { id: "11111111-1111-1111-1111-111111111111", p_id: 1021 },
+      store: {
+        id: "22222222-2222-2222-2222-222222222222",
+        p_id: 1205,
+        name: "Test Store",
+        is_test: true,
+      },
+    });
+    const response = await postRaw(
+      ctx.app,
+      "/install",
+      body,
+      signedHeaders("evt-install-1", NOW, body, APP_SECRET),
+    );
+    expect(response.status).toBe(200);
+    const stored = await ctx.store.getInstallation("11111111-1111-1111-1111-111111111111");
+    expect(stored?.installationPid).toBe("1021");
+    expect(stored?.storePid).toBe("1205");
+    // The proxy resolves by strict equality against the signed `kid`.
+    const rows = await ctx.store.listInstallations();
+    expect(rows.find((row) => row.installationPid === "1021")?.installationId).toBe(
+      "11111111-1111-1111-1111-111111111111",
+    );
+  });
+
+  it("heals legacy float-form pids on read", async () => {
+    const ctx = setup();
+    const body = installBody();
+    const response = await postRaw(
+      ctx.app,
+      "/install",
+      body,
+      signedHeaders("evt-install-1", NOW, body, APP_SECRET),
+    );
+    expect(response.status).toBe(200);
+    const stored = await ctx.store.getInstallation("11111111-1111-1111-1111-111111111111");
+    if (!stored) throw new Error("expected the install to be stored");
+    // A row written before normalisation holds the float form.
+    await ctx.store.saveInstallation({ ...stored, installationPid: "1021.0", storePid: "1205.0" });
+    const healed = await ctx.store.getInstallation("11111111-1111-1111-1111-111111111111");
+    expect(healed?.installationPid).toBe("1021");
+    expect(healed?.storePid).toBe("1205");
+  });
 });
