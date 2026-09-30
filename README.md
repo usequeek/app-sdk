@@ -331,9 +331,30 @@ Hono: mount `createProxyHandler({ store, path, onVerified })` from
   them on the installation (`embedSecret` encrypted, `appId`), and
   `sessionTokenInstallationId` reads the token's `installation_id` as an
   unverified routing hint so a server can load that row before verifying.
-- **frame** (`frame.ts`, browser-safe, no secret): `listenToDashboard`
-  (accepts only the exact dashboard origin) and `sendReady` (exact target
-  origin, never `"*"`).
+- **frame** (`frame.ts`, browser-safe, no secret): the embedded-app bridge
+  v1 — typed unions both directions (`ready{capabilities,sdkVersion}`,
+  `theme`, `title`/`title-action`, `toast`, `save-bar`/`save-bar-action`,
+  `navigate`/`navigated`, `open`, `pick-resource`/`resource-picked`/
+  `resource-pick-cancelled`), unknown types ignored, every outbound string
+  length-capped client-side. `listenToDashboard` (accepts only the exact
+  dashboard origin) and typed senders (`sendReady`, `sendToast`,
+  `sendSaveBar`, `sendTitle`, `sendNavigated`, `sendOpen`,
+  `sendPickResource`, …) to the exact target origin, never `"*"`.
+- **auth** (`auth-fetch.ts`, browser-safe, no secret): `installAuthFetch({ exchange })`
+  — reads the launch token (`id_token` query param) from the signed first
+  load, strips it with `history.replaceState`, exchanges it once for the
+  app's own session, attaches `Authorization: Bearer <session>` to
+  same-origin fetch (cookies stay out), and re-establishes via the bridge
+  `ready→token` flow + one retry on 401.
+- **theme** (`theme.ts`, browser-safe, no secret): `applyTheme(mode)` toggles
+  `.dark` on `<html>` + `color-scheme` (shadcn's dark-mode mechanism);
+  `themeBootstrapScript()` returns the inline `<head>` snippet that reads
+  `theme` from the URL before first paint (no flash);
+  `installThemeListener` follows live bridge `theme{mode}` messages.
+- **react** (`react.ts`, via `@usequeek/app-sdk/react` — `react` is an
+  optional peer, same pattern as `./hono`): `<QueekProvider>` owns one
+  bridge subscription; `useQueek()` returns `{ toast, saveBar, title,
+  navigate, pickResource, theme }` over the framework-free core.
 
 ## Embedded merchant page (S4 stage 2)
 
