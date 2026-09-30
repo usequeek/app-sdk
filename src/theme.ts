@@ -40,6 +40,10 @@ function globalSessionStorage(): ThemeStorage | null {
   }
 }
 
+function globalParent(): unknown {
+  return (globalThis as unknown as { window?: { parent?: unknown } }).window?.parent;
+}
+
 export interface ThemeDocumentElement {
   classList: { toggle(name: string, force?: boolean): void };
   style: { colorScheme: string };
@@ -116,14 +120,17 @@ export function applyTheme(mode: ThemeMode, doc?: ThemeDocument): void {
 
 /**
  * Tiny inline script (to place in `<head>` before first paint) that reads
- * the `theme` URL param and sets `.dark` + `color-scheme` immediately —
- * a dark cold load never flashes light. No external dependency, no
- * dashboard round-trip.
+ * the `theme` URL param — falling back to the mode remembered in
+ * sessionStorage when the URL carries none (an in-frame reload) — and sets
+ * `.dark` + `color-scheme` immediately, so a dark load never flashes light.
+ * No external dependency, no dashboard round-trip.
  */
 export function themeBootstrapScript(param: string = THEME_PARAM): string {
   const key = JSON.stringify(param);
+  const storageKey = JSON.stringify(THEME_STORAGE_KEY);
   return (
     `try{var m=new URLSearchParams(location.search).get(${key});` +
+    `if(m===null){try{m=sessionStorage.getItem(${storageKey})}catch(x){}}` +
     `var d=m==="dark";var e=document.documentElement;` +
     `e.classList.toggle("dark",d);e.style.colorScheme=d?"dark":"light"}catch(e){}`
   );
@@ -132,6 +139,12 @@ export function themeBootstrapScript(param: string = THEME_PARAM): string {
 export interface ThemeListenerOptions {
   dashboardOrigin: string;
   target?: EmbedEventTarget;
+  /**
+   * Required `event.source` for theme messages. Defaults to the global
+   * window's parent (the embedding dashboard); pass `null` to disable the
+   * source check.
+   */
+  expectSource?: unknown;
   onChange?: (mode: ThemeMode) => void;
   doc?: ThemeDocument;
   /** postMessage target for the `ready` announcement (non-React apps need it to get the mode). */
@@ -151,10 +164,12 @@ export interface ThemeListenerOptions {
  */
 export function installThemeListener(options: ThemeListenerOptions): () => void {
   const { dashboardOrigin, target, onChange, doc, postTarget, capabilities, sdkVersion, storage } = options;
+  const expectSource = options.expectSource !== undefined ? options.expectSource : globalParent();
   sendReady(dashboardOrigin, postTarget, { capabilities, sdkVersion });
   return listenToDashboard({
     dashboardOrigin,
     target,
+    expectSource: expectSource ?? undefined,
     onTheme: (theme) => {
       applyTheme(theme.mode, doc);
       rememberThemeMode(theme.mode, storage);

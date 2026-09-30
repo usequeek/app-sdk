@@ -115,6 +115,103 @@ describe("themeBootstrapScript", () => {
   });
 });
 
+describe("themeBootstrapScript storage fallback", () => {
+  const run = (search: string, stored: string | null) => {
+    const doc = fakeDocument();
+    const sessionStorage = {
+      getItem: (key: string) => (key === "queek.theme" ? stored : null),
+    };
+    new Function("document", "location", "URLSearchParams", "sessionStorage", themeBootstrapScript())(
+      doc,
+      { search },
+      URLSearchParams,
+      sessionStorage,
+    );
+    return doc;
+  };
+
+  it("uses the remembered mode when the URL has no theme param (no light flash on reload)", () => {
+    const doc = run("?shop=x", "dark");
+    expect(doc.hasDarkClass()).toBe(true);
+    expect(doc.documentElement.style.colorScheme).toBe("dark");
+  });
+
+  it("lets the URL param win over storage", () => {
+    expect(run("?theme=light", "dark").hasDarkClass()).toBe(false);
+  });
+
+  it("stays light when storage is empty or denied", () => {
+    expect(run("", null).hasDarkClass()).toBe(false);
+    const doc = fakeDocument();
+    const denied = {
+      getItem: () => {
+        throw new Error("denied");
+      },
+    };
+    new Function("document", "location", "URLSearchParams", "sessionStorage", themeBootstrapScript())(
+      doc,
+      { search: "" },
+      URLSearchParams,
+      denied,
+    );
+    expect(doc.documentElement.style.colorScheme).toBe("light");
+  });
+});
+
+describe("installThemeListener source gate", () => {
+  function setup(expectSource?: unknown) {
+    let listener: ((event: { origin: string; data: unknown; source?: unknown }) => void) | null = null;
+    const target = {
+      addEventListener: (
+        _type: string,
+        next: (event: { origin: string; data: unknown; source?: unknown }) => void,
+      ) => {
+        listener = next;
+      },
+      removeEventListener: () => {},
+    };
+    const onChange = vi.fn();
+    const stop = installThemeListener({
+      dashboardOrigin: ORIGIN,
+      target,
+      onChange,
+      doc: fakeDocument(),
+      storage: null,
+      ...(expectSource !== undefined ? { expectSource } : {}),
+    });
+    const fire = (source: unknown) =>
+      listener?.({ origin: ORIGIN, data: { source: DASHBOARD_SOURCE, type: "theme", mode: "dark" }, source });
+    return { onChange, fire, stop };
+  }
+
+  it("defaults expectSource to window.parent", () => {
+    const parent = { name: "parent" };
+    vi.stubGlobal("window", { parent });
+    try {
+      const { onChange, fire, stop } = setup();
+      fire({ name: "stranger" });
+      expect(onChange).not.toHaveBeenCalled();
+      fire(parent);
+      expect(onChange).toHaveBeenCalledWith("dark");
+      stop();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("accepts an explicit source, and null disables the check", () => {
+    const src = { name: "explicit" };
+    const gated = setup(src);
+    gated.fire({ name: "stranger" });
+    expect(gated.onChange).not.toHaveBeenCalled();
+    gated.fire(src);
+    expect(gated.onChange).toHaveBeenCalledTimes(1);
+    const open = setup(null);
+    open.fire({ name: "anyone" });
+    expect(open.onChange).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("installThemeListener", () => {
   it("applies bridge theme messages live and notifies", () => {
     const listeners = new Map<string, Set<(event: { origin: string; data: unknown }) => void>>();

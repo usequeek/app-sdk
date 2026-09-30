@@ -42,6 +42,8 @@ export const MAX_TOAST_DURATION_MS = 10_000;
 export const MAX_RESIZE_HEIGHT = 10_000;
 /** Dashboard answers carry at most this many picked items; the rest is dropped. */
 export const MAX_PICKED_ITEMS = 100;
+/** Picker request ids are opaque correlation tokens, capped like action ids. */
+export const MAX_REQUEST_ID_LENGTH = 64;
 
 export type ThemeMode = "light" | "dark";
 export type SaveBarState = "dirty" | "clean";
@@ -66,11 +68,21 @@ export interface PickResourceRequest {
   multiple?: boolean;
   filter?: string;
   selectionIds?: string[];
+  requestId?: string;
 }
 
 export interface BridgeTheme {
   mode: ThemeMode;
   locale?: string;
+  /**
+   * The dashboard's own capabilities (e.g. `["pick-resource"]`), declared on
+   * its handshake theme message. Absent on legacy dashboards — the app must
+   * then assume the v0 set (ready/token/resize only). Documented in README
+   * "Bridge handshake".
+   */
+  capabilities?: string[];
+  /** The dashboard's bridge version (`"1"`); absent on legacy dashboards. */
+  bridge?: string;
 }
 
 export type AppOutboundMessage =
@@ -95,17 +107,30 @@ export type AppOutboundMessage =
       multiple?: boolean;
       filter?: string;
       selectionIds?: string[];
+      requestId?: string;
     };
 
 export type AppInboundMessage =
   | { source: typeof DASHBOARD_SOURCE; type: "token"; token: string }
   | { source: typeof DASHBOARD_SOURCE; type: "resize-ack" }
-  | { source: typeof DASHBOARD_SOURCE; type: "theme"; mode: ThemeMode; locale?: string }
+  | {
+      source: typeof DASHBOARD_SOURCE;
+      type: "theme";
+      mode: ThemeMode;
+      locale?: string;
+      capabilities?: string[];
+      bridge?: string;
+    }
   | { source: typeof DASHBOARD_SOURCE; type: "title-action"; id: string }
   | { source: typeof DASHBOARD_SOURCE; type: "save-bar-action"; action: SaveBarAction }
   | { source: typeof DASHBOARD_SOURCE; type: "navigate"; path: string }
-  | { source: typeof DASHBOARD_SOURCE; type: "resource-picked"; items: ResourceItem[] }
-  | { source: typeof DASHBOARD_SOURCE; type: "resource-pick-cancelled" };
+  | {
+      source: typeof DASHBOARD_SOURCE;
+      type: "resource-picked";
+      items: ResourceItem[];
+      requestId?: string;
+    }
+  | { source: typeof DASHBOARD_SOURCE; type: "resource-pick-cancelled"; requestId?: string };
 
 export interface EmbedEvent {
   origin: string;
@@ -139,8 +164,8 @@ export interface FrameBridgeOptions {
   onTitleAction?: (id: string) => void;
   onSaveBarAction?: (action: SaveBarAction) => void;
   onNavigate?: (path: string) => void;
-  onResourcePicked?: (items: ResourceItem[]) => void;
-  onResourcePickCancelled?: () => void;
+  onResourcePicked?: (items: ResourceItem[], requestId?: string) => void;
+  onResourcePickCancelled?: (requestId?: string) => void;
 }
 
 export interface ReadyOptions {
@@ -179,23 +204,51 @@ function isThemeMode(value: unknown): value is ThemeMode {
   return value === "light" || value === "dark";
 }
 
+/**
+ * Control characters never appear in legitimate bridge strings — and
+ * browsers strip tab/newline inside schemes (`java\tscript:`), so reject
+ * them outright. A char-code loop: regex control ranges trip the linter.
+ */
+function hasControlChars(value: string): boolean {
+  for (let i = 0; i < value.length; i += 1) {
+    const code = value.charCodeAt(i);
+    if (code <= 0x1f || code === 0x7f) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Validate a title-bar action shape (no caps — `clipOutbound` is the single
+ * place that truncates). Returns null for malformed defs.
+ */
 function parseTitleActionDef(value: unknown): TitleActionDef | null {
   if (!isRecord(value)) {
     return null;
   }
-  const id = reqText(value.id, MAX_ACTION_ID_LENGTH);
-  const label = reqText(value.label, MAX_LABEL_LENGTH);
-  if (id === null || label === null) {
+  if (typeof value.id !== "string" || value.id.length === 0) {
+    return null;
+  }
+  if (typeof value.label !== "string" || value.label.length === 0) {
     return null;
   }
   if (value.tone !== undefined && value.tone !== "default" && value.tone !== "critical") {
     return null;
   }
-  const def: TitleActionDef = { id, label };
+  const def: TitleActionDef = { id: value.id, label: value.label };
   if (value.tone === "default" || value.tone === "critical") {
     def.tone = value.tone;
   }
   return def;
+}
+
+/** Opaque picker correlation token: kept capped, dropped when malformed. */
+function optRequestId(value: unknown): string | undefined {
+  if (typeof value !== "string" || value.length === 0) {
+    return undefined;
+  }
+  return capText(value, MAX_REQUEST_ID_LENGTH);
 }
 
 function parseResourceItem(value: unknown): ResourceItem | null {
@@ -222,11 +275,7 @@ export function isAllowedImageUrl(image: unknown): boolean {
     return false;
   }
   const trimmed = image.trim();
-  if (trimmed.length === 0 || /[\u0000-\u001f\u007f]/.test(trimmed)) {
-    return false;
-  }
-  const lower = trimmed.toLowerCase();
-  if (/^(javascript|data|vbscript|file):/.test(lower)) {
+  if (trimmed.length === 0 || hasControlChars(trimmed) || trimmed.includes("\\")) {
     return false;
   }
   if (trimmed.startsWith("//")) {
@@ -242,44 +291,46 @@ export function isAllowedImageUrl(image: unknown): boolean {
   }
 }
 
+const ABSOLUTE_SCHEME = /^[a-z][a-z0-9+.-]*:/;
+
 /**
- * Open targets the app may ask the dashboard to open: a dashboard-relative
- * reference (resolves under the dashboard origin) or an absolute https URL
- * (the dashboard applies its own allowlist on top). Everything else —
- * javascript:/data:/vbscript:/file:, protocol-relative, non-https, control
- * characters — is refused. The dashboard re-validates every target.
+ * The origin-free half of the open-target policy, shared by `clipOutbound`
+ * (which has no origin) and `isAllowedOpenTarget`: no control characters
+ * (browsers strip tab/newline inside schemes), no backslashes (browsers read
+ * `\` as `/` for special schemes, so `https:\\evil` would escape), no
+ * protocol-relative URLs, and any absolute URL must be https — which also
+ * refuses javascript:/data:/vbscript:/file:.
  */
-export function isAllowedOpenTarget(target: unknown, dashboardOrigin: string): boolean {
+function isSafeOpenShape(target: unknown): target is string {
   if (typeof target !== "string" || target.length === 0 || target.length > MAX_TARGET_LENGTH) {
     return false;
   }
   const trimmed = target.trim();
-  if (trimmed.length === 0 || /[\u0000-\u001f\u007f]/.test(trimmed)) {
-    return false;
-  }
-  const lower = trimmed.toLowerCase();
-  if (/^(javascript|data|vbscript|file):/.test(lower)) {
+  if (trimmed.length === 0 || hasControlChars(trimmed) || trimmed.includes("\\")) {
     return false;
   }
   if (trimmed.startsWith("//")) {
     return false;
   }
-  let base: URL;
+  return !ABSOLUTE_SCHEME.test(trimmed.toLowerCase()) || trimmed.toLowerCase().startsWith("https:");
+}
+
+/**
+ * Open targets the app may ask the dashboard to open: a dashboard-relative
+ * reference (resolves under the dashboard origin) or an absolute https URL
+ * (the dashboard applies its own allowlist on top). Everything else is
+ * refused — see `isSafeOpenShape`. The dashboard re-validates every target.
+ */
+export function isAllowedOpenTarget(target: unknown, dashboardOrigin: string): boolean {
+  if (!isSafeOpenShape(target)) {
+    return false;
+  }
   try {
-    base = new URL(dashboardOrigin);
+    const url = new URL(target.trim(), new URL(dashboardOrigin));
+    return url.origin === new URL(dashboardOrigin).origin || url.protocol === "https:";
   } catch {
     return false;
   }
-  let url: URL;
-  try {
-    url = new URL(trimmed, base);
-  } catch {
-    return false;
-  }
-  if (url.origin === base.origin) {
-    return true;
-  }
-  return url.protocol === "https:";
 }
 
 /**
@@ -311,6 +362,22 @@ export function parseInboundMessage(data: unknown): AppInboundMessage | null {
       if (locale !== undefined) {
         message.locale = locale;
       }
+      // The dashboard handshake: its own capabilities, same caps as ours.
+      if (data.capabilities !== undefined) {
+        if (!Array.isArray(data.capabilities)) {
+          return null;
+        }
+        message.capabilities = data.capabilities
+          .filter((entry): entry is string => typeof entry === "string" && entry.length > 0)
+          .slice(0, MAX_CAPABILITIES)
+          .map((entry) => capText(entry, MAX_CAPABILITY_LENGTH));
+      }
+      if (data.bridge !== undefined) {
+        if (typeof data.bridge !== "string" || data.bridge.length === 0) {
+          return null;
+        }
+        message.bridge = capText(data.bridge, MAX_SDK_VERSION_LENGTH);
+      }
       return message;
     }
     case "title-action": {
@@ -337,10 +404,28 @@ export function parseInboundMessage(data: unknown): AppInboundMessage | null {
         }
         items.push(item);
       }
-      return { source: DASHBOARD_SOURCE, type: "resource-picked", items };
+      const picked: Extract<AppInboundMessage, { type: "resource-picked" }> = {
+        source: DASHBOARD_SOURCE,
+        type: "resource-picked",
+        items,
+      };
+      const pickedId = optRequestId(data.requestId);
+      if (pickedId !== undefined) {
+        picked.requestId = pickedId;
+      }
+      return picked;
     }
-    case "resource-pick-cancelled":
-      return { source: DASHBOARD_SOURCE, type: "resource-pick-cancelled" };
+    case "resource-pick-cancelled": {
+      const cancelled: Extract<AppInboundMessage, { type: "resource-pick-cancelled" }> = {
+        source: DASHBOARD_SOURCE,
+        type: "resource-pick-cancelled",
+      };
+      const cancelledId = optRequestId(data.requestId);
+      if (cancelledId !== undefined) {
+        cancelled.requestId = cancelledId;
+      }
+      return cancelled;
+    }
     default:
       return null;
   }
@@ -358,12 +443,14 @@ function clampDurationMs(value: unknown): number | undefined {
 }
 
 /**
- * Parse one app→dashboard message with the same per-type validation + caps
- * the senders apply — this parser is what the dashboard runs, so it must be
- * trustworthy: malformed required fields reject the message (null), malformed
- * optional fields are dropped, and every string is length-capped.
- * Unknown types return null — ignored, never acted on. Pass the dashboard
- * origin to also gate `open` targets via `isAllowedOpenTarget`.
+ * Parse one app→dashboard message — this parser is what the dashboard runs,
+ * so it must be trustworthy. Each branch validates the raw shape strictly
+ * (malformed required fields and mistyped optionals reject the message with
+ * null; malformed enum values reject too) and then delegates every cap and
+ * allow-list to `clipOutbound`, the same sanitizer the senders use — one
+ * copy of the policy, both directions. Unknown types return null — ignored,
+ * never acted on. Pass the dashboard origin to also gate `open` targets via
+ * `isAllowedOpenTarget`.
  */
 export function parseOutboundMessage(data: unknown, dashboardOrigin?: string): AppOutboundMessage | null {
   if (!isRecord(data)) {
@@ -374,31 +461,25 @@ export function parseOutboundMessage(data: unknown, dashboardOrigin?: string): A
   }
   switch (data.type) {
     case "ready": {
-      const out: AppOutboundMessage = { source: APP_SOURCE, type: "ready" };
-      if (data.capabilities !== undefined) {
-        if (!Array.isArray(data.capabilities)) {
-          return null;
-        }
-        out.capabilities = data.capabilities
-          .filter((entry): entry is string => typeof entry === "string" && entry.length > 0)
-          .slice(0, MAX_CAPABILITIES)
-          .map((entry) => capText(entry, MAX_CAPABILITY_LENGTH));
+      if (data.capabilities !== undefined && !Array.isArray(data.capabilities)) {
+        return null;
       }
-      if (data.sdkVersion !== undefined) {
-        if (typeof data.sdkVersion !== "string" || data.sdkVersion.length === 0) {
-          return null;
-        }
-        out.sdkVersion = capText(data.sdkVersion, MAX_SDK_VERSION_LENGTH);
+      if (
+        data.sdkVersion !== undefined &&
+        (typeof data.sdkVersion !== "string" || data.sdkVersion.length === 0)
+      ) {
+        return null;
       }
-      return out;
+      return clipOutbound({
+        source: APP_SOURCE,
+        type: "ready",
+        capabilities: data.capabilities as string[] | undefined,
+        sdkVersion: data.sdkVersion as string | undefined,
+      });
     }
     case "resize":
-      return typeof data.height === "number" && Number.isFinite(data.height)
-        ? {
-            source: APP_SOURCE,
-            type: "resize",
-            height: Math.min(MAX_RESIZE_HEIGHT, Math.max(0, Math.round(data.height))),
-          }
+      return typeof data.height === "number"
+        ? clipOutbound({ source: APP_SOURCE, type: "resize", height: data.height })
         : null;
     case "ack":
       return { source: APP_SOURCE, type: "ack" };
@@ -406,11 +487,10 @@ export function parseOutboundMessage(data: unknown, dashboardOrigin?: string): A
       if (typeof data.heading !== "string" || data.heading.length === 0) {
         return null;
       }
-      const out: AppOutboundMessage = {
-        source: APP_SOURCE,
-        type: "title",
-        heading: capText(data.heading, MAX_HEADING_LENGTH),
-      };
+      if (data.secondaryActions !== undefined && !Array.isArray(data.secondaryActions)) {
+        return null;
+      }
+      const out: AppOutboundMessage = { source: APP_SOURCE, type: "title", heading: data.heading };
       if (data.primaryAction !== undefined) {
         const primary = parseTitleActionDef(data.primaryAction);
         if (primary !== null) {
@@ -418,50 +498,33 @@ export function parseOutboundMessage(data: unknown, dashboardOrigin?: string): A
         }
       }
       if (data.secondaryActions !== undefined) {
-        if (!Array.isArray(data.secondaryActions)) {
-          return null;
-        }
-        const rest: TitleActionDef[] = [];
-        for (const raw of data.secondaryActions.slice(0, MAX_SECONDARY_ACTIONS)) {
-          const def = parseTitleActionDef(raw);
-          if (def !== null) {
-            rest.push(def);
-          }
-        }
-        if (rest.length > 0) {
-          out.secondaryActions = rest;
-        }
+        out.secondaryActions = data.secondaryActions as TitleActionDef[];
       }
-      return out;
+      return clipOutbound(out);
     }
     case "toast": {
       if (typeof data.message !== "string" || data.message.length === 0) {
         return null;
       }
-      const out: AppOutboundMessage = {
-        source: APP_SOURCE,
-        type: "toast",
-        message: capText(data.message, MAX_TOAST_LENGTH),
-      };
+      if (data.tone !== undefined && !isToastTone(data.tone)) {
+        return null;
+      }
+      const out: AppOutboundMessage = { source: APP_SOURCE, type: "toast", message: data.message };
       if (data.tone !== undefined) {
-        if (!isToastTone(data.tone)) {
-          return null;
-        }
         out.tone = data.tone;
       }
-      const durationMs = clampDurationMs(data.durationMs);
-      if (durationMs !== undefined) {
-        out.durationMs = durationMs;
+      if (data.durationMs !== undefined) {
+        out.durationMs = data.durationMs as number;
       }
-      return out;
+      return clipOutbound(out);
     }
     case "save-bar":
       return data.state === "dirty" || data.state === "clean"
-        ? { source: APP_SOURCE, type: "save-bar", state: data.state }
+        ? clipOutbound({ source: APP_SOURCE, type: "save-bar", state: data.state })
         : null;
     case "navigated":
       return typeof data.path === "string" && data.path.length > 0
-        ? { source: APP_SOURCE, type: "navigated", path: capText(data.path, MAX_PATH_LENGTH) }
+        ? clipOutbound({ source: APP_SOURCE, type: "navigated", path: data.path })
         : null;
     case "open": {
       if (typeof data.target !== "string" || data.target.length === 0) {
@@ -470,86 +533,83 @@ export function parseOutboundMessage(data: unknown, dashboardOrigin?: string): A
       if (dashboardOrigin !== undefined && !isAllowedOpenTarget(data.target, dashboardOrigin)) {
         return null;
       }
-      return { source: APP_SOURCE, type: "open", target: capText(data.target, MAX_TARGET_LENGTH) };
+      return clipOutbound({ source: APP_SOURCE, type: "open", target: data.target });
     }
     case "pick-resource": {
       if (data.resourceType !== "product") {
         return null;
       }
-      const out: AppOutboundMessage = { source: APP_SOURCE, type: "pick-resource", resourceType: "product" };
-      if (data.multiple !== undefined) {
-        if (typeof data.multiple !== "boolean") {
-          return null;
-        }
-        out.multiple = data.multiple;
+      if (data.multiple !== undefined && typeof data.multiple !== "boolean") {
+        return null;
       }
-      if (data.filter !== undefined) {
-        if (typeof data.filter !== "string") {
-          return null;
-        }
-        const filter = optText(data.filter, MAX_FILTER_LENGTH);
-        if (filter !== undefined) {
-          out.filter = filter;
-        }
+      if (data.filter !== undefined && typeof data.filter !== "string") {
+        return null;
       }
-      if (data.selectionIds !== undefined) {
-        if (!Array.isArray(data.selectionIds)) {
-          return null;
-        }
-        const ids = data.selectionIds
-          .filter((entry): entry is string => typeof entry === "string" && entry.length > 0)
-          .slice(0, MAX_SELECTION_IDS)
-          .map((entry) => capText(entry, MAX_SELECTION_ID_LENGTH));
-        if (ids.length > 0) {
-          out.selectionIds = ids;
-        }
+      if (data.selectionIds !== undefined && !Array.isArray(data.selectionIds)) {
+        return null;
       }
-      return out;
+      return clipOutbound({
+        source: APP_SOURCE,
+        type: "pick-resource",
+        resourceType: "product",
+        multiple: data.multiple as boolean | undefined,
+        filter: data.filter as string | undefined,
+        selectionIds: data.selectionIds as string[] | undefined,
+        requestId: data.requestId as string | undefined,
+      });
     }
     default:
       return null;
   }
 }
 
-/** Post one app→dashboard message to the exact origin — never `"*"`. */
+/**
+ * Post one app→dashboard message to the exact origin — never `"*"`.
+ * Every message runs through `clipOutbound`; unpostable messages are
+ * silently skipped.
+ */
 export function sendBridgeMessage(
   dashboardOrigin: string,
   target: EmbedPostTarget | undefined,
   message: AppOutboundMessage,
 ): void {
-  target?.postMessage(clipOutbound(message), dashboardOrigin);
+  const clipped = clipOutbound(message);
+  if (clipped !== null) {
+    target?.postMessage(clipped, dashboardOrigin);
+  }
+}
+
+/**
+ * Build the `ready` announcement (capped). The one shared `ready` builder:
+ * `sendReady`, `installAuthFetch`'s refresh, and the React provider all
+ * announce through it so the dashboard sees identical capabilities.
+ */
+export function buildReadyMessage(options?: ReadyOptions): AppOutboundMessage {
+  return (
+    clipOutbound({
+      source: APP_SOURCE,
+      type: "ready",
+      capabilities: options?.capabilities,
+      sdkVersion: options?.sdkVersion,
+    }) ?? { source: APP_SOURCE, type: "ready" }
+  );
 }
 
 /** Announce readiness to the exact dashboard origin — never `"*"`. */
 export function sendReady(dashboardOrigin: string, target?: EmbedPostTarget, options?: ReadyOptions): void {
-  const message: AppOutboundMessage = { source: APP_SOURCE, type: "ready" };
-  if (options?.capabilities !== undefined) {
-    message.capabilities = options.capabilities
-      .filter((entry) => typeof entry === "string" && entry.length > 0)
-      .slice(0, MAX_CAPABILITIES)
-      .map((entry) => capText(entry, MAX_CAPABILITY_LENGTH));
-  }
-  const sdkVersion = optText(options?.sdkVersion, MAX_SDK_VERSION_LENGTH);
-  if (sdkVersion !== undefined) {
-    message.sdkVersion = sdkVersion;
-  }
-  target?.postMessage(message, dashboardOrigin);
+  sendBridgeMessage(dashboardOrigin, target, buildReadyMessage(options));
 }
 
-/** Report the document height for auto-height; non-finite asks are dropped. */
+/**
+ * Report the document height for auto-height. Builds raw — `clipOutbound`
+ * (via `sendBridgeMessage`) clamps and drops non-finite asks.
+ */
 export function sendResize(
   dashboardOrigin: string,
   target: EmbedPostTarget | undefined,
   height: number,
 ): void {
-  if (typeof height !== "number" || !Number.isFinite(height)) {
-    return;
-  }
-  sendBridgeMessage(dashboardOrigin, target, {
-    source: APP_SOURCE,
-    type: "resize",
-    height: Math.min(MAX_RESIZE_HEIGHT, Math.max(0, Math.round(height))),
-  });
+  sendBridgeMessage(dashboardOrigin, target, { source: APP_SOURCE, type: "resize", height });
 }
 
 /** Delivery confirmation with no state — accepted and ignored by decision. */
@@ -557,76 +617,50 @@ export function sendAck(dashboardOrigin: string, target?: EmbedPostTarget): void
   sendBridgeMessage(dashboardOrigin, target, { source: APP_SOURCE, type: "ack" });
 }
 
-/** Drive the dashboard title bar (heading + up to 5 secondary actions). */
+/**
+ * Drive the dashboard title bar (heading + up to 5 secondary actions).
+ * Builds raw — malformed defs are dropped, caps applied downstream.
+ */
 export function sendTitle(
   dashboardOrigin: string,
   target: EmbedPostTarget | undefined,
   heading: string,
   actions?: { primaryAction?: TitleActionDef; secondaryActions?: TitleActionDef[] },
 ): void {
-  const message: AppOutboundMessage = {
-    source: APP_SOURCE,
-    type: "title",
-    heading: capText(heading, MAX_HEADING_LENGTH),
-  };
+  const message: AppOutboundMessage = { source: APP_SOURCE, type: "title", heading };
   const primary = actions?.primaryAction !== undefined ? parseTitleActionDef(actions.primaryAction) : null;
   if (primary !== null) {
     message.primaryAction = primary;
   }
   if (actions?.secondaryActions !== undefined) {
-    const rest: TitleActionDef[] = [];
-    for (const raw of actions.secondaryActions.slice(0, MAX_SECONDARY_ACTIONS)) {
-      const def = parseTitleActionDef(raw);
-      if (def !== null) {
-        rest.push(def);
-      }
-    }
-    if (rest.length > 0) {
-      message.secondaryActions = rest;
-    }
+    message.secondaryActions = actions.secondaryActions;
   }
   sendBridgeMessage(dashboardOrigin, target, message);
 }
 
-/** Ask the dashboard to show a toast. */
+/** Ask the dashboard to show a toast. Builds raw — tone/duration sanitized downstream. */
 export function sendToast(
   dashboardOrigin: string,
   target: EmbedPostTarget | undefined,
   message: string,
   options?: { tone?: ToastTone; durationMs?: number },
 ): void {
-  const out: AppOutboundMessage = {
-    source: APP_SOURCE,
-    type: "toast",
-    message: capText(message, MAX_TOAST_LENGTH),
-  };
-  if (
-    options?.tone === "info" ||
-    options?.tone === "success" ||
-    options?.tone === "warning" ||
-    options?.tone === "critical"
-  ) {
+  const out: AppOutboundMessage = { source: APP_SOURCE, type: "toast", message };
+  if (options?.tone !== undefined) {
     out.tone = options.tone;
   }
-  if (
-    typeof options?.durationMs === "number" &&
-    Number.isFinite(options.durationMs) &&
-    options.durationMs > 0
-  ) {
-    out.durationMs = Math.min(MAX_TOAST_DURATION_MS, Math.floor(options.durationMs));
+  if (options?.durationMs !== undefined) {
+    out.durationMs = options.durationMs;
   }
   sendBridgeMessage(dashboardOrigin, target, out);
 }
 
-/** Show (dirty) or hide (clean) the dashboard save bar. */
+/** Show (dirty) or hide (clean) the dashboard save bar. Bad states are dropped downstream. */
 export function sendSaveBar(
   dashboardOrigin: string,
   target: EmbedPostTarget | undefined,
   state: SaveBarState,
 ): void {
-  if (state !== "dirty" && state !== "clean") {
-    return;
-  }
   sendBridgeMessage(dashboardOrigin, target, { source: APP_SOURCE, type: "save-bar", state });
 }
 
@@ -636,14 +670,7 @@ export function sendNavigated(
   target: EmbedPostTarget | undefined,
   path: string,
 ): void {
-  if (typeof path !== "string" || path.length === 0) {
-    return;
-  }
-  sendBridgeMessage(dashboardOrigin, target, {
-    source: APP_SOURCE,
-    type: "navigated",
-    path: capText(path, MAX_PATH_LENGTH),
-  });
+  sendBridgeMessage(dashboardOrigin, target, { source: APP_SOURCE, type: "navigated", path });
 }
 
 /**
@@ -659,40 +686,30 @@ export function sendOpen(
   if (!isAllowedOpenTarget(openTarget, dashboardOrigin)) {
     return;
   }
-  sendBridgeMessage(dashboardOrigin, target, {
-    source: APP_SOURCE,
-    type: "open",
-    target: capText(openTarget, MAX_TARGET_LENGTH),
-  });
+  sendBridgeMessage(dashboardOrigin, target, { source: APP_SOURCE, type: "open", target: openTarget });
 }
 
-/** Ask the dashboard to render its product picker (one at a time). */
+/**
+ * Ask the dashboard to render its product picker (one at a time).
+ * Builds raw — `clipOutbound` validates, caps, and drops non-product asks.
+ */
 export function sendPickResource(
   dashboardOrigin: string,
   target: EmbedPostTarget | undefined,
   request: PickResourceRequest,
 ): void {
-  if (!isRecord(request) || request.resourceType !== "product") {
+  if (!isRecord(request)) {
     return;
   }
-  const message: AppOutboundMessage = { source: APP_SOURCE, type: "pick-resource", resourceType: "product" };
-  if (request.multiple !== undefined) {
-    message.multiple = request.multiple === true;
-  }
-  const filter = optText(request.filter, MAX_FILTER_LENGTH);
-  if (filter !== undefined) {
-    message.filter = filter;
-  }
-  if (request.selectionIds !== undefined && Array.isArray(request.selectionIds)) {
-    const ids = request.selectionIds
-      .filter((entry): entry is string => typeof entry === "string" && entry.length > 0)
-      .slice(0, MAX_SELECTION_IDS)
-      .map((entry) => capText(entry, MAX_SELECTION_ID_LENGTH));
-    if (ids.length > 0) {
-      message.selectionIds = ids;
-    }
-  }
-  sendBridgeMessage(dashboardOrigin, target, message);
+  sendBridgeMessage(dashboardOrigin, target, {
+    source: APP_SOURCE,
+    type: "pick-resource",
+    resourceType: request.resourceType as "product",
+    multiple: request.multiple as boolean | undefined,
+    filter: request.filter as string | undefined,
+    selectionIds: request.selectionIds as string[] | undefined,
+    requestId: request.requestId as string | undefined,
+  });
 }
 
 /**
@@ -732,13 +749,20 @@ export function listenToDashboard(options: FrameBridgeOptions): () => void {
       case "resize-ack":
         onResizeAck?.();
         break;
-      case "theme":
-        onTheme?.(
-          message.locale === undefined
-            ? { mode: message.mode }
-            : { mode: message.mode, locale: message.locale },
-        );
+      case "theme": {
+        const theme: BridgeTheme = { mode: message.mode };
+        if (message.locale !== undefined) {
+          theme.locale = message.locale;
+        }
+        if (message.capabilities !== undefined) {
+          theme.capabilities = message.capabilities;
+        }
+        if (message.bridge !== undefined) {
+          theme.bridge = message.bridge;
+        }
+        onTheme?.(theme);
         break;
+      }
       case "title-action":
         onTitleAction?.(message.id);
         break;
@@ -749,10 +773,10 @@ export function listenToDashboard(options: FrameBridgeOptions): () => void {
         onNavigate?.(message.path);
         break;
       case "resource-picked":
-        onResourcePicked?.(message.items);
+        onResourcePicked?.(message.items, message.requestId);
         break;
       case "resource-pick-cancelled":
-        onResourcePickCancelled?.();
+        onResourcePickCancelled?.(message.requestId);
         break;
     }
   };
@@ -760,16 +784,48 @@ export function listenToDashboard(options: FrameBridgeOptions): () => void {
   return () => target?.removeEventListener("message", onMessage);
 }
 
+/** Validate a title-bar action shape, then cap its strings. */
+function clipTitleActionDef(value: unknown): TitleActionDef | null {
+  const def = parseTitleActionDef(value);
+  if (def === null) {
+    return null;
+  }
+  const out: TitleActionDef = {
+    id: capText(def.id, MAX_ACTION_ID_LENGTH),
+    label: capText(def.label, MAX_LABEL_LENGTH),
+  };
+  if (def.tone !== undefined) {
+    out.tone = def.tone;
+  }
+  return out;
+}
+
+function clipSecondaryActions(value: unknown): TitleActionDef[] | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+  const rest: TitleActionDef[] = [];
+  for (const raw of value.slice(0, MAX_SECONDARY_ACTIONS)) {
+    const def = clipTitleActionDef(raw);
+    if (def !== null) {
+      rest.push(def);
+    }
+  }
+  return rest.length > 0 ? rest : undefined;
+}
+
 /**
- * Re-apply the client-side caps to an outbound message (the senders already
- * cap at construction; this is the single choke point that guarantees no
- * uncapped string reaches `postMessage`).
+ * The single choke point for everything the app posts: caps every string,
+ * allow-lists every enum, clamps every number, re-gates `open` targets
+ * against scheme attacks. Returns null when the message is unpostable
+ * (malformed required field, bad save-bar state, non-finite height,
+ * blocked open target, non-product pick) — `sendBridgeMessage` skips null.
  */
-export function clipOutbound(message: AppOutboundMessage): AppOutboundMessage {
+export function clipOutbound(message: AppOutboundMessage): AppOutboundMessage | null {
   switch (message.type) {
     case "ready": {
       const out: AppOutboundMessage = { source: APP_SOURCE, type: "ready" };
-      if (message.capabilities !== undefined) {
+      if (Array.isArray(message.capabilities)) {
         out.capabilities = message.capabilities
           .filter((entry) => typeof entry === "string" && entry.length > 0)
           .slice(0, MAX_CAPABILITIES)
@@ -782,37 +838,41 @@ export function clipOutbound(message: AppOutboundMessage): AppOutboundMessage {
       return out;
     }
     case "resize":
+      if (typeof message.height !== "number" || !Number.isFinite(message.height)) {
+        return null;
+      }
       return {
-        ...message,
+        source: APP_SOURCE,
+        type: "resize",
         height: Math.min(MAX_RESIZE_HEIGHT, Math.max(0, Math.round(message.height))),
       };
     case "ack":
-      return message;
+      return { source: APP_SOURCE, type: "ack" };
     case "title": {
+      if (typeof message.heading !== "string" || message.heading.length === 0) {
+        return null;
+      }
       const out: AppOutboundMessage = {
         source: APP_SOURCE,
         type: "title",
         heading: capText(message.heading, MAX_HEADING_LENGTH),
       };
-      const primary = message.primaryAction === undefined ? null : parseTitleActionDef(message.primaryAction);
-      if (primary !== null) {
-        out.primaryAction = primary;
+      if (message.primaryAction !== undefined) {
+        const primary = clipTitleActionDef(message.primaryAction);
+        if (primary !== null) {
+          out.primaryAction = primary;
+        }
       }
-      if (message.secondaryActions !== undefined) {
-        const rest: TitleActionDef[] = [];
-        for (const raw of message.secondaryActions.slice(0, MAX_SECONDARY_ACTIONS)) {
-          const def = parseTitleActionDef(raw);
-          if (def !== null) {
-            rest.push(def);
-          }
-        }
-        if (rest.length > 0) {
-          out.secondaryActions = rest;
-        }
+      const rest = clipSecondaryActions(message.secondaryActions);
+      if (rest !== undefined) {
+        out.secondaryActions = rest;
       }
       return out;
     }
     case "toast": {
+      if (typeof message.message !== "string" || message.message.length === 0) {
+        return null;
+      }
       const out: AppOutboundMessage = {
         source: APP_SOURCE,
         type: "toast",
@@ -828,12 +888,26 @@ export function clipOutbound(message: AppOutboundMessage): AppOutboundMessage {
       return out;
     }
     case "save-bar":
-      return message;
+      return message.state === "dirty" || message.state === "clean"
+        ? { source: APP_SOURCE, type: "save-bar", state: message.state }
+        : null;
     case "navigated":
-      return { ...message, path: capText(message.path, MAX_PATH_LENGTH) };
-    case "open":
-      return { ...message, target: capText(message.target, MAX_TARGET_LENGTH) };
+      return typeof message.path === "string" && message.path.length > 0
+        ? { source: APP_SOURCE, type: "navigated", path: capText(message.path, MAX_PATH_LENGTH) }
+        : null;
+    case "open": {
+      if (typeof message.target !== "string" || message.target.length === 0) {
+        return null;
+      }
+      if (!isSafeOpenShape(message.target)) {
+        return null;
+      }
+      return { source: APP_SOURCE, type: "open", target: capText(message.target, MAX_TARGET_LENGTH) };
+    }
     case "pick-resource": {
+      if (message.resourceType !== "product") {
+        return null;
+      }
       const out: AppOutboundMessage = {
         source: APP_SOURCE,
         type: "pick-resource",
@@ -846,7 +920,7 @@ export function clipOutbound(message: AppOutboundMessage): AppOutboundMessage {
       if (filter !== undefined) {
         out.filter = filter;
       }
-      if (message.selectionIds !== undefined) {
+      if (message.selectionIds !== undefined && Array.isArray(message.selectionIds)) {
         const ids = message.selectionIds
           .filter((entry): entry is string => typeof entry === "string" && entry.length > 0)
           .slice(0, MAX_SELECTION_IDS)
@@ -854,6 +928,10 @@ export function clipOutbound(message: AppOutboundMessage): AppOutboundMessage {
         if (ids.length > 0) {
           out.selectionIds = ids;
         }
+      }
+      const requestId = optRequestId(message.requestId);
+      if (requestId !== undefined) {
+        out.requestId = requestId;
       }
       return out;
     }

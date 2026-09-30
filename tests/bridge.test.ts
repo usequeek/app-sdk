@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   APP_SOURCE,
   type AppInboundMessage,
+  buildReadyMessage,
   clipOutbound,
   DASHBOARD_SOURCE,
   type EmbedEvent,
@@ -284,6 +285,9 @@ describe("isAllowedOpenTarget", () => {
     ["file:///etc/passwd", false],
     ["//evil.example.com/x", false],
     ["http://other.example.com/x", false],
+    ["http://merchant.example.com/x", false],
+    ["https:\\\\evil.example.com", false],
+    ["/\\evil.example.com", false],
     ["java\tscript:alert(1)", false],
     ["", false],
     ["   ", false],
@@ -332,8 +336,10 @@ describe("parseOutboundMessage as the dashboard gate", () => {
       type: "open",
       target: "/apps/x",
     });
-    // Without the origin the parser can only cap, not judge relativity.
-    expect(parseOutboundMessage(open)).toMatchObject({ type: "open" });
+    // Without the origin the parser still applies the origin-free policy.
+    expect(parseOutboundMessage(open)).toBeNull();
+    expect(parseOutboundMessage({ ...open, target: "/apps/x" })).toMatchObject({ type: "open" });
+    expect(parseOutboundMessage({ ...open, target: "http://evil.example.com" })).toBeNull();
   });
 
   it("clamps duration and drops invalid multiple through the parser", () => {
@@ -391,6 +397,112 @@ describe("clipOutbound sanitization", () => {
         multiple: "yes" as unknown as boolean,
       }),
     ).toEqual({ source: APP_SOURCE, type: "pick-resource", resourceType: "product" });
+  });
+});
+
+describe("clipOutbound is the one choke point", () => {
+  it("re-gates open targets without an origin", () => {
+    for (const target of [
+      "javascript:alert(1)",
+      "//evil.example.com",
+      "http://evil.example.com",
+      "https:\\\\evil.example.com",
+      "/a\tb",
+    ]) {
+      expect(clipOutbound({ source: APP_SOURCE, type: "open", target })).toBeNull();
+    }
+    expect(clipOutbound({ source: APP_SOURCE, type: "open", target: "/apps/x" })).toEqual({
+      source: APP_SOURCE,
+      type: "open",
+      target: "/apps/x",
+    });
+  });
+
+  it("rebuilds messages without smuggled fields and rejects NaN resize", () => {
+    const extra = { evil: 1 };
+    expect(clipOutbound({ source: APP_SOURCE, type: "save-bar", state: "dirty", ...extra })).toEqual({
+      source: APP_SOURCE,
+      type: "save-bar",
+      state: "dirty",
+    });
+    expect(clipOutbound({ source: APP_SOURCE, type: "ack", ...extra })).toEqual({
+      source: APP_SOURCE,
+      type: "ack",
+    });
+    expect(clipOutbound({ source: APP_SOURCE, type: "resize", height: Number.NaN })).toBeNull();
+  });
+
+  it("every sender is capped by it, including ready", () => {
+    const { postTarget, posts } = fakeTargets();
+    sendReady(ORIGIN, postTarget, {
+      capabilities: Array.from({ length: 40 }, (_, i) => `c${i}`.padEnd(100, "x")),
+      sdkVersion: "v".repeat(100),
+    });
+    const ready = posts[0]?.message as { capabilities: string[]; sdkVersion: string };
+    expect(ready.capabilities).toHaveLength(32);
+    expect(ready.capabilities[0]).toHaveLength(64);
+    expect(ready.sdkVersion).toHaveLength(32);
+    expect(buildReadyMessage({ capabilities: ["a"] })).toEqual({
+      source: APP_SOURCE,
+      type: "ready",
+      capabilities: ["a"],
+    });
+  });
+
+  it("carries capped picker request ids both ways", () => {
+    const { postTarget, posts } = fakeTargets();
+    sendPickResource(ORIGIN, postTarget, { resourceType: "product", requestId: "r".repeat(100) });
+    expect(posts[0]?.message).toMatchObject({ requestId: "r".repeat(64) });
+    expect(
+      parseInboundMessage({ source: DASHBOARD_SOURCE, type: "resource-picked", items: [], requestId: "p1" }),
+    ).toMatchObject({ requestId: "p1" });
+    expect(
+      parseInboundMessage({ source: DASHBOARD_SOURCE, type: "resource-pick-cancelled", requestId: "p1" }),
+    ).toMatchObject({ requestId: "p1" });
+  });
+});
+
+describe("dashboard capability handshake on theme", () => {
+  it("parses capabilities + bridge with the outbound caps", () => {
+    const parsed = parseInboundMessage({
+      source: DASHBOARD_SOURCE,
+      type: "theme",
+      mode: "dark",
+      capabilities: ["pick-resource", 7, "", "x".repeat(100), ...Array.from({ length: 40 }, () => "y")],
+      bridge: "1",
+    }) as { capabilities: string[]; bridge: string };
+    expect(parsed.bridge).toBe("1");
+    expect(parsed.capabilities).toHaveLength(32);
+    expect(parsed.capabilities[0]).toBe("pick-resource");
+    expect(parsed.capabilities[1]).toHaveLength(64);
+  });
+
+  it("rejects malformed handshake fields and stays absent on legacy themes", () => {
+    expect(
+      parseInboundMessage({ source: DASHBOARD_SOURCE, type: "theme", mode: "dark", capabilities: "x" }),
+    ).toBeNull();
+    expect(
+      parseInboundMessage({ source: DASHBOARD_SOURCE, type: "theme", mode: "dark", bridge: 1 }),
+    ).toBeNull();
+    expect(parseInboundMessage({ source: DASHBOARD_SOURCE, type: "theme", mode: "dark" })).toEqual({
+      source: DASHBOARD_SOURCE,
+      type: "theme",
+      mode: "dark",
+    });
+  });
+
+  it("listenToDashboard exposes them on BridgeTheme", () => {
+    const { listenTarget, fire } = fakeTargets();
+    const onTheme = vi.fn();
+    listenToDashboard({ dashboardOrigin: ORIGIN, target: listenTarget, onTheme });
+    fire(ORIGIN, {
+      source: DASHBOARD_SOURCE,
+      type: "theme",
+      mode: "light",
+      capabilities: ["pick-resource"],
+      bridge: "1",
+    });
+    expect(onTheme).toHaveBeenCalledWith({ mode: "light", capabilities: ["pick-resource"], bridge: "1" });
   });
 });
 

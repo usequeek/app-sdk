@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
-import { installAuthFetch, readLaunchToken, stripLaunchToken } from "../src/auth-fetch.js";
+import {
+  BRIDGE_TOKEN_TIMEOUT_MS,
+  installAuthFetch,
+  readLaunchToken,
+  stripLaunchToken,
+} from "../src/auth-fetch.js";
 import { DASHBOARD_SOURCE } from "../src/frame.js";
 
 const ORIGIN = "https://merchant.example.com";
@@ -64,7 +69,7 @@ describe("readLaunchToken / stripLaunchToken", () => {
 });
 
 describe("installAuthFetch", () => {
-  it("strips the token from the URL, exchanges once, attaches Bearer [REDACTED] same-origin", async () => {
+  it("strips the token from the URL, exchanges once, attaches the session as a Bearer token on same-origin fetches", async () => {
     const listenTarget = fakeListenTarget();
     const { postTarget } = fakePosts();
     const replaced: string[] = [];
@@ -249,6 +254,107 @@ describe("installAuthFetch", () => {
     expect(exchange).toHaveBeenCalledWith("late");
     expect(sent?.get("authorization")).toBe("Bearer sess-for-late");
     auth.dispose();
+  });
+
+  it("refresh ready carries the configured capabilities and sdkVersion", async () => {
+    const listenTarget = fakeListenTarget();
+    const { posts, postTarget } = fakePosts();
+    const auth = installAuthFetch({
+      exchange: async (token) => `sess-${token}`,
+      dashboardOrigin: ORIGIN,
+      postTarget,
+      listenTarget,
+      capabilities: ["title", "pick-resource"],
+      sdkVersion: "0.5.1",
+      fetchImpl: async () => jsonResponse(200),
+      getHref: () => "https://app.example.test/admin",
+      replaceUrl: () => {},
+    });
+    const pending = auth.refresh();
+    expect(posts[0]?.message).toEqual({
+      source: "queek-app",
+      type: "ready",
+      capabilities: ["title", "pick-resource"],
+      sdkVersion: "0.5.1",
+    });
+    listenTarget.fire(ORIGIN, { source: DASHBOARD_SOURCE, type: "token", token: "t" });
+    await pending;
+    auth.dispose();
+  });
+
+  it("does not stall or post when not framed (no post target, or the window itself)", async () => {
+    const win = {
+      location: { href: "https://app.example.test/admin" },
+      history: { replaceState: () => {} },
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      postMessage: vi.fn(),
+    };
+    vi.stubGlobal("window", win);
+    try {
+      // `undefined` falls back to window.parent (absent here); `win` is the window itself.
+      for (const postTarget of [undefined, win]) {
+        let sent: Headers | null = null;
+        const auth = installAuthFetch({
+          exchange: async () => "sess",
+          dashboardOrigin: ORIGIN,
+          postTarget,
+          fetchImpl: async (_url: string, init?: RequestInit) => {
+            sent = new Headers(init?.headers);
+            return jsonResponse(200);
+          },
+          getHref: () => "https://app.example.test/admin",
+          replaceUrl: () => {},
+        });
+        const started = Date.now();
+        const res = await auth.fetch("/admin/api/orders");
+        expect(res.status).toBe(200);
+        expect(Date.now() - started).toBeLessThan(1000);
+        expect(sent?.has("authorization")).toBe(false);
+        auth.dispose();
+      }
+      expect(win.postMessage).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("remembers a failed recovery and retries only after a later token arrives", async () => {
+    vi.useFakeTimers();
+    try {
+      const listenTarget = fakeListenTarget();
+      const { posts, postTarget } = fakePosts();
+      const exchange = vi.fn(async (token: string) => `sess-${token}`);
+      const auth = installAuthFetch({
+        exchange,
+        dashboardOrigin: ORIGIN,
+        postTarget,
+        listenTarget,
+        fetchImpl: async () => jsonResponse(200),
+        getHref: () => "https://app.example.test/admin",
+        replaceUrl: () => {},
+      });
+      const first = auth.fetch("/admin/api/a");
+      await vi.advanceTimersByTimeAsync(BRIDGE_TOKEN_TIMEOUT_MS);
+      expect((await first).status).toBe(200);
+      expect(posts).toHaveLength(1);
+
+      // Failed once: later requests go straight through, no second ready/stall.
+      expect((await auth.fetch("/admin/api/b")).status).toBe(200);
+      expect(posts).toHaveLength(1);
+
+      // A later token proves the dashboard is talking: recovery is retried.
+      listenTarget.fire(ORIGIN, { source: DASHBOARD_SOURCE, type: "token", token: "back" });
+      const third = auth.fetch("/admin/api/c");
+      await vi.advanceTimersByTimeAsync(0);
+      expect(posts).toHaveLength(2);
+      listenTarget.fire(ORIGIN, { source: DASHBOARD_SOURCE, type: "token", token: "again" });
+      expect((await third).status).toBe(200);
+      expect(exchange).toHaveBeenCalledWith("again");
+      auth.dispose();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("fetches without a header when the recovery fails", async () => {

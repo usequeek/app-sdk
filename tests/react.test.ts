@@ -3,7 +3,13 @@ import { act, Component, createElement, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DASHBOARD_SOURCE } from "../src/frame.js";
-import { PICK_TIMEOUT_MS, type QueekApi, QueekProvider, useQueek } from "../src/react.js";
+import {
+  HANDSHAKE_TIMEOUT_MS,
+  PICK_TIMEOUT_MS,
+  type QueekApi,
+  QueekProvider,
+  useQueek,
+} from "../src/react.js";
 
 /** ./react: useQueek() posts the right bridge messages over the core. */
 
@@ -36,6 +42,23 @@ function fakeBridge() {
     listener?.({ origin, data, source });
   };
   return { posts, listenTarget, postTarget, fire };
+}
+
+/** The dashboard's handshake: its capabilities ride its `theme` message. */
+function handshake(bridge: ReturnType<typeof fakeBridge>, capabilities: string[] = ["pick-resource"]) {
+  bridge.fire(ORIGIN, {
+    source: DASHBOARD_SOURCE,
+    type: "theme",
+    mode: "light",
+    capabilities,
+    bridge: "1",
+  });
+}
+
+/** The requestId the SDK put on its most recent pick-resource post. */
+function lastPickId(bridge: ReturnType<typeof fakeBridge>): string {
+  const pick = bridge.posts.filter((post) => (post.message as { type: string }).type === "pick-resource");
+  return (pick.at(-1) as unknown as { message: { requestId: string } }).message.requestId;
 }
 
 function probe(onApi: (api: QueekApi) => void): () => ReactNode {
@@ -179,6 +202,9 @@ describe("useQueek", () => {
         ),
       ),
     );
+    await act(async () => {
+      handshake(bridge);
+    });
     const first = api?.pickResource({ resourceType: "product", multiple: true });
     await expect(api?.pickResource({ resourceType: "product" })).rejects.toThrow(/already in progress/);
     expect(bridge.posts.at(-1)?.message).toMatchObject({ type: "pick-resource", resourceType: "product" });
@@ -186,6 +212,7 @@ describe("useQueek", () => {
       bridge.fire(ORIGIN, {
         source: DASHBOARD_SOURCE,
         type: "resource-picked",
+        requestId: lastPickId(bridge),
         items: [{ p_id: "p_1", title: "Shirt" }],
       });
     });
@@ -193,7 +220,11 @@ describe("useQueek", () => {
 
     const second = api?.pickResource({ resourceType: "product" });
     await act(async () => {
-      bridge.fire(ORIGIN, { source: DASHBOARD_SOURCE, type: "resource-pick-cancelled" });
+      bridge.fire(ORIGIN, {
+        source: DASHBOARD_SOURCE,
+        type: "resource-pick-cancelled",
+        requestId: lastPickId(bridge),
+      });
     });
     await expect(second).resolves.toBeNull();
   });
@@ -301,6 +332,9 @@ describe("useQueek", () => {
         ),
       );
     await render(shell(0));
+    await act(async () => {
+      handshake(bridge);
+    });
     const picking = api?.pickResource({ resourceType: "product" });
     await render(shell(1));
     await render(shell(2));
@@ -311,6 +345,7 @@ describe("useQueek", () => {
       bridge.fire(ORIGIN, {
         source: DASHBOARD_SOURCE,
         type: "resource-picked",
+        requestId: lastPickId(bridge),
         items: [{ p_id: "p_9", title: "Kept" }],
       });
     });
@@ -341,11 +376,15 @@ describe("useQueek", () => {
       /product resources only/,
     );
     expect(bridge.posts).toHaveLength(readyPosts);
+    await act(async () => {
+      handshake(bridge);
+    });
     const valid = api?.pickResource({ resourceType: "product" });
     await act(async () => {
       bridge.fire(ORIGIN, {
         source: DASHBOARD_SOURCE,
         type: "resource-picked",
+        requestId: lastPickId(bridge),
         items: [{ p_id: "p_1", title: "Shirt" }],
       });
     });
@@ -360,7 +399,33 @@ describe("useQueek", () => {
         QueekProvider,
         {
           dashboardOrigin: ORIGIN,
-          dashboardCapabilities: ["title", "toast"],
+          postTarget: bridge.postTarget,
+          listenTarget: bridge.listenTarget,
+          getHref: () => "https://app.example.test/admin",
+        },
+        createElement(
+          probe((next) => {
+            api = next;
+          }),
+        ),
+      ),
+    );
+    await act(async () => {
+      handshake(bridge, ["title", "toast"]);
+    });
+    const readyPosts = bridge.posts.length;
+    await expect(api?.pickResource({ resourceType: "product" })).rejects.toThrow(/does not support/);
+    expect(bridge.posts).toHaveLength(readyPosts);
+  });
+
+  it("waits for an unknown dashboard's handshake, then proceeds", async () => {
+    const bridge = fakeBridge();
+    let api: QueekApi | null = null;
+    await render(
+      createElement(
+        QueekProvider,
+        {
+          dashboardOrigin: ORIGIN,
           postTarget: bridge.postTarget,
           listenTarget: bridge.listenTarget,
           getHref: () => "https://app.example.test/admin",
@@ -373,8 +438,128 @@ describe("useQueek", () => {
       ),
     );
     const readyPosts = bridge.posts.length;
-    await expect(api?.pickResource({ resourceType: "product" })).rejects.toThrow(/does not support/);
+    const picking = api?.pickResource({ resourceType: "product" });
+    // Nothing is posted while the dashboard's capabilities are unknown, and a
+    // second pick is refused as in progress.
     expect(bridge.posts).toHaveLength(readyPosts);
+    await expect(api?.pickResource({ resourceType: "product" })).rejects.toThrow(/already in progress/);
+    await act(async () => {
+      handshake(bridge);
+    });
+    expect(bridge.posts.at(-1)?.message).toMatchObject({ type: "pick-resource", requestId: "pick-1" });
+    await act(async () => {
+      bridge.fire(ORIGIN, {
+        source: DASHBOARD_SOURCE,
+        type: "resource-picked",
+        requestId: "pick-1",
+        items: [{ p_id: "p_3", title: "Late" }],
+      });
+    });
+    await expect(picking).resolves.toEqual([{ p_id: "p_3", title: "Late" }]);
+  });
+
+  it("treats a dashboard that never handshakes as legacy and rejects", async () => {
+    const bridge = fakeBridge();
+    let api: QueekApi | null = null;
+    // Fake timers first: the handshake timer starts when the provider mounts.
+    vi.useFakeTimers();
+    await render(
+      createElement(
+        QueekProvider,
+        {
+          dashboardOrigin: ORIGIN,
+          postTarget: bridge.postTarget,
+          listenTarget: bridge.listenTarget,
+          getHref: () => "https://app.example.test/admin",
+        },
+        createElement(
+          probe((next) => {
+            api = next;
+          }),
+        ),
+      ),
+    );
+    try {
+      const readyPosts = bridge.posts.length;
+      const picking = api?.pickResource({ resourceType: "product" });
+      const assertion = expect(picking).rejects.toThrow(/does not support/);
+      await vi.advanceTimersByTimeAsync(HANDSHAKE_TIMEOUT_MS);
+      await assertion;
+      expect(bridge.posts).toHaveLength(readyPosts);
+      // Once legacy, later picks reject at once (no second wait).
+      await expect(api?.pickResource({ resourceType: "product" })).rejects.toThrow(/does not support/);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("drops stale or unidentified pick answers", async () => {
+    const bridge = fakeBridge();
+    let api: QueekApi | null = null;
+    await render(
+      createElement(
+        QueekProvider,
+        {
+          dashboardOrigin: ORIGIN,
+          postTarget: bridge.postTarget,
+          listenTarget: bridge.listenTarget,
+          getHref: () => "https://app.example.test/admin",
+        },
+        createElement(
+          probe((next) => {
+            api = next;
+          }),
+        ),
+      ),
+    );
+    await act(async () => {
+      handshake(bridge);
+    });
+    const picking = api?.pickResource({ resourceType: "product" });
+    let settled = false;
+    picking?.then(() => {
+      settled = true;
+    });
+    await act(async () => {
+      bridge.fire(ORIGIN, {
+        source: DASHBOARD_SOURCE,
+        type: "resource-picked",
+        requestId: "pick-0",
+        items: [{ p_id: "p_old", title: "Old" }],
+      });
+      bridge.fire(ORIGIN, { source: DASHBOARD_SOURCE, type: "resource-pick-cancelled" });
+    });
+    expect(settled).toBe(false);
+    await act(async () => {
+      bridge.fire(ORIGIN, {
+        source: DASHBOARD_SOURCE,
+        type: "resource-picked",
+        requestId: lastPickId(bridge),
+        items: [{ p_id: "p_new", title: "New" }],
+      });
+    });
+    await expect(picking).resolves.toEqual([{ p_id: "p_new", title: "New" }]);
+  });
+
+  it("remembers the live theme mode so an in-frame reload keeps it", async () => {
+    const bridge = fakeBridge();
+    sessionStorage.clear();
+    await render(
+      createElement(
+        QueekProvider,
+        {
+          dashboardOrigin: ORIGIN,
+          postTarget: bridge.postTarget,
+          listenTarget: bridge.listenTarget,
+          getHref: () => "https://app.example.test/admin",
+        },
+        createElement(probe(() => {})),
+      ),
+    );
+    await act(async () => {
+      bridge.fire(ORIGIN, { source: DASHBOARD_SOURCE, type: "theme", mode: "dark" });
+    });
+    expect(sessionStorage.getItem("queek.theme")).toBe("dark");
   });
 
   it("times out a pick the dashboard never answers", async () => {
@@ -396,6 +581,9 @@ describe("useQueek", () => {
         ),
       ),
     );
+    await act(async () => {
+      handshake(bridge);
+    });
     vi.useFakeTimers();
     try {
       const picking = api?.pickResource({ resourceType: "product" });
@@ -408,6 +596,7 @@ describe("useQueek", () => {
         bridge.fire(ORIGIN, {
           source: DASHBOARD_SOURCE,
           type: "resource-picked",
+          requestId: lastPickId(bridge),
           items: [{ p_id: "p_2", title: "Again" }],
         });
       });

@@ -47,6 +47,12 @@ import { applyTheme, getThemeModeFromUrl, rememberThemeMode, type ThemeMode } fr
 /** A pick with no dashboard answer settles after this long (never deadlocks). */
 export const PICK_TIMEOUT_MS = 5 * 60 * 1000;
 
+/**
+ * How long after `ready` the provider waits for the dashboard's capability
+ * handshake (on its `theme` message) before treating the dashboard as legacy.
+ */
+export const HANDSHAKE_TIMEOUT_MS = 1500;
+
 export type {
   BridgeTheme,
   PickResourceRequest,
@@ -103,6 +109,7 @@ export interface QueekApi {
 }
 
 interface PendingPick {
+  requestId: string;
   resolve: (items: ResourceItem[] | null) => void;
   reject: (error: Error) => void;
   timer: ReturnType<typeof setTimeout>;
@@ -140,12 +147,6 @@ export interface QueekProviderProps {
   /** Declared in `ready{capabilities}` so old dashboards degrade gracefully. */
   capabilities?: string[];
   sdkVersion?: string;
-  /**
-   * The dashboard's own capabilities when known. When present without
-   * `pick-resource`, `pickResource` rejects at once instead of waiting on a
-   * dashboard that will never answer (old-dashboard case).
-   */
-  dashboardCapabilities?: string[];
   postTarget?: EmbedPostTarget;
   listenTarget?: EmbedEventTarget;
   getHref?: () => string;
@@ -156,30 +157,26 @@ export interface QueekProviderProps {
   expectSource?: unknown;
 }
 
+function resolveConfig(props: QueekProviderProps, win: GlobalWindow | null) {
+  return {
+    postTarget: props.postTarget ?? win?.parent,
+    listenTarget: props.listenTarget ?? (win as unknown as EmbedEventTarget | null) ?? undefined,
+    getHref: props.getHref ?? (() => win?.location.href ?? ""),
+    expectSource: props.expectSource !== undefined ? props.expectSource : (win?.parent ?? undefined),
+  };
+}
+
 export function QueekProvider(props: QueekProviderProps): ReactNode {
   const { dashboardOrigin, children, sdkVersion } = props;
   const win = useMemo(() => globalWindow(), []);
-  // Latest wiring lives in a ref: parent re-renders (inline arrays, fresh
-  // closures) must NOT resubscribe the bridge or re-announce ready.
-  const configRef = useRef({
-    postTarget: props.postTarget ?? win?.parent,
-    listenTarget: props.listenTarget ?? (win as unknown as EmbedEventTarget | null) ?? undefined,
-    getHref: props.getHref ?? (() => win?.location.href ?? ""),
-    capabilities: props.capabilities ?? [],
-    dashboardCapabilities: props.dashboardCapabilities,
-    expectSource: props.expectSource !== undefined ? props.expectSource : (win?.parent ?? undefined),
-  });
-  configRef.current = {
-    postTarget: props.postTarget ?? win?.parent,
-    listenTarget: props.listenTarget ?? (win as unknown as EmbedEventTarget | null) ?? undefined,
-    getHref: props.getHref ?? (() => win?.location.href ?? ""),
-    capabilities: props.capabilities ?? [],
-    dashboardCapabilities: props.dashboardCapabilities,
-    expectSource: props.expectSource !== undefined ? props.expectSource : (win?.parent ?? undefined),
-  };
   // Capabilities keyed by content: a new inline array with the same entries
   // keeps the subscription (and the single ready) stable.
   const capKey = JSON.stringify(props.capabilities ?? []);
+  const capabilities = useMemo(() => JSON.parse(capKey) as string[], [capKey]);
+  // Latest wiring lives in a ref: parent re-renders (inline arrays, fresh
+  // closures) must NOT resubscribe the bridge or re-announce ready.
+  const configRef = useRef(resolveConfig(props, win));
+  configRef.current = resolveConfig(props, win);
 
   // "light" until the mount effect reads the URL — the first render must
   // match SSR to avoid a hydration mismatch.
@@ -189,14 +186,30 @@ export function QueekProvider(props: QueekProviderProps): ReactNode {
   const saveBarHandlers = useRef(new Set<(action: SaveBarAction) => void>());
   const navigateHandlers = useRef(new Set<(path: string) => void>());
   const pendingPick = useRef<PendingPick | null>(null);
+  const pickCounter = useRef(0);
+  // The dashboard's own capabilities, learned from its `theme` handshake.
+  // undefined = unknown; `legacy` flips when the handshake never arrives.
+  const dashboardCaps = useRef<string[] | undefined>(undefined);
+  const handshakeLegacy = useRef(false);
+  const handshakeWaiters = useRef(new Set<(caps: string[] | undefined) => void>());
 
-  const settlePick = useCallback((value: ResourceItem[] | null) => {
-    const pending = pendingPick.current;
-    pendingPick.current = null;
-    if (pending !== null) {
-      clearTimeout(pending.timer);
-      pending.resolve(value);
+  const flushHandshake = useCallback(() => {
+    const waiters = [...handshakeWaiters.current];
+    handshakeWaiters.current.clear();
+    for (const waiter of waiters) {
+      waiter(dashboardCaps.current);
     }
+  }, []);
+
+  const settlePick = useCallback((value: ResourceItem[] | null, requestId?: string) => {
+    const pending = pendingPick.current;
+    // Stale answers (an earlier, timed-out pick) never settle the current one.
+    if (pending === null || requestId !== pending.requestId) {
+      return;
+    }
+    pendingPick.current = null;
+    clearTimeout(pending.timer);
+    pending.resolve(value);
   }, []);
 
   const failPick = useCallback((error: Error) => {
@@ -210,7 +223,16 @@ export function QueekProvider(props: QueekProviderProps): ReactNode {
 
   useEffect(() => {
     const config = configRef.current;
-    sendReady(dashboardOrigin, config.postTarget, { capabilities: config.capabilities, sdkVersion });
+    dashboardCaps.current = undefined;
+    handshakeLegacy.current = false;
+    sendReady(dashboardOrigin, config.postTarget, { capabilities, sdkVersion });
+    const handshakeTimer = setTimeout(() => {
+      if (dashboardCaps.current === undefined) {
+        handshakeLegacy.current = true;
+        flushHandshake();
+      }
+    }, HANDSHAKE_TIMEOUT_MS);
+    (handshakeTimer as unknown as { unref?: () => void }).unref?.();
     // Sync the URL theme after mount (render stayed SSR-safe "light").
     const initial = getThemeModeFromUrl(config.getHref());
     if (initial !== modeRef.current) {
@@ -227,8 +249,14 @@ export function QueekProvider(props: QueekProviderProps): ReactNode {
       onTheme: (theme) => {
         modeRef.current = theme.mode;
         applyTheme(theme.mode);
+        rememberThemeMode(theme.mode);
         for (const handler of themeHandlers.current) {
           handler(theme.mode);
+        }
+        if (theme.capabilities !== undefined) {
+          clearTimeout(handshakeTimer);
+          dashboardCaps.current = theme.capabilities;
+          flushHandshake();
         }
       },
       onTitleAction: (id) => {
@@ -246,14 +274,16 @@ export function QueekProvider(props: QueekProviderProps): ReactNode {
           handler(path);
         }
       },
-      onResourcePicked: (items) => settlePick(items),
-      onResourcePickCancelled: () => settlePick(null),
+      onResourcePicked: (items, requestId) => settlePick(items, requestId),
+      onResourcePickCancelled: (requestId) => settlePick(null, requestId),
     });
     return () => {
+      clearTimeout(handshakeTimer);
+      handshakeWaiters.current.clear();
       failPick(new Error("QueekProvider unmounted"));
       stop();
     };
-  }, [dashboardOrigin, capKey, sdkVersion, settlePick, failPick]);
+  }, [dashboardOrigin, capabilities, sdkVersion, flushHandshake, settlePick, failPick]);
 
   const state = useMemo<BridgeState>(
     () => ({
@@ -296,23 +326,38 @@ export function QueekProvider(props: QueekProviderProps): ReactNode {
         if (pendingPick.current !== null) {
           return Promise.reject(new Error("pickResource already in progress"));
         }
-        const supported = configRef.current.dashboardCapabilities;
-        if (supported !== undefined && !supported.includes("pick-resource")) {
-          return Promise.reject(new Error("dashboard does not support pick-resource"));
-        }
-        const config = configRef.current;
-        sendPickResource(dashboardOrigin, config.postTarget, request);
+        pickCounter.current += 1;
+        const requestId = `pick-${pickCounter.current}`;
         return new Promise<ResourceItem[] | null>((resolve, reject) => {
           const timer = setTimeout(() => {
             failPick(new Error("pickResource timed out"));
           }, PICK_TIMEOUT_MS);
           (timer as unknown as { unref?: () => void }).unref?.();
-          pendingPick.current = { resolve, reject, timer };
+          // Registered before the capability check so a second pick during the
+          // handshake wait is rejected as "in progress".
+          pendingPick.current = { requestId, resolve, reject, timer };
+          const dispatch = (caps: string[] | undefined) => {
+            if (pendingPick.current?.requestId !== requestId) {
+              return;
+            }
+            if (caps === undefined || !caps.includes("pick-resource")) {
+              failPick(new Error("dashboard does not support pick-resource"));
+              return;
+            }
+            sendPickResource(dashboardOrigin, configRef.current.postTarget, { ...request, requestId });
+          };
+          if (dashboardCaps.current !== undefined) {
+            dispatch(dashboardCaps.current);
+          } else if (handshakeLegacy.current) {
+            dispatch(undefined);
+          } else {
+            handshakeWaiters.current.add(dispatch);
+          }
         });
       },
       currentMode: () => modeRef.current,
     }),
-    [dashboardOrigin, capKey, sdkVersion],
+    [dashboardOrigin, failPick],
   );
 
   return createElement(QueekBridgeContext.Provider, { value: state }, children);

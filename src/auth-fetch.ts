@@ -33,6 +33,13 @@ export interface AuthFetchOptions {
   param?: string;
   /** postMessage target for `ready` (defaults to the global window's parent). */
   postTarget?: EmbedPostTarget;
+  /**
+   * Capabilities announced in the refresh `ready` — pass the SAME list as the
+   * React provider / theme listener so the dashboard sees one consistent set.
+   */
+  capabilities?: string[];
+  /** SDK version announced in the refresh `ready`. */
+  sdkVersion?: string;
   /** message-event target for the token reply (defaults to the global window). */
   listenTarget?: EmbedEventTarget;
   /**
@@ -50,7 +57,7 @@ export interface AuthFetchOptions {
 }
 
 export interface InstalledAuth {
-  /** Session-carrying fetch: same-origin requests gain the Bearer [REDACTED] 401 retries once after refresh. */
+  /** Session-carrying fetch: same-origin requests gain the session as a Bearer token, and a 401 retries once after a refresh. */
   fetch: (input: string | URL | Request, init?: RequestInit) => Promise<Response>;
   /** Current app session, or null before the exchange settles / without a token. */
   getSession: () => string | null;
@@ -151,6 +158,13 @@ export function installAuthFetch(options: AuthFetchOptions): InstalledAuth {
   const ready: Promise<string | null> =
     launchToken === null ? Promise.resolve(null) : runExchange(launchToken).catch(() => null);
 
+  // A recovery only makes sense inside a dashboard frame: unframed, nothing
+  // can ever answer the ready. After one failed recovery, later requests skip
+  // it (no 8s stall per fetch) until a later token proves the dashboard is
+  // talking.
+  const framed = postTarget !== undefined && postTarget !== (win as unknown as EmbedPostTarget | null);
+  let recoveryFailed = false;
+
   let pendingToken: { resolve: (token: string) => void; reject: (error: Error) => void } | null = null;
 
   const expectSource = options.expectSource !== undefined ? options.expectSource : (win?.parent ?? undefined);
@@ -160,6 +174,7 @@ export function installAuthFetch(options: AuthFetchOptions): InstalledAuth {
     target: listenTarget,
     expectSource: expectSource ?? undefined,
     onToken: (token) => {
+      recoveryFailed = false;
       pendingToken?.resolve(token);
       pendingToken = null;
     },
@@ -169,7 +184,10 @@ export function installAuthFetch(options: AuthFetchOptions): InstalledAuth {
     new Promise<string>((resolve, reject) => {
       pendingToken?.reject(new Error("superseded by a newer token request"));
       pendingToken = { resolve, reject };
-      sendReady(options.dashboardOrigin, postTarget);
+      sendReady(options.dashboardOrigin, postTarget, {
+        capabilities: options.capabilities,
+        sdkVersion: options.sdkVersion,
+      });
       const timer = setTimeout(() => {
         if (pendingToken?.resolve === resolve) {
           pendingToken = null;
@@ -244,14 +262,27 @@ export function installAuthFetch(options: AuthFetchOptions): InstalledAuth {
     return fetchFn(input as string, { ...init, headers, credentials: "omit" });
   };
 
+  const recover = async (): Promise<string | null> => {
+    if (!framed || recoveryFailed) {
+      return null;
+    }
+    try {
+      return await refresh();
+    } catch {
+      recoveryFailed = true;
+      return null;
+    }
+  };
+
   const authFetch = async (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
     const url = requestUrl(input);
     if (url === null || !isSameOrigin(url)) {
       return fetchFn(input as string, init);
     }
     // No session yet (e.g. no launch token after an in-frame hard reload):
-    // recover via the bridge ready→token flow before giving up.
-    const used = session ?? (await ready) ?? (await refresh().catch(() => null));
+    // recover via the bridge ready→token flow before giving up — framed only,
+    // and not again after a failed attempt.
+    const used = session ?? (await ready) ?? (await recover());
     if (used === null) {
       return fetchFn(input as string, { ...init, credentials: "omit" });
     }

@@ -343,18 +343,40 @@ Hono: mount `createProxyHandler({ store, path, onVerified })` from
   `parseOutboundMessage` runs the same per-type validation the dashboard
   runs — the dashboard re-validates everything before acting (open targets,
   title/toast/pick content), so a compromised frame cannot smuggle
-  `javascript:` URLs or uncapped strings through the bridge.
+  `javascript:` URLs or uncapped strings through the bridge. `open` targets
+  are a dashboard-relative path or an absolute `https:` URL; backslashes,
+  control characters, protocol-relative URLs and every other scheme are
+  refused (by `clipOutbound` as well as `isAllowedOpenTarget`).
+
+  **Bridge handshake.** The app announces `ready{capabilities,sdkVersion}`;
+  the dashboard answers with its `theme` message, which also declares the
+  DASHBOARD's capabilities: `{ type: "theme", mode, locale?, capabilities?:
+  string[], bridge?: "1" }` (same caps as outbound: at most 32 entries of 64
+  characters). `listenToDashboard` exposes both on the `BridgeTheme` passed to
+  `onTheme`. A dashboard that omits `capabilities` is legacy (ready/token/
+  resize only). `<QueekProvider>` stores the declared set: `pickResource`
+  rejects at once when it lacks `pick-resource`, waits up to 1.5 s after
+  `ready` when the set is still unknown, and rejects if no handshake arrives.
+  Each pick carries a `requestId` (on `pick-resource`); the dashboard MUST
+  echo it on `resource-picked` / `resource-pick-cancelled` — answers with a
+  different or missing id are dropped as stale.
 - **auth** (`auth-fetch.ts`, browser-safe, no secret): `installAuthFetch({ exchange })`
   — reads the launch token (`id_token` query param) from the signed first
   load, strips it with `history.replaceState`, exchanges it once for the
   app's own session, attaches `Authorization: Bearer <session>` to
   same-origin fetch (cookies stay out), and re-establishes via the bridge
-  `ready→token` flow + one retry on 401.
+  `ready→token` flow + one retry on 401. Session recovery runs only when framed (a post target other than the
+  window itself) and is not retried per request after a failed attempt — only
+  after a later dashboard token arrives. Pass the same `capabilities`/
+  `sdkVersion` as the provider so its refresh `ready` announces one consistent set.
 - **theme** (`theme.ts`, browser-safe, no secret): `applyTheme(mode)` toggles
   `.dark` on `<html>` + `color-scheme` (shadcn's dark-mode mechanism);
   `themeBootstrapScript()` returns the inline `<head>` snippet that reads
   `theme` from the URL before first paint (no flash);
-  `installThemeListener` follows live bridge `theme{mode}` messages.
+  `installThemeListener` follows live bridge `theme{mode}` messages (only from
+  `window.parent` by default; pass `expectSource` to override). The live mode is
+  remembered in `sessionStorage`, and the bootstrap script falls back to it when
+  the URL carries no `theme` param, so an in-frame reload never flashes light.
 - **react** (`react.ts`, via `@usequeek/app-sdk/react` — `react` is an
   optional peer, same pattern as `./hono`): `<QueekProvider>` owns one
   bridge subscription; `useQueek()` returns `{ toast, saveBar, title,
