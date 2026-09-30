@@ -8,9 +8,10 @@
  * the cross-site iframe cannot rely on them anyway).
  *
  * The caller supplies `exchange(token) => session`: the app's own endpoint
- * that verifies the launch/bridge token (server-side, via
- * `verifySessionToken`) and mints the app session. This module never sees
- * secrets — it only carries opaque tokens.
+ * that verifies the launch token (server-side, via `verifyLaunchToken`)
+ * and mints the app session — the exchange runs once on the signed first
+ * load so the first paint needs no bridge round-trip. This module never
+ * sees secrets — it only carries opaque tokens.
  *
  * DOM-free by design (like `frame.ts`): location/history access is
  * injectable and defaults to the global window when present.
@@ -18,8 +19,13 @@
 
 import { type EmbedEventTarget, type EmbedPostTarget, listenToDashboard, sendReady } from "./frame.js";
 
-/** Launch token query param on the signed first load. */
-export const LAUNCH_TOKEN_PARAM = "id_token";
+/**
+ * Launch token query param on the signed first load. Matches the dashboard
+ * frame src contract (`launchFrameUrl` in queek-merchant: the ONLY token
+ * that may ride a URL, namespaced so it cannot collide with an app's own
+ * `token` param).
+ */
+export const LAUNCH_TOKEN_PARAM = "queek_token";
 
 /** How long to wait for the dashboard's token reply after a `ready`. */
 export const BRIDGE_TOKEN_TIMEOUT_MS = 8000;
@@ -29,7 +35,7 @@ export interface AuthFetchOptions {
   exchange: (token: string) => Promise<string>;
   /** Exact dashboard origin for the `ready→token` refresh flow. */
   dashboardOrigin: string;
-  /** Launch-token query param (default `id_token`). */
+  /** Launch-token query param (default `queek_token`). */
   param?: string;
   /** postMessage target for `ready` (defaults to the global window's parent). */
   postTarget?: EmbedPostTarget;

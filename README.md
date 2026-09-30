@@ -331,6 +331,9 @@ Hono: mount `createProxyHandler({ store, path, onVerified })` from
   them on the installation (`embedSecret` encrypted, `appId`), and
   `sessionTokenInstallationId` reads the token's `installation_id` as an
   unverified routing hint so a server can load that row before verifying.
+  `verifyLaunchToken` checks the signed-first-load token the same way plus the purpose pin
+  (`purpose` must be `launch`, with the `store` p_id and `theme` hints) — a launch token is refused
+  as a bridge token and vice versa.
 - **frame** (`frame.ts`, browser-safe, no secret): the embedded-app bridge
   v1 — typed unions both directions (`ready{capabilities,sdkVersion}`,
   `theme`, `title`/`title-action`, `toast`, `save-bar`/`save-bar-action`,
@@ -361,14 +364,15 @@ Hono: mount `createProxyHandler({ store, path, onVerified })` from
   declares `pick-resource` MUST echo it on `resource-picked` / `resource-pick-cancelled` — answers with a
   different or missing id are dropped as stale.
 - **auth** (`auth-fetch.ts`, browser-safe, no secret): `installAuthFetch({ exchange })`
-  — reads the launch token (`id_token` query param) from the signed first
+  — reads the launch token (`queek_token` query param) from the signed first
   load, strips it with `history.replaceState`, exchanges it once for the
   app's own session, attaches `Authorization: Bearer <session>` to
   same-origin fetch (cookies stay out), and re-establishes via the bridge
   `ready→token` flow + one retry on 401. Session recovery runs only when framed (a post target other than the
   window itself) and is not retried per request after a failed attempt — only
   after a later dashboard token arrives. Pass the same `capabilities`/
-  `sdkVersion` as the provider so its refresh `ready` announces one consistent set.
+  `sdkVersion` as the provider so its refresh `ready` announces one consistent set. The exchange endpoint
+  verifies the launch token server-side with `verifyLaunchToken` (purpose must be `launch`).
 - **theme** (`theme.ts`, browser-safe, no secret): `applyTheme(mode)` toggles
   `.dark` on `<html>` + `color-scheme` (shadcn's dark-mode mechanism);
   `themeBootstrapScript()` returns the inline `<head>` snippet that reads

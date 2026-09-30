@@ -99,8 +99,12 @@ export interface InstallationStore {
    * equals `expectedToken` (the value the failing call presented). A late
    * drop after a concurrent re-mint is a no-op instead of wiping the fresh
    * token. Returns true when the token was cleared.
+   *
+   * Optional so custom stores don't break: stores without it fall back to
+   * `defaultClearCachedTokenIfMatches` (`getInstallation` + compare +
+   * `clearCachedToken`). SQLite compare-and-clear is in-process only.
    */
-  clearCachedTokenIfMatches(installationId: string, expectedToken: string): Promise<boolean> | boolean;
+  clearCachedTokenIfMatches?(installationId: string, expectedToken: string): Promise<boolean> | boolean;
   /** Forget EVERY cached token (kill switch) while keeping the rows. */
   clearAllCachedTokens(): Promise<void> | void;
   /**
@@ -133,6 +137,25 @@ export interface InstallationStore {
   claimWebhookId(webhookId: string): Promise<boolean> | boolean;
   /** Release a claim (callback failed; a retry may re-run). */
   releaseWebhookId(webhookId: string): Promise<void> | void;
+}
+
+/**
+ * Portable compare-and-clear for custom `InstallationStore`s that don't
+ * implement `clearCachedTokenIfMatches`: read the row, compare the stored
+ * token to the failing call's value, and clear only on a match. Best-effort
+ * across processes (read-then-clear is not atomic here) — exact for the
+ * single-process case, and a concurrent re-mint still self-heals via the
+ * caller's retry. Returns true when the token was cleared.
+ */
+export async function defaultClearCachedTokenIfMatches(
+  store: InstallationStore,
+  installationId: string,
+  expectedToken: string,
+): Promise<boolean> {
+  const row = await store.getInstallation(installationId);
+  if (!row || row.token !== expectedToken) return false;
+  await store.clearCachedToken(installationId);
+  return true;
 }
 
 export interface SqliteStoreOptions {

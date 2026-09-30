@@ -18,6 +18,7 @@ import {
 } from "./app-auth.js";
 import {
   createQueekClient,
+  isWriteMethod,
   MERCHANT_API_PATH,
   newIdempotencyKey,
   QueekApiError,
@@ -28,7 +29,7 @@ import {
   resolveApiBase,
 } from "./client.js";
 import { createLogger, type Logger } from "./logger.js";
-import type { InstallationStore } from "./store.js";
+import { defaultClearCachedTokenIfMatches, type InstallationStore } from "./store.js";
 
 /**
  * Installation tokens (S1, SDK 0.2.0): the app holds ONE asymmetric app
@@ -210,7 +211,13 @@ export class AppTokenProvider implements AppTokens {
       await this.store.clearCachedToken(installationId);
       return;
     }
-    await this.store.clearCachedTokenIfMatches(installationId, expectedToken);
+    // Native compare-and-clear when the store has it; otherwise the
+    // portable get + compare + clear default (custom stores keep working).
+    if (typeof this.store.clearCachedTokenIfMatches === "function") {
+      await this.store.clearCachedTokenIfMatches(installationId, expectedToken);
+      return;
+    }
+    await defaultClearCachedTokenIfMatches(this.store, installationId, expectedToken);
   }
 
   /** Kill-switch path (also used by ops): forget every cached token, keep the rows. */
@@ -475,9 +482,8 @@ export function createInstallationClient(options: InstallationClientOptions): Qu
     // did not supply one): the inner client would otherwise mint a fresh key
     // per attempt, so the retry would carry a different key. Reads keep no
     // key, exactly like the static client.
-    const upper = method.toUpperCase();
-    const isWrite = upper === "POST" || upper === "PUT" || upper === "PATCH" || upper === "DELETE";
-    const idempotencyKey = requestOptions.idempotencyKey ?? (isWrite ? newIdempotencyKey() : undefined);
+    const idempotencyKey =
+      requestOptions.idempotencyKey ?? (isWriteMethod(method) ? newIdempotencyKey() : undefined);
     const attemptOptions =
       idempotencyKey === undefined ? requestOptions : { ...requestOptions, idempotencyKey };
     try {

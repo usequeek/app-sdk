@@ -69,6 +69,7 @@ export {
   DEFAULT_API_HOSTS,
   devApiHostsFromEnv,
   InvalidApiBaseError,
+  isWriteMethod,
   MERCHANT_API_PATH,
   type MerchantPaths,
   newIdempotencyKey,
@@ -253,6 +254,7 @@ export {
 export {
   createInstallationStore,
   createPostgresPool,
+  defaultClearCachedTokenIfMatches,
   INSTALLATION_SCHEMA_VERSION,
   type InstallationRecord,
   type InstallationStore,

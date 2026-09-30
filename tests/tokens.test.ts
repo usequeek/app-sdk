@@ -12,7 +12,12 @@ import { createQueekClient, QueekApiError } from "../src/client.js";
 import type { InstallData } from "../src/handoff.js";
 import { saveResyncedInstallation } from "../src/install-handlers.js";
 import { createLogger } from "../src/logger.js";
-import { type InstallationRecord, SqliteInstallationStore } from "../src/store.js";
+import {
+  defaultClearCachedTokenIfMatches,
+  type InstallationRecord,
+  type InstallationStore,
+  SqliteInstallationStore,
+} from "../src/store.js";
 import { AppTokenProvider, createInstallationClient, resolveAppApiBase } from "../src/tokens.js";
 import { type FakeAppApi, fakeQueekAppApi, testAppKeypair } from "./fake-queek-app-api.js";
 
@@ -607,6 +612,71 @@ describe("grant change drops the cached token so the next call re-mints", () => 
     // A drop carrying the current value still clears.
     await ctx.provider.dropCachedToken(INSTALLATION_ID, "tok_fresh");
     expect((await ctx.store.getInstallation(INSTALLATION_ID))?.token).toBeNull();
+  });
+});
+
+describe("custom stores without clearCachedTokenIfMatches", () => {
+  /** Minimal legacy store: get + clear only, no native compare-and-clear. */
+  function legacyStore(initialToken: string | null): {
+    store: InstallationStore;
+    token: () => string | null;
+  } {
+    let current = initialToken;
+    const stub = {
+      getInstallation: () =>
+        current === null && initialToken === null
+          ? null
+          : installationRecord({
+              token: current,
+              tokenExpiresAt: current === null ? null : new Date(Date.now() + 3_600_000).toISOString(),
+              tokenKid: current === null ? null : "kid-1",
+            }),
+      clearCachedToken: () => {
+        current = null;
+      },
+    };
+    return { store: stub as unknown as InstallationStore, token: () => current };
+  }
+
+  it("default helper clears only on a match; mismatch and missing rows are no-ops", async () => {
+    const { store } = legacyStore("tok_kept");
+    expect(await defaultClearCachedTokenIfMatches(store, INSTALLATION_ID, "tok_other")).toBe(false);
+    expect(await store.getInstallation(INSTALLATION_ID)).toMatchObject({ token: "tok_kept" });
+    expect(await defaultClearCachedTokenIfMatches(store, INSTALLATION_ID, "tok_kept")).toBe(true);
+    expect(await store.getInstallation(INSTALLATION_ID)).toMatchObject({ token: null });
+
+    const cleared: string[] = [];
+    const missing = {
+      getInstallation: () => null,
+      clearCachedToken: (id: string) => {
+        cleared.push(id);
+      },
+    } as unknown as InstallationStore;
+    expect(await defaultClearCachedTokenIfMatches(missing, INSTALLATION_ID, "tok_x")).toBe(false);
+    expect(cleared).toEqual([]);
+  });
+
+  it("provider falls back to get+compare+clear when the native method is absent", async () => {
+    const keypair = KEYPAIR;
+    const fake = fakeQueekAppApi({ keypair });
+    const { store, token } = legacyStore("tok_fresh");
+    const provider = new AppTokenProvider({
+      credential: loadAppCredential({
+        appSlug: keypair.slug,
+        keyId: keypair.kid,
+        privateKeyPem: keypair.privateKeyPem,
+      }),
+      store,
+      fetchImpl: fake.fetchImpl,
+      logger: createLogger({ service: "test", sink: () => undefined }),
+      sleep: async () => undefined,
+      random: () => 0,
+    });
+    expect("clearCachedTokenIfMatches" in store).toBe(false);
+    await provider.dropCachedToken(INSTALLATION_ID, "tok_old_scope");
+    expect(token()).toBe("tok_fresh");
+    await provider.dropCachedToken(INSTALLATION_ID, "tok_fresh");
+    expect(token()).toBeNull();
   });
 });
 

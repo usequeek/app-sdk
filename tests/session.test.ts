@@ -6,6 +6,8 @@ import {
   EMBED_SECRET_PREFIX,
   SESSION_CLOCK_TOLERANCE_SECONDS,
   sessionTokenInstallationId,
+  verifyLaunchToken,
+  verifyLaunchTokenDetailed,
   verifySessionToken,
   verifySessionTokenDetailed,
 } from "../src/session.js";
@@ -211,8 +213,89 @@ describe("verifySessionToken", () => {
   it("ships the verifier behind ./server only, never the browser entry", () => {
     expect(typeof serverEntry.verifySessionToken).toBe("function");
     expect(typeof serverEntry.verifySessionTokenDetailed).toBe("function");
+    expect(typeof serverEntry.verifyLaunchToken).toBe("function");
+    expect(typeof serverEntry.verifyLaunchTokenDetailed).toBe("function");
     expect("verifySessionToken" in mainEntry).toBe(false);
     expect("verifySessionTokenDetailed" in mainEntry).toBe(false);
+    expect("verifyLaunchToken" in mainEntry).toBe(false);
+    expect("verifyLaunchTokenDetailed" in mainEntry).toBe(false);
+  });
+
+  describe("verifyLaunchToken (signed first load)", () => {
+    async function signLaunch(overrides: Record<string, unknown> = {}): Promise<string> {
+      return signValid({ purpose: "launch", store: 1205, theme: "dark", ...overrides });
+    }
+
+    it("verifies a launch token and returns the binding plus store and theme", async () => {
+      const token = await signLaunch();
+      expect(await verifyLaunchToken(token, OPTIONS)).toBe(true);
+      expect(await verifyLaunchTokenDetailed(token, OPTIONS)).toEqual({
+        ok: true,
+        claims: {
+          installationId: BINDING.installation_id,
+          vendorId: BINDING.vendor_id,
+          appSlug: BINDING.app_slug,
+          appId: BINDING.app_id,
+          subject: "user-uuid-1",
+          sessionId: "sid-uuid-1",
+          issuedAt: expect.any(Number),
+          expiresAt: expect.any(Number),
+          storePid: 1205,
+          theme: "dark",
+        },
+      });
+    });
+
+    it("refuses a bridge token as launch input (replay as bridge refused, both directions)", async () => {
+      // Launch token replayed at the bridge verifier …
+      const launch = await signLaunch();
+      expect(await verifySessionToken(launch, OPTIONS)).toBe(false);
+      expect(await verifySessionTokenDetailed(launch, OPTIONS)).toEqual({
+        ok: false,
+        reason: "wrong_purpose",
+      });
+      // … and bridge tokens (absent or session purpose) refused at the launch verifier.
+      for (const overrides of [{}, { purpose: "session" }, { purpose: "refresh" }]) {
+        const token = await signValid(overrides);
+        expect(await verifyLaunchToken(token, OPTIONS), JSON.stringify(overrides)).toBe(false);
+        expect(await verifyLaunchTokenDetailed(token, OPTIONS)).toEqual({
+          ok: false,
+          reason: "wrong_purpose",
+        });
+      }
+    });
+
+    it("refuses expired and wrong-audience launch tokens with the bridge reasons", async () => {
+      const now = Math.floor(Date.now() / 1000);
+      const fresh = await signLaunch();
+      const expired = await new SignJWT({
+        ...JSON.parse(Buffer.from(fresh.split(".")[1], "base64url").toString()),
+        exp: now - 61,
+      })
+        .setProtectedHeader({ alg: "HS256", typ: "JWT" })
+        .sign(new TextEncoder().encode(SECRET));
+      expect((await verifyLaunchTokenDetailed(expired, OPTIONS)).reason).toBe("expired");
+
+      const valid = await signLaunch();
+      expect((await verifyLaunchTokenDetailed(valid, { ...OPTIONS, audience: "glovo" })).reason).toBe(
+        "wrong_audience",
+      );
+    });
+
+    it("reads launch hints tolerantly (missing theme, unvalidated values)", async () => {
+      const noTheme = await signLaunch({ theme: undefined });
+      const parsed = await verifyLaunchTokenDetailed(noTheme, OPTIONS);
+      expect(parsed).toEqual({
+        ok: true,
+        claims: expect.objectContaining({ storePid: 1205, theme: null }),
+      });
+      const odd = await signLaunch({ store: "1205", theme: "neon" });
+      const parsedOdd = await verifyLaunchTokenDetailed(odd, OPTIONS);
+      expect(parsedOdd).toEqual({
+        ok: true,
+        claims: expect.objectContaining({ storePid: null, theme: null }),
+      });
+    });
   });
 
   it("pins the backend-matching clock tolerance", () => {

@@ -6,6 +6,7 @@
  */
 
 export type {
+  LaunchTokenClaims,
   SessionTokenBinding,
   SessionTokenClaims,
   SessionTokenFailure,
@@ -16,6 +17,8 @@ export {
   isBridgePurpose,
   SESSION_CLOCK_TOLERANCE_SECONDS,
   sessionTokenInstallationId,
+  verifyLaunchToken,
+  verifyLaunchTokenDetailed,
   verifySessionToken,
   verifySessionTokenDetailed,
 } from "./session.js";

@@ -8,7 +8,7 @@ import {
 import { DASHBOARD_SOURCE } from "../src/frame.js";
 
 const ORIGIN = "https://merchant.example.com";
-const APP_URL = "https://app.example.test/admin?shop=demo&id_token=launch-abc&theme=dark";
+const APP_URL = "https://app.example.test/admin?shop=demo&queek_token=launch-abc&theme=dark";
 
 interface FireTarget {
   addEventListener(
@@ -56,12 +56,12 @@ function jsonResponse(status: number, body = ""): Response {
 }
 
 describe("readLaunchToken / stripLaunchToken", () => {
-  it("reads id_token and strips only that param", () => {
+  it("reads queek_token and strips only that param", () => {
     expect(readLaunchToken(APP_URL)).toBe("launch-abc");
     expect(readLaunchToken("https://app.example.test/admin?shop=demo")).toBeNull();
     const stripped = stripLaunchToken(APP_URL);
     expect(stripped).not.toBeNull();
-    expect(stripped).not.toContain("id_token");
+    expect(stripped).not.toContain("queek_token");
     expect(stripped).toContain("shop=demo");
     expect(stripped).toContain("theme=dark");
     expect(stripLaunchToken("https://app.example.test/admin?shop=demo")).toBeNull();
@@ -93,7 +93,7 @@ describe("installAuthFetch", () => {
     });
 
     expect(replaced).toHaveLength(1);
-    expect(replaced[0]).not.toContain("id_token");
+    expect(replaced[0]).not.toContain("queek_token");
     expect(await auth.ready).toBe("sess-for-launch-abc");
     expect(exchange).toHaveBeenCalledTimes(1);
     expect(exchange).toHaveBeenCalledWith("launch-abc");
@@ -321,7 +321,7 @@ describe("installAuthFetch", () => {
 
   it("a 401 with a session does not stall when unframed", async () => {
     const win = {
-      location: { href: "https://app.example.test/admin?id_token=launch" },
+      location: { href: "https://app.example.test/admin?queek_token=launch" },
       history: { replaceState: () => {} },
       addEventListener: () => {},
       removeEventListener: () => {},
@@ -332,7 +332,7 @@ describe("installAuthFetch", () => {
         exchange: async () => "sess",
         dashboardOrigin: ORIGIN,
         fetchImpl: async () => jsonResponse(401),
-        getHref: () => "https://app.example.test/admin?id_token=launch",
+        getHref: () => "https://app.example.test/admin?queek_token=launch",
         replaceUrl: () => {},
       });
       await auth.ready;

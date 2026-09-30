@@ -170,6 +170,11 @@ export interface RequestOptions {
 
 const WRITE_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
+/** True for HTTP methods that carry an `Idempotency-Key` (POST/PUT/PATCH/DELETE). */
+export function isWriteMethod(method: string): boolean {
+  return WRITE_METHODS.has(method.toUpperCase());
+}
+
 export function newIdempotencyKey(): string {
   return randomUUID();
 }
@@ -336,7 +341,7 @@ export function createQueekClient(clientOptions: QueekClientOptions): QueekClien
       headers.set("Content-Type", "application/json");
       body = JSON.stringify(options.body);
     }
-    if (WRITE_METHODS.has(upper)) {
+    if (isWriteMethod(upper)) {
       headers.set("Idempotency-Key", options.idempotencyKey ?? newIdempotencyKey());
     }
 
@@ -372,7 +377,7 @@ export function createQueekClient(clientOptions: QueekClientOptions): QueekClien
     // One key for every attempt: Queek replays same-key+same-body writes
     // instead of duplicating them, so retrying a write is safe.
     const idempotencyKey =
-      options.idempotencyKey ?? (WRITE_METHODS.has(method.toUpperCase()) ? newIdempotencyKey() : undefined);
+      options.idempotencyKey ?? (isWriteMethod(method) ? newIdempotencyKey() : undefined);
     let lastError: unknown;
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       try {
