@@ -70,6 +70,34 @@ export function resyncBody(overrides: Record<string, unknown> = {}): string {
   });
 }
 
+/**
+ * Backend `AppInstallService::scopesUpdatePayload()` shape: the grant-change
+ * handoff under `type: app/scopes_update`. The installation rides its
+ * `p_id` ONLY (never the UUID — the backend `p_id` rule); `scopes` is the
+ * effective grant. No settings, no secrets.
+ */
+export function scopesUpdateBody(overrides: Record<string, unknown> = {}): string {
+  return JSON.stringify({
+    id: "evt-scopes-1",
+    type: "app/scopes_update",
+    api_version: "v1",
+    created_at: "2026-09-30T00:00:00+00:00",
+    data: {
+      installation: { p_id: "inst_abc123" },
+      app_id: "app-uuid-hello",
+      store: {
+        id: "22222222-2222-2222-2222-222222222222",
+        p_id: "store_xyz",
+        name: "Test Store",
+        is_test: true,
+      },
+      api_base: "https://api.usequeek.com/api/v1/merchant",
+      scopes: ["merchant-business_profile-read", "merchant-orders-read"],
+      ...overrides,
+    },
+  });
+}
+
 export function installBody(overrides: Record<string, unknown> = {}): string {
   return JSON.stringify({
     id: "evt-install-1",

@@ -8,7 +8,7 @@
  *   { id, type, api_version: "v1", created_at, data }
  *
  * `type` is `app/installed` | `app/uninstalled` | `app/settings_updated`
- * | `app/resync`. The handoff POST carries the Standard Webhooks headers
+ * | `app/resync` | `app/scopes_update`. The handoff POST carries the Standard Webhooks headers
  * (`webhook-id`, `webhook-timestamp`, `webhook-signature`) signed with the
  * APP's signing secret (`whsec_…`, minted once at `app:register`), NOT the
  * per-installation webhook secret. The per-installation `webhook_secret`
@@ -27,6 +27,7 @@ export const INSTALL_EVENT = "app/installed";
 export const UNINSTALL_EVENT = "app/uninstalled";
 export const SETTINGS_EVENT = "app/settings_updated";
 export const RESYNC_EVENT = "app/resync";
+export const SCOPES_UPDATE_EVENT = "app/scopes_update";
 
 export interface HandoffInstallationRef {
   id: string;
@@ -118,4 +119,40 @@ export type SettingsEnvelope = HandoffEnvelope<typeof SETTINGS_EVENT, SettingsDa
  */
 export type ResyncEnvelope = HandoffEnvelope<typeof RESYNC_EVENT, InstallData>;
 
-export type HandoffEnvelopeAny = InstallEnvelope | UninstallEnvelope | SettingsEnvelope | ResyncEnvelope;
+/**
+ * The installation `p_id` the backend addresses a handoff to. The
+ * scopes_update handoff carries ONLY the `p_id` (never the UUID — the
+ * backend `p_id` rule), so `id` is optional here: present on
+ * install-shaped payloads, absent on `app/scopes_update`.
+ */
+export interface HandoffPidRef {
+  p_id: string;
+  id?: string;
+}
+
+/**
+ * The grant-change handoff (backend
+ * `AppInstallService::scopesUpdatePayload()`, queued per grant change over
+ * the same signed channel): the installation `p_id` + the EFFECTIVE grant
+ * (grant ∩ tracked manifest — what the installation's tokens now carry,
+ * byte for byte). Carries no settings and no secrets: the app refreshes
+ * its cached grant from `scopes` and drops its cached token when the
+ * grant moved.
+ */
+export interface ScopesUpdateData {
+  installation: HandoffPidRef;
+  app_id: string;
+  store: HandoffStore;
+  /** The Merchant API base for this store (same contract as the install handoff). */
+  api_base: string;
+  scopes: string[];
+}
+
+export type ScopesUpdateEnvelope = HandoffEnvelope<typeof SCOPES_UPDATE_EVENT, ScopesUpdateData>;
+
+export type HandoffEnvelopeAny =
+  | InstallEnvelope
+  | UninstallEnvelope
+  | SettingsEnvelope
+  | ResyncEnvelope
+  | ScopesUpdateEnvelope;

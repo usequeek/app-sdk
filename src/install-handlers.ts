@@ -13,6 +13,9 @@ import {
   type InstallEnvelope,
   RESYNC_EVENT,
   type ResyncEnvelope,
+  SCOPES_UPDATE_EVENT,
+  type ScopesUpdateData,
+  type ScopesUpdateEnvelope,
   SETTINGS_EVENT,
   type SettingsEnvelope,
   UNINSTALL_EVENT,
@@ -55,6 +58,11 @@ import { normaliseNullablePid, normalisePid } from "./store.js";
  * change drops it so the next call re-mints), keeps stored values the
  * resync omits).
  *
+ * The grant-change handoff (`type: app/scopes_update`) rides the same two
+ * routes with the same verification and applies via the scopes merge
+ * (`saveScopesUpdateInstallation`: refreshes the cached grant only,
+ * dropping the cached token when it moved).
+ *
  * Order per request: verify signature (freshness included) → parse the
  * typed payload → atomically claim the header `webhook-id` (a claimed id
  * answers 409: exactly one same-id delivery runs the callback) → run the
@@ -70,6 +78,8 @@ export interface InstallCallbacks {
   onUninstall?: (envelope: UninstallEnvelope) => Promise<void>;
   /** Defaults to merging the new settings into the stored installation. */
   onSettings?: (envelope: SettingsEnvelope) => Promise<void>;
+  /** Defaults to refreshing the cached grant (dropping the cached token when it moved). */
+  onScopesUpdate?: (envelope: ScopesUpdateEnvelope) => Promise<void>;
 }
 
 export interface InstallHandlerOptions extends InstallCallbacks {
@@ -149,6 +159,30 @@ export function installationScopesEqual(a: string[], b: string[]): boolean {
  * re-mints. `resyncFromQueek` drops tokens explicitly when it wants fresh
  * ones.
  */
+/**
+ * Merge a grant-change handoff (`app/scopes_update`) into an existing row:
+ * refresh the cached grant, nothing else. The cached installation token is
+ * dropped whenever the grant changed — same compare-and-clear as the resync
+ * path: a token minted for the old scopes fails with `insufficient_scope`
+ * on the new grant, so the next call re-mints. An unchanged grant (a
+ * redelivered handoff) keeps the token.
+ */
+export function saveScopesUpdateInstallation(
+  existing: InstallationRecord,
+  scopes: string[],
+  nowIso: string = new Date().toISOString(),
+): InstallationRecord {
+  const grantChanged = !installationScopesEqual(existing.scopes, scopes);
+  return {
+    ...existing,
+    scopes: [...scopes],
+    token: grantChanged ? null : existing.token,
+    tokenExpiresAt: grantChanged ? null : existing.tokenExpiresAt,
+    tokenKid: grantChanged ? null : existing.tokenKid,
+    updatedAt: nowIso,
+  };
+}
+
 export function saveResyncedInstallation(
   existing: InstallationRecord,
   data: InstallData,
@@ -276,6 +310,76 @@ async function applyResync(store: InstallationStore, data: InstallData): Promise
   );
 }
 
+function isScopesUpdatePayload(data: unknown): data is ScopesUpdateData {
+  if (!data || typeof data !== "object") return false;
+  const pid = (data as ScopesUpdateData).installation?.p_id;
+  const scopes = (data as ScopesUpdateData).scopes;
+  return (
+    (typeof pid === "string" || typeof pid === "number") &&
+    Array.isArray(scopes) &&
+    scopes.every((scope) => typeof scope === "string")
+  );
+}
+
+/**
+ * Default grant-change apply: find the row by the handoff `p_id` (the
+ * scopes_update payload carries no UUID — the backend `p_id` rule) and
+ * refresh its cached grant, dropping the cached token when the grant
+ * moved. Unknown `p_id` answers 404 (released, like the settings path).
+ */
+async function applyScopesUpdate(store: InstallationStore, data: ScopesUpdateData): Promise<DeliveryResult> {
+  // The installation p_id is a string on the wire, but a backend sending
+  // a JSON integer reaches here as a JS number — normalise before
+  // comparing, exactly like the install mapping does.
+  const pid = normalisePid(data.installation.p_id);
+  const rows = await store.listInstallations();
+  const existing = rows.find((row) => row.installationPid === pid) ?? null;
+  if (!existing) {
+    return { status: 404, body: { ok: false, error: "unknown_installation" } };
+  }
+  await store.saveInstallation(saveScopesUpdateInstallation(existing, data.scopes, new Date().toISOString()));
+  return { status: 200, body: { ok: true } };
+}
+
+async function scopesDelivery(
+  rawBody: string,
+  headers: CoreHeaders,
+  options: InstallHandlerOptions,
+): Promise<DeliveryResult> {
+  // Same verifier as every other handoff (freshness included) — no second
+  // HMAC path — then the same header-id claim.
+  const checked = await guard(options, headers, rawBody);
+  if (!checked.ok) return { status: checked.status, body: { ok: false, error: checked.reason } };
+
+  const envelope = parseEnvelope(rawBody);
+  if (!envelope) return { status: 400, body: { ok: false, error: "invalid_envelope" } };
+  if (envelope.type !== SCOPES_UPDATE_EVENT) {
+    return { status: 400, body: { ok: false, error: "unexpected event type" } };
+  }
+  if (!isScopesUpdatePayload(envelope.data)) {
+    return { status: 400, body: { ok: false, error: "invalid scopes payload" } };
+  }
+
+  if (!(await options.store.claimWebhookId(checked.id))) {
+    return { status: 409, body: { ok: false, error: "duplicate delivery" } };
+  }
+  try {
+    if (options.onScopesUpdate) {
+      await options.onScopesUpdate(envelope as ScopesUpdateEnvelope);
+    } else {
+      const applied = await applyScopesUpdate(options.store, (envelope as ScopesUpdateEnvelope).data);
+      if (applied.status !== 200) {
+        await options.store.releaseWebhookId(checked.id);
+        return applied;
+      }
+    }
+  } catch {
+    await options.store.releaseWebhookId(checked.id);
+    return { status: 500, body: { ok: false, error: "scopes_update_failed" } };
+  }
+  return { status: 200, body: { ok: true } };
+}
+
 async function installDelivery(
   rawBody: string,
   headers: CoreHeaders,
@@ -286,6 +390,13 @@ async function installDelivery(
 
   const envelope = parseEnvelope(rawBody);
   if (!envelope) return { status: 400, body: { ok: false, error: "invalid_envelope" } };
+  // The grant-change handoff (`type: app/scopes_update`, backend
+  // `scopesUpdatePayload()`) is delivered to the settings URL first,
+  // falling back to the install URL — both routes accept it with the same
+  // verification, claim, and callback-failure rules as every handoff.
+  if (envelope.type === SCOPES_UPDATE_EVENT) {
+    return scopesDelivery(rawBody, headers, options);
+  }
   // The platform resync handoff redelivers the install-shaped data under
   // `type: app/resync` (same signed channel, same verification): it lands
   // here as well as on `settings` (the backend aims at `settings_url`
@@ -362,6 +473,11 @@ async function settingsDelivery(
 
   const envelope = parseEnvelope(rawBody);
   if (!envelope) return { status: 400, body: { ok: false, error: "invalid_envelope" } };
+  // The grant-change handoff is delivered to the settings URL first (same
+  // rule as resync): it takes the grant refresh here, like on `install`.
+  if (envelope.type === SCOPES_UPDATE_EVENT) {
+    return scopesDelivery(rawBody, headers, options);
+  }
   // The platform resync handoff (`type: app/resync`) is delivered to the
   // app's `settings_url` first: it lands here with the install-shaped
   // data, so it takes the resync merge — never the settings callback,

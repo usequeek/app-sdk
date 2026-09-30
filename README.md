@@ -388,6 +388,44 @@ Hono: mount `createProxyHandler({ store, path, onVerified })` from
   optional peer, same pattern as `./hono`): `<QueekProvider>` owns one
   bridge subscription; `useQueek()` returns `{ toast, saveBar, title,
   navigate, pickResource, theme }` over the framework-free core.
+- **scopes** (`scopes.ts`): `createInstallationScopesClient({ installationId, store, signJwt, … })`
+  — the optional-scopes session, wired to the same store + token provider as the
+  installation client. `queryScopes` reads the cached grant (no network);
+  `requestScopes` builds the dashboard consent link (pure — the SDK never
+  renders consent); `revokeScopes` posts the app-authenticated revoke and
+  refreshes the cache. The install/settings handlers accept the signed
+  `app/scopes_update` handoff on both routes and refresh the cached grant
+  (dropping the cached token when it moved).
+
+## Scopes
+
+Apps declare required scopes (granted at install) plus optional scopes
+(requested later, revocable). The per-installation session covers the app side:
+
+```ts
+import { createInstallationScopesClient } from "@usequeek/app-sdk";
+
+const scopes = createInstallationScopesClient({
+  installationId,
+  store,
+  signJwt: () => provider.signJwt(),
+  appSlug: "my-app",
+  optionalScopes: ["merchant-orders-read"], // the app's own manifest knowledge
+});
+
+await scopes.queryScopes(); // { granted, optional } — cached, no network
+scopes.requestScopes(["merchant-orders-read"]); // dashboard consent link (open via sendOpen)
+await scopes.revokeScopes(["merchant-orders-read"]); // 422 app_scope_required → AppScopeRequiredError
+```
+
+`queryScopes` splits the cached effective grant against the declared-optional
+list you pass (the app surface exposes the grant but no declared list, so the
+split needs your manifest knowledge). `requestScopes` returns
+`/apps/{slug}/scopes/request?installation={id}&scopes={…}` (absolute under
+`dashboardOrigin` when configured) — the merchant approves in the dashboard;
+the grant reaches you as a signed `app/scopes_update` handoff, which the
+install/settings handlers apply like a resync (same verifier, same replay
+claim): cached grant refreshed, cached token dropped only when the grant moved.
 
 ## Embedded merchant page (S4 stage 2)
 
