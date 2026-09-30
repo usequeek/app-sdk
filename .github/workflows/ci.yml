@@ -30,6 +30,11 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+      # Guards the S1 generic-client type proof: vitest strips types without
+      # checking, so without this a generics regression stays green.
+      - name: Typecheck tests
+        run: npm run typecheck:tests
+
       - name: Lint
         run: npm run lint
 

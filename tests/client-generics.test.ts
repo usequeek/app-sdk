@@ -1,5 +1,5 @@
-import { describe, expect, it, vi } from "vitest";
-import { createQueekClient, type OperationResponse } from "../src/client.js";
+import { describe, expect, expectTypeOf, it, vi } from "vitest";
+import { createQueekClient, type OperationResponse, type StoreProfile } from "../src/client.js";
 import { createInstallationClient } from "../src/tokens.js";
 import { fakeApiKey } from "./helpers.js";
 
@@ -36,6 +36,24 @@ function jsonResponse(status: number, body: unknown) {
     headers: { "Content-Type": "application/json" },
   });
 }
+
+describe("generic client types (enforced by `npm run typecheck:tests`)", () => {
+  it("default shim equals the bundled OperationResponse (compat guard)", () => {
+    // A refactor changing the default's meaning breaks this at typecheck.
+    expectTypeOf<StoreProfile>().toEqualTypeOf<OperationResponse<"/store", "get">>();
+  });
+
+  it("paths without /store resolve to unknown, never `never` (empty-paths guard)", () => {
+    // biome-ignore lint/complexity/noBannedTypes: `{}` IS the edge under test (a paths object with no keys).
+    expectTypeOf<StoreProfile<{}>>().toEqualTypeOf<unknown>();
+  });
+
+  it("OperationResponse extracts the app's body over app-owned paths", () => {
+    expectTypeOf<AppStore>().toEqualTypeOf<{
+      data: { p_id: string; name: string; loyalty_points: number };
+    }>();
+  });
+});
 
 describe("generic client (S1: app-owned paths flow through)", () => {
   it("createQueekClient<AppPaths>.getStore() types the app's extra field", async () => {
