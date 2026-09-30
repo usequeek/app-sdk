@@ -2,6 +2,8 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   createInstallationStore,
   createPostgresPool,
+  normaliseNullablePid,
+  normalisePid,
   PostgresInstallationStore,
   SqliteInstallationStore,
 } from "../src/store.js";
@@ -64,6 +66,30 @@ describe("createInstallationStore", () => {
     expect(() => new PostgresInstallationStore({ storeKey: STORE_KEY })).toThrow(
       /needs a connectionString or a shared pool/,
     );
+  });
+});
+
+describe("normalisePid", () => {
+  it("renders numbers and numeric strings in canonical integer-string form", () => {
+    expect(normalisePid(1021)).toBe("1021");
+    expect(normalisePid(1021.0)).toBe("1021");
+    expect(normalisePid(1021.9)).toBe("1021");
+    expect(normalisePid("1021.0")).toBe("1021");
+    expect(normalisePid("  1021 ")).toBe("1021");
+    expect(normaliseNullablePid(1205)).toBe("1205");
+    expect(normaliseNullablePid("1205.0")).toBe("1205");
+  });
+
+  it("passes non-numeric pids through untouched so unknown shapes fail closed", () => {
+    // Anything that is not a number never equals a proxy `kid`, so the
+    // proxy 401s `unknown_installation` instead of matching the wrong row.
+    expect(normalisePid("inst_abc")).toBe("inst_abc");
+    expect(normalisePid("")).toBe("");
+    expect(normalisePid(Number.NaN)).toBe("NaN");
+    expect(normalisePid(Number.POSITIVE_INFINITY)).toBe("Infinity");
+    expect(normalisePid(null)).toBe("null");
+    expect(normaliseNullablePid(null)).toBeNull();
+    expect(normaliseNullablePid(undefined)).toBeNull();
   });
 });
 

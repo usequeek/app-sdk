@@ -88,6 +88,20 @@ describePg("PostgresInstallationStore", () => {
     await store.close();
   });
 
+  it("heals legacy float-form pids on read", async () => {
+    const id = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaab";
+    await store.saveInstallation({ ...record(id), installationPid: "1021", storePid: "1205" });
+    // A row written before normalisation holds the float form.
+    await admin.query(
+      `UPDATE installations SET installation_pid = '1021.0', store_pid = '1205.0' WHERE installation_id = $1`,
+      [id],
+    );
+    const healed = await store.getInstallation(id);
+    expect(healed?.installationPid).toBe("1021");
+    expect(healed?.storePid).toBe("1205");
+    await store.close();
+  });
+
   it("persists ciphertext only (no plaintext token or secret in any raw column)", async () => {
     const id = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb";
     await store.saveInstallation(record(id));

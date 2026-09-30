@@ -915,9 +915,11 @@ function pgRowToRecord(row: Record<string, unknown>, key: Buffer): InstallationR
   const expires = row.token_expires_at as Date | string | null;
   return {
     installationId: pgText(row.installation_id, "installation_id"),
-    installationPid: pgText(row.installation_pid, "installation_pid"),
+    // Heals rows written before normalisation (`"1021.0"` reads as `"1021"`),
+    // like the sqlite path above.
+    installationPid: normalisePid(pgText(row.installation_pid, "installation_pid")),
     vendorId: pgText(row.vendor_id, "vendor_id"),
-    storePid: (row.store_pid as string | null) ?? null,
+    storePid: normaliseNullablePid(row.store_pid as string | null),
     storeName: pgText(row.store_name, "store_name"),
     apiBase: pgText(row.api_base, "api_base"),
     token: tokenEnc === null ? null : decryptSecret(tokenEnc, key),
