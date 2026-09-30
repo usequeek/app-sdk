@@ -77,7 +77,7 @@
             "name": "X-Client-Key",
             "in": "header",
             "required": true,
-            "description": "A private API key (`sk_live_…`, `sk_test_…` on a test store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
+            "description": "A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
             "schema": {
               "type": "string"
             },
@@ -293,7 +293,7 @@
             "name": "X-Client-Key",
             "in": "header",
             "required": true,
-            "description": "A private API key (`sk_live_…`, `sk_test_…` on a test store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
+            "description": "A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
             "schema": {
               "type": "string"
             },
@@ -495,7 +495,7 @@
             "name": "X-Client-Key",
             "in": "header",
             "required": true,
-            "description": "A private API key (`sk_live_…`, `sk_test_…` on a test store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
+            "description": "A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
             "schema": {
               "type": "string"
             },
@@ -724,7 +724,7 @@
             "name": "X-Client-Key",
             "in": "header",
             "required": true,
-            "description": "A private API key (`sk_live_…`, `sk_test_…` on a test store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
+            "description": "A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
             "schema": {
               "type": "string"
             },
@@ -907,7 +907,7 @@
             "name": "X-Client-Key",
             "in": "header",
             "required": true,
-            "description": "A private API key (`sk_live_…`, `sk_test_…` on a test store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
+            "description": "A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
             "schema": {
               "type": "string"
             },
@@ -1155,7 +1155,7 @@
             "name": "X-Client-Key",
             "in": "header",
             "required": true,
-            "description": "A private API key (`sk_live_…`, `sk_test_…` on a test store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
+            "description": "A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
             "schema": {
               "type": "string"
             },
@@ -1389,7 +1389,7 @@
             "name": "X-Client-Key",
             "in": "header",
             "required": true,
-            "description": "A private API key (`sk_live_…`, `sk_test_…` on a test store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
+            "description": "A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
             "schema": {
               "type": "string"
             },
@@ -1659,7 +1659,7 @@
             "name": "X-Client-Key",
             "in": "header",
             "required": true,
-            "description": "A private API key (`sk_live_…`, `sk_test_…` on a test store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
+            "description": "A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
             "schema": {
               "type": "string"
             },
@@ -1819,7 +1819,7 @@
             "name": "X-Client-Key",
             "in": "header",
             "required": true,
-            "description": "A private API key (`sk_live_…`, `sk_test_…` on a test store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
+            "description": "A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
             "schema": {
               "type": "string"
             },
@@ -2016,7 +2016,7 @@
             "name": "X-Client-Key",
             "in": "header",
             "required": true,
-            "description": "A private API key (`sk_live_…`, `sk_test_…` on a test store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
+            "description": "A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
             "schema": {
               "type": "string"
             },
@@ -2242,7 +2242,7 @@
             "name": "X-Client-Key",
             "in": "header",
             "required": true,
-            "description": "A private API key (`sk_live_…`, `sk_test_…` on a test store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
+            "description": "A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
             "schema": {
               "type": "string"
             },
@@ -2512,7 +2512,7 @@
             "name": "X-Client-Key",
             "in": "header",
             "required": true,
-            "description": "A private API key (`sk_live_…`, `sk_test_…` on a test store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
+            "description": "A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
             "schema": {
               "type": "string"
             },
@@ -2760,7 +2760,7 @@
             "name": "X-Client-Key",
             "in": "header",
             "required": true,
-            "description": "A private API key (`sk_live_…`, `sk_test_…` on a test store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
+            "description": "A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
             "schema": {
               "type": "string"
             },
@@ -2909,7 +2909,7 @@
             "name": "X-Client-Key",
             "in": "header",
             "required": true,
-            "description": "A private API key (`sk_live_…`, `sk_test_…` on a test store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
+            "description": "A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
             "schema": {
               "type": "string"
             },
@@ -3215,7 +3215,7 @@
             "name": "X-Client-Key",
             "in": "header",
             "required": true,
-            "description": "A private API key (`sk_live_…`, `sk_test_…` on a test store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
+            "description": "A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
             "schema": {
               "type": "string"
             },
@@ -3394,7 +3394,7 @@
             "name": "X-Client-Key",
             "in": "header",
             "required": true,
-            "description": "A private API key (`sk_live_…`, `sk_test_…` on a test store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
+            "description": "A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
             "schema": {
               "type": "string"
             },
@@ -3551,7 +3551,7 @@
             "name": "X-Client-Key",
             "in": "header",
             "required": true,
-            "description": "A private API key (`sk_live_…`, `sk_test_…` on a test store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
+            "description": "A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
             "schema": {
               "type": "string"
             },
@@ -3797,7 +3797,7 @@
             "name": "X-Client-Key",
             "in": "header",
             "required": true,
-            "description": "A private API key (`sk_live_…`, `sk_test_…` on a test store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
+            "description": "A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
             "schema": {
               "type": "string"
             },
@@ -3979,7 +3979,7 @@
             "name": "X-Client-Key",
             "in": "header",
             "required": true,
-            "description": "A private API key (`sk_live_…`, `sk_test_…` on a test store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
+            "description": "A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
             "schema": {
               "type": "string"
             },
@@ -4194,7 +4194,7 @@
             "name": "X-Client-Key",
             "in": "header",
             "required": true,
-            "description": "A private API key (`sk_live_…`, `sk_test_…` on a test store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
+            "description": "A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
             "schema": {
               "type": "string"
             },
@@ -4350,7 +4350,7 @@
             "name": "X-Client-Key",
             "in": "header",
             "required": true,
-            "description": "A private API key (`sk_live_…`, `sk_test_…` on a test store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
+            "description": "A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
             "schema": {
               "type": "string"
             },
@@ -4534,7 +4534,7 @@
             "name": "X-Client-Key",
             "in": "header",
             "required": true,
-            "description": "A private API key (`sk_live_…`, `sk_test_…` on a test store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
+            "description": "A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
             "schema": {
               "type": "string"
             },
@@ -4741,7 +4741,7 @@
             "name": "X-Client-Key",
             "in": "header",
             "required": true,
-            "description": "A private API key (`sk_live_…`, `sk_test_…` on a test store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
+            "description": "A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
             "schema": {
               "type": "string"
             },
@@ -5028,7 +5028,7 @@
             "name": "X-Client-Key",
             "in": "header",
             "required": true,
-            "description": "A private API key (`sk_live_…`, `sk_test_…` on a test store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
+            "description": "A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
             "schema": {
               "type": "string"
             },
@@ -5323,7 +5323,7 @@
             "name": "X-Client-Key",
             "in": "header",
             "required": true,
-            "description": "A private API key (`sk_live_…`, `sk_test_…` on a test store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
+            "description": "A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
             "schema": {
               "type": "string"
             },
@@ -5560,7 +5560,7 @@
       },
       "delete": {
         "operationId": "images.delete",
-        "description": "Requires scope `merchant-items-update`.\n\nDeletes a product image by media id, or `primary` for the primary image.",
+        "description": "Requires scope `merchant-items-update`.\n\nDeletes a product image by media id, or `primary` for the primary image. Deleting the primary image makes the next image primary; the product is left without one only when it has no other images.",
         "summary": "Delete a product image",
         "tags": [
           "Images"
@@ -5588,7 +5588,7 @@
             "name": "X-Client-Key",
             "in": "header",
             "required": true,
-            "description": "A private API key (`sk_live_…`, `sk_test_…` on a test store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
+            "description": "A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
             "schema": {
               "type": "string"
             },
@@ -5763,7 +5763,7 @@
             "name": "X-Client-Key",
             "in": "header",
             "required": true,
-            "description": "A private API key (`sk_live_…`, `sk_test_…` on a test store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
+            "description": "A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
             "schema": {
               "type": "string"
             },
@@ -5925,7 +5925,7 @@
             "name": "X-Client-Key",
             "in": "header",
             "required": true,
-            "description": "A private API key (`sk_live_…`, `sk_test_…` on a test store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
+            "description": "A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
             "schema": {
               "type": "string"
             },
@@ -6116,7 +6116,7 @@
             "name": "X-Client-Key",
             "in": "header",
             "required": true,
-            "description": "A private API key (`sk_live_…`, `sk_test_…` on a test store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
+            "description": "A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
             "schema": {
               "type": "string"
             },
@@ -6379,7 +6379,7 @@
             "name": "X-Client-Key",
             "in": "header",
             "required": true,
-            "description": "A private API key (`sk_live_…`, `sk_test_…` on a test store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
+            "description": "A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
             "schema": {
               "type": "string"
             },
@@ -6591,7 +6591,7 @@
             "name": "X-Client-Key",
             "in": "header",
             "required": true,
-            "description": "A private API key (`sk_live_…`, `sk_test_…` on a test store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
+            "description": "A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
             "schema": {
               "type": "string"
             },
@@ -6780,7 +6780,7 @@
             "name": "X-Client-Key",
             "in": "header",
             "required": true,
-            "description": "A private API key (`sk_live_…`, `sk_test_…` on a test store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
+            "description": "A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
             "schema": {
               "type": "string"
             },
@@ -7030,7 +7030,7 @@
             "name": "X-Client-Key",
             "in": "header",
             "required": true,
-            "description": "A private API key (`sk_live_…`, `sk_test_…` on a test store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
+            "description": "A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
             "schema": {
               "type": "string"
             },
@@ -7218,7 +7218,7 @@
             "name": "X-Client-Key",
             "in": "header",
             "required": true,
-            "description": "A private API key (`sk_live_…`, `sk_test_…` on a test store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
+            "description": "A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
             "schema": {
               "type": "string"
             },
@@ -7525,7 +7525,7 @@
             "name": "X-Client-Key",
             "in": "header",
             "required": true,
-            "description": "A private API key (`sk_live_…`, `sk_test_…` on a test store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
+            "description": "A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
             "schema": {
               "type": "string"
             },
@@ -7677,7 +7677,7 @@
             "name": "X-Client-Key",
             "in": "header",
             "required": true,
-            "description": "A private API key (`sk_live_…`, `sk_test_…` on a test store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
+            "description": "A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
             "schema": {
               "type": "string"
             },
@@ -8008,7 +8008,7 @@
             "name": "X-Client-Key",
             "in": "header",
             "required": true,
-            "description": "A private API key (`sk_live_…`, `sk_test_…` on a test store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
+            "description": "A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
             "schema": {
               "type": "string"
             },
@@ -8252,7 +8252,7 @@
             "name": "X-Client-Key",
             "in": "header",
             "required": true,
-            "description": "A private API key (`sk_live_…`, `sk_test_…` on a test store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
+            "description": "A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
             "schema": {
               "type": "string"
             },
@@ -8463,7 +8463,7 @@
             "name": "X-Client-Key",
             "in": "header",
             "required": true,
-            "description": "A private API key (`sk_live_…`, `sk_test_…` on a test store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
+            "description": "A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
             "schema": {
               "type": "string"
             },
@@ -8740,7 +8740,7 @@
             "name": "X-Client-Key",
             "in": "header",
             "required": true,
-            "description": "A private API key (`sk_live_…`, `sk_test_…` on a test store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
+            "description": "A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
             "schema": {
               "type": "string"
             },
@@ -9097,7 +9097,7 @@
             "name": "X-Client-Key",
             "in": "header",
             "required": true,
-            "description": "A private API key (`sk_live_…`, `sk_test_…` on a test store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
+            "description": "A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
             "schema": {
               "type": "string"
             },
@@ -9346,7 +9346,7 @@
             "name": "X-Client-Key",
             "in": "header",
             "required": true,
-            "description": "A private API key (`sk_live_…`, `sk_test_…` on a test store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
+            "description": "A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
             "schema": {
               "type": "string"
             },
@@ -9595,7 +9595,7 @@
             "name": "X-Client-Key",
             "in": "header",
             "required": true,
-            "description": "A private API key (`sk_live_…`, `sk_test_…` on a test store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
+            "description": "A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
             "schema": {
               "type": "string"
             },
@@ -10030,7 +10030,7 @@
             "name": "X-Client-Key",
             "in": "header",
             "required": true,
-            "description": "A private API key (`sk_live_…`, `sk_test_…` on a test store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
+            "description": "A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
             "schema": {
               "type": "string"
             },
@@ -10353,7 +10353,7 @@
             "name": "X-Client-Key",
             "in": "header",
             "required": true,
-            "description": "A private API key (`sk_live_…`, `sk_test_…` on a test store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
+            "description": "A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
             "schema": {
               "type": "string"
             },
@@ -10611,7 +10611,7 @@
             "name": "X-Client-Key",
             "in": "header",
             "required": true,
-            "description": "A private API key (`sk_live_…`, `sk_test_…` on a test store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
+            "description": "A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
             "schema": {
               "type": "string"
             },
@@ -10839,7 +10839,7 @@
             "name": "X-Client-Key",
             "in": "header",
             "required": true,
-            "description": "A private API key (`sk_live_…`, `sk_test_…` on a test store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
+            "description": "A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
             "schema": {
               "type": "string"
             },
@@ -11112,7 +11112,7 @@
             "name": "X-Client-Key",
             "in": "header",
             "required": true,
-            "description": "A private API key (`sk_live_…`, `sk_test_…` on a test store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
+            "description": "A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
             "schema": {
               "type": "string"
             },
@@ -11288,7 +11288,7 @@
             "name": "X-Client-Key",
             "in": "header",
             "required": true,
-            "description": "A private API key (`sk_live_…`, `sk_test_…` on a test store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
+            "description": "A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
             "schema": {
               "type": "string"
             },
@@ -11526,7 +11526,7 @@
             "name": "X-Client-Key",
             "in": "header",
             "required": true,
-            "description": "A private API key (`sk_live_…`, `sk_test_…` on a test store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
+            "description": "A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
             "schema": {
               "type": "string"
             },
@@ -11692,7 +11692,7 @@
             "name": "X-Client-Key",
             "in": "header",
             "required": true,
-            "description": "A private API key (`sk_live_…`, `sk_test_…` on a test store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
+            "description": "A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
             "schema": {
               "type": "string"
             },
@@ -11924,7 +11924,7 @@
             "name": "X-Client-Key",
             "in": "header",
             "required": true,
-            "description": "A private API key (`sk_live_…`, `sk_test_…` on a test store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
+            "description": "A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
             "schema": {
               "type": "string"
             },
@@ -12162,7 +12162,7 @@
             "name": "X-Client-Key",
             "in": "header",
             "required": true,
-            "description": "A private API key (`sk_live_…`, `sk_test_…` on a test store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
+            "description": "A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
             "schema": {
               "type": "string"
             },
@@ -12418,7 +12418,7 @@
             "name": "X-Client-Key",
             "in": "header",
             "required": true,
-            "description": "A private API key (`sk_live_…`, `sk_test_…` on a test store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
+            "description": "A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
             "schema": {
               "type": "string"
             },
@@ -12644,7 +12644,7 @@
             "name": "X-Client-Key",
             "in": "header",
             "required": true,
-            "description": "A private API key (`sk_live_…`, `sk_test_…` on a test store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
+            "description": "A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
             "schema": {
               "type": "string"
             },
@@ -12901,7 +12901,7 @@
             "name": "X-Client-Key",
             "in": "header",
             "required": true,
-            "description": "A private API key (`sk_live_…`, `sk_test_…` on a test store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
+            "description": "A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
             "schema": {
               "type": "string"
             },
@@ -13149,7 +13149,7 @@
             "name": "X-Client-Key",
             "in": "header",
             "required": true,
-            "description": "A private API key (`sk_live_…`, `sk_test_…` on a test store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
+            "description": "A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
             "schema": {
               "type": "string"
             },
@@ -13317,7 +13317,7 @@
     "securitySchemes": {
       "merchantKey": {
         "type": "apiKey",
-        "description": "The store's private API key (`sk_live_…`, `sk_test_…` on a test store) from Dashboard → Settings → API keys. It is bound to one store and carries the scopes the merchant granted; each operation names the scope it needs. Server-side only — never ship it to a browser or an app bundle.",
+        "description": "The store's private API key (`sk_live_…`, `sk_test_…` on a dev store) from Dashboard → Settings → API keys. It is bound to one store and carries the scopes the merchant granted; each operation names the scope it needs. Server-side only — never ship it to a browser or an app bundle.",
         "in": "header",
         "name": "X-Client-Key"
       }
@@ -17720,7 +17720,7 @@
               "array",
               "null"
             ],
-            "description": "Gallery images via Mediable",
+            "description": "The product's other photos, after the main one, in order (media ids of the store's files)",
             "items": {
               "type": "integer"
             }
@@ -20140,6 +20140,10 @@
           "service": {
             "type": "string"
           },
+          "currency": {
+            "type": "string",
+            "description": "The store's own currency (3-letter code, never a symbol — Q2):\ncart/vendor payloads read this per-vendor instead of the\nplatform default. Attribute-only, zero new queries."
+          },
           "logo": {
             "type": [
               "string",
@@ -20243,6 +20247,7 @@
           "notice",
           "slug",
           "service",
+          "currency",
           "logo",
           "disable_order",
           "is_closed",
@@ -21201,6 +21206,16 @@
           "is_test": {
             "type": "boolean",
             "description": "A sandbox store is publicly reachable at `{slug}-test`; the storefront\nkeeps it out of crawlers and AI discovery (robots, sitemap, agents.md)."
+          },
+          "dev_store": {
+            "type": "boolean",
+            "description": "S-E: the core storefront renders a password page for dev\nstores. One flag per fact: dev_store says WHAT it is,\npassword_required gates the token; this response itself\nstays public — gated reads 401. indexable:false tells the\nstorefront to noindex + drop it from sitemap/feed/agents."
+          },
+          "password_required": {
+            "type": "boolean"
+          },
+          "indexable": {
+            "type": "boolean"
           },
           "is_closed": {
             "type": "boolean"
