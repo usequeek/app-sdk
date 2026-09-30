@@ -186,6 +186,27 @@ describe("verifySessionToken", () => {
     expect((await verifySessionTokenDetailed(token, OPTIONS)).reason).toBe("invalid_signature");
   });
 
+  it("refuses a launch-purpose token in the bridge verifier", async () => {
+    const launch = await signValid({ purpose: "launch" });
+    expect(await verifySessionToken(launch, OPTIONS)).toBe(false);
+    expect(await verifySessionTokenDetailed(launch, OPTIONS)).toEqual({
+      ok: false,
+      reason: "wrong_purpose",
+    });
+  });
+
+  it("accepts bridge purposes (absent or session) and fails closed on foreign ones", async () => {
+    expect(await verifySessionToken(await signValid(), OPTIONS)).toBe(true);
+    expect(await verifySessionToken(await signValid({ purpose: "session" }), OPTIONS)).toBe(true);
+    for (const purpose of ["launch", "refresh", "other", 42]) {
+      const token = await signValid({ purpose });
+      expect(await verifySessionToken(token, OPTIONS), String(purpose)).toBe(false);
+      expect((await verifySessionTokenDetailed(token, OPTIONS)).ok).toBe(false);
+    }
+    const launch = await signValid({ purpose: "launch" });
+    expect((await verifySessionTokenDetailed(launch, OPTIONS)).reason).toBe("wrong_purpose");
+  });
+
   it("ships the verifier behind ./server only, never the browser entry", () => {
     expect(typeof serverEntry.verifySessionToken).toBe("function");
     expect(typeof serverEntry.verifySessionTokenDetailed).toBe("function");

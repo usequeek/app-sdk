@@ -47,6 +47,12 @@ export const APP_INSTALLATION_PENDING_CODE = "app_installation_pending";
 export const RESYNC_COOLDOWN_CODE = "resync_cooldown";
 /** 429 everywhere: honor `Retry-After`, jittered. */
 export const TOO_MANY_REQUESTS_CODE = "too_many_requests";
+/**
+ * 403 on a merchant call: the cached installation token was minted for an
+ * older grant (missing scope). The grant changed server-side — drop the
+ * cached token, re-mint once, retry once.
+ */
+export const INSUFFICIENT_SCOPE_CODE = "insufficient_scope";
 
 /** True when a Queek error code is the kill-switch/disabled refusal. */
 export function isAppTokenRevoked(code: string | undefined): boolean {
@@ -97,6 +103,11 @@ export function isTokenRefusal(status: number, code: string | undefined): boolea
     status === 403 &&
     (code === API_KEY_REVOKED_CODE || code === API_KEY_EXPIRED_CODE || code === INVALID_CLIENT_KEY_CODE)
   );
+}
+
+/** True when a merchant-API 403 means the cached token predates a grant change. */
+export function isInsufficientScope(status: number, code: string | undefined): boolean {
+  return status === 403 && code === INSUFFICIENT_SCOPE_CODE;
 }
 
 // ---------------------------------------------------------------------------

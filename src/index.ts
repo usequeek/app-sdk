@@ -21,12 +21,14 @@ export {
   type AppCredential,
   AppMintHaltedError,
   decodePrivateKeyInput,
+  INSUFFICIENT_SCOPE_CODE,
   INVALID_CLIENT_CODE,
   INVALID_CLIENT_KEY_CODE,
   InvalidAppCredentialError,
   isAppTokenRevoked,
   isInstallationGone,
   isInstallationPending,
+  isInsufficientScope,
   isInvalidClient,
   isResyncCooldown,
   isTokenRefusal,
@@ -195,6 +197,7 @@ export {
   handleInstallRequest,
   type InstallCallbacks,
   type InstallHandlerOptions,
+  installationScopesEqual,
   saveResyncedInstallation,
 } from "./install-handlers.js";
 export {

@@ -13,6 +13,7 @@ export type {
 } from "./session.js";
 export {
   EMBED_SECRET_PREFIX,
+  isBridgePurpose,
   SESSION_CLOCK_TOLERANCE_SECONDS,
   sessionTokenInstallationId,
   verifySessionToken,

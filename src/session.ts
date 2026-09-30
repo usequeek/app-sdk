@@ -6,6 +6,11 @@ import { decodeJwt, decodeProtectedHeader, jwtVerify } from "jose";
  * verifies them with the per-installation `embsec_…` secret before trusting
  * any call that carries one.
  *
+ * Purpose binding (backend contract): absent or "session" is a bridge
+ * token; "launch" is the signed first-load token for the launch exchange
+ * entry point only (no such entry point exists in this SDK yet — the
+ * bridge verifier refuses it). Callers map every `{ ok: false }` to 401.
+ *
  * Server-only: the secret must never enter a browser bundle, so this module
  * ships behind the `./server` export, not the main entry. Style mirrors
  * `signatures.ts` — a boolean fast path plus a detailed variant returning
@@ -29,6 +34,7 @@ export type SessionTokenFailure =
   | "not_yet_valid"
   | "wrong_audience"
   | "wrong_issuer"
+  | "wrong_purpose"
   | "binding_mismatch";
 
 export interface SessionTokenClaims {
@@ -112,6 +118,15 @@ export async function verifySessionTokenDetailed(
     return { ok: false, reason: classifyJoseError(error) };
   }
 
+  // Purpose binding (backend contract): absent or "session" is a bridge
+  // token; "launch" belongs to the signed first-load exchange only and is
+  // refused here with the same failure path callers map to 401. Any other
+  // present purpose fails closed as well — the bridge verifier accepts
+  // exactly the bridge purposes, never a foreign one.
+  if (!isBridgePurpose(payload["purpose"])) {
+    return { ok: false, reason: "wrong_purpose" };
+  }
+
   const claims = readSessionClaims(payload);
   const { expected } = options;
   if (
@@ -154,6 +169,17 @@ function readTokenAlg(token: string): string | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * True for the purposes the bridge verifier accepts: absent (legacy
+ * tokens) or "session". "launch" is the signed first-load token for the
+ * launch exchange entry point only — there is no such entry point in this
+ * SDK yet, so the bridge verifier refuses it. Any other present value
+ * fails closed.
+ */
+export function isBridgePurpose(purpose: unknown): boolean {
+  return purpose === undefined || purpose === null || purpose === "session";
 }
 
 function readSessionClaims(payload: Record<string, unknown>): SessionTokenClaims | null {

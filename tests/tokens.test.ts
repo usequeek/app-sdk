@@ -9,6 +9,8 @@ import {
   UnknownInstallationError,
 } from "../src/app-auth.js";
 import { createQueekClient, QueekApiError } from "../src/client.js";
+import type { InstallData } from "../src/handoff.js";
+import { saveResyncedInstallation } from "../src/install-handlers.js";
 import { createLogger } from "../src/logger.js";
 import { type InstallationRecord, SqliteInstallationStore } from "../src/store.js";
 import { AppTokenProvider, createInstallationClient, resolveAppApiBase } from "../src/tokens.js";
@@ -398,21 +400,39 @@ describe("installation client merchant refusals (rev 7: re-mint only on token re
     });
   }
 
-  it("403 insufficient_scope: propagates WITHOUT a mint call", async () => {
+  it("403 insufficient_scope: drops the stale-grant token, re-mints once, retries with the fresh token", async () => {
     const ctx = setup({
       merchantQueue: [{ status: 403, code: "insufficient_scope", message: "No scope." }],
     });
-    // Cached-valid, so the call needs no mint up front — a scope refusal
-    // must not burn one either.
-    seed(ctx, { token: "tok_cached_valid", tokenExpiresAt: new Date(Date.now() + 3_600_000).toISOString() });
+    // Cached-valid, so the call needs no mint up front — the stale grant
+    // burns exactly one re-mint on the 403, then the retry succeeds.
+    seed(ctx, { token: "tok_old_scope", tokenExpiresAt: new Date(Date.now() + 3_600_000).toISOString() });
+    await expect(clientFor(ctx).getStore()).resolves.toMatchObject({ data: { p_id: "store_xyz" } });
+    expect(mintAttempts(ctx)).toBe(1);
+    expect(ctx.fake.merchantCalls).toHaveLength(2);
+    const [first, second] = ctx.fake.merchantCalls;
+    expect(first?.clientKey).toBe("tok_old_scope");
+    expect(second?.clientKey).toBe(ctx.fake.mintCalls[0]?.token);
+    expect((await ctx.store.getInstallation(INSTALLATION_ID))?.token).toBe(ctx.fake.mintCalls[0]?.token);
+  });
+
+  it("403 insufficient_scope twice: retries once, then the second refusal propagates (never loops)", async () => {
+    const ctx = setup({
+      merchantQueue: [
+        { status: 403, code: "insufficient_scope", message: "No scope." },
+        { status: 403, code: "insufficient_scope", message: "Still no scope." },
+      ],
+    });
+    seed(ctx, { token: "tok_old_scope", tokenExpiresAt: new Date(Date.now() + 3_600_000).toISOString() });
     const failure = await clientFor(ctx)
       .getStore()
       .catch((error: unknown) => error);
     expect(failure).toBeInstanceOf(QueekApiError);
     expect((failure as QueekApiError).code).toBe("insufficient_scope");
-    expect(mintAttempts(ctx)).toBe(0);
-    expect(ctx.fake.merchantCalls).toHaveLength(1);
-    expect((await ctx.store.getInstallation(INSTALLATION_ID))?.token).toBe("tok_cached_valid");
+    // Exactly one re-mint and one retry: the second 403 propagates instead
+    // of triggering another drop + mint.
+    expect(mintAttempts(ctx)).toBe(1);
+    expect(ctx.fake.merchantCalls).toHaveLength(2);
   });
 
   it("403 api_key_revoked: drops the token, re-mints once, retries with the fresh token", async () => {
@@ -485,6 +505,50 @@ describe("installation client merchant refusals (rev 7: re-mint only on token re
     const row = await ctx.store.getInstallation(INSTALLATION_ID);
     expect(row?.token).toBe(ctx.fake.mintCalls[0]?.token);
     expect(row?.tokenKid).toBe("test-kid-1");
+  });
+});
+
+describe("grant change drops the cached token so the next call re-mints", () => {
+  function clientFor(ctx: Setup) {
+    return createInstallationClient({
+      installationId: INSTALLATION_ID,
+      apiBase: API_BASE,
+      tokens: ctx.provider,
+      fetchImpl: ctx.fake.fetchImpl,
+    });
+  }
+
+  it("old-scope token cached, grant adds merchant-items-detail, next call uses a new token", async () => {
+    const ctx = setup();
+    seed(ctx, {
+      scopes: ["merchant-business_profile-read"],
+      token: "tok_old_scope",
+      tokenExpiresAt: new Date(Date.now() + 3_600_000).toISOString(),
+      tokenKid: "kid-1",
+    });
+    // The dev loop re-granted with a new scope: the resync merge drops the
+    // old-scope token.
+    const existing = await ctx.store.getInstallation(INSTALLATION_ID);
+    if (!existing) throw new Error("expected a seeded row");
+    const data = {
+      installation: { id: INSTALLATION_ID, p_id: "inst_abc123" },
+      store: { id: "store-id", p_id: "store_xyz", name: "Test Store", is_test: true },
+      api_base: API_BASE,
+      scopes: ["merchant-business_profile-read", "merchant-items-detail"],
+      settings: {},
+      webhook_secret: null,
+      proxy_secret: null,
+      webhook_url: null,
+      webhook_topics: [],
+    } as InstallData;
+    await ctx.store.saveInstallation(saveResyncedInstallation(existing, data));
+    expect((await ctx.store.getInstallation(INSTALLATION_ID))?.token).toBeNull();
+
+    // The next call mints fresh (one mint) and succeeds.
+    await expect(clientFor(ctx).getStore()).resolves.toMatchObject({ data: { p_id: "store_xyz" } });
+    expect(mintAttempts(ctx)).toBe(1);
+    expect(ctx.fake.merchantCalls).toHaveLength(1);
+    expect(ctx.fake.merchantCalls[0]?.clientKey).toBe(ctx.fake.mintCalls[0]?.token);
   });
 });
 

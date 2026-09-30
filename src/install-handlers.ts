@@ -123,11 +123,25 @@ function installationRecordFromInstall(data: InstallData, nowIso: string): Insta
 }
 
 /**
- * Merge a re-delivered install envelope (resync) into an existing row:
- * refresh the ref fields, scopes, settings and webhook secret, but keep
- * the original `installedAt` and the cached installation token (a secret
- * rotation does not invalidate minted tokens; `resyncFromQueek` drops
- * tokens explicitly when it wants fresh ones).
+ * Compare two scope grants order-insensitively. Any difference (added,
+ * removed, or replaced scope) means the grant changed.
+ */
+export function installationScopesEqual(a: string[], b: string[]): boolean {
+  if (a.length !== b.length) return false;
+  const sortedA = [...a].sort();
+  const sortedB = [...b].sort();
+  return sortedA.every((scope, index) => scope === sortedB[index]);
+}
+
+/**
+ * Merge a re-delivered install envelope (resync or re-grant) into an
+ * existing row: refresh the ref fields, scopes, settings and webhook
+ * secret, but keep the original `installedAt`. The cached installation
+ * token survives a secret rotation (minted tokens stay valid) but is
+ * dropped whenever the grant changes — a token minted for the old scopes
+ * fails with `insufficient_scope` on the new grant, so the next call
+ * re-mints. `resyncFromQueek` drops tokens explicitly when it wants fresh
+ * ones.
  */
 export function saveResyncedInstallation(
   existing: InstallationRecord,
@@ -135,15 +149,16 @@ export function saveResyncedInstallation(
   nowIso: string = new Date().toISOString(),
 ): InstallationRecord {
   const fresh = installationRecordFromInstall(data, nowIso);
+  const grantChanged = !installationScopesEqual(existing.scopes, data.scopes);
   return {
     ...fresh,
     // A handoff without the key (older payloads) keeps what is stored.
     embedSecret: data.embed_secret === undefined ? (existing.embedSecret ?? null) : fresh.embedSecret,
     appId: data.app_id === undefined ? (existing.appId ?? null) : fresh.appId,
     installedAt: existing.installedAt,
-    token: existing.token,
-    tokenExpiresAt: existing.tokenExpiresAt,
-    tokenKid: existing.tokenKid,
+    token: grantChanged ? null : existing.token,
+    tokenExpiresAt: grantChanged ? null : existing.tokenExpiresAt,
+    tokenKid: grantChanged ? null : existing.tokenKid,
   };
 }
 

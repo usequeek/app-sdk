@@ -503,3 +503,90 @@ describe("resync delivery (install envelope for an existing installation)", () =
     expect(afterOlder?.appId).toBe("app-uuid-hello");
   });
 });
+
+describe("grant change drops the cached installation token", () => {
+  const INSTALLATION_ID = "11111111-1111-1111-1111-111111111111";
+
+  async function installWithToken(
+    ctx: ReturnType<typeof setup>,
+    scopes: string[] = ["merchant-business_profile-read"],
+  ) {
+    const install = installBody({ scopes });
+    expect(
+      (await postRaw(ctx.app, "/install", install, signedHeaders("evt-install-1", NOW, install, APP_SECRET)))
+        .status,
+    ).toBe(200);
+    const before = await ctx.store.getInstallation(INSTALLATION_ID);
+    if (!before) throw new Error("expected the install to be stored");
+    await ctx.store.saveInstallation({
+      ...before,
+      token: "tok_old_scope",
+      tokenExpiresAt: new Date(Date.now() + 3_600_000).toISOString(),
+      tokenKid: "kid-1",
+      updatedAt: new Date().toISOString(),
+    });
+  }
+
+  it("a resync with new scopes drops the cached token so the next call re-mints", async () => {
+    const ctx = setup();
+    await installWithToken(ctx);
+
+    const body = resyncBody({ scopes: ["merchant-business_profile-read", "merchant-items-detail"] });
+    const response = await postRaw(
+      ctx.app,
+      "/install",
+      body,
+      signedHeaders("evt-resync-scopes", NOW, body, APP_SECRET),
+    );
+    expect(response.status).toBe(200);
+    const after = await ctx.store.getInstallation(INSTALLATION_ID);
+    expect(after?.scopes).toEqual(["merchant-business_profile-read", "merchant-items-detail"]);
+    expect(after?.token).toBeNull();
+    expect(after?.tokenExpiresAt).toBeNull();
+    expect(after?.tokenKid).toBeNull();
+  });
+
+  it("a resync with unchanged scopes keeps the cached token", async () => {
+    const ctx = setup();
+    await installWithToken(ctx);
+
+    const body = resyncBody({ scopes: ["merchant-business_profile-read"] });
+    const response = await postRaw(
+      ctx.app,
+      "/install",
+      body,
+      signedHeaders("evt-resync-same", NOW, body, APP_SECRET),
+    );
+    expect(response.status).toBe(200);
+    const after = await ctx.store.getInstallation(INSTALLATION_ID);
+    expect(after?.token).toBe("tok_old_scope");
+    expect(after?.tokenKid).toBe("kid-1");
+  });
+
+  it("a re-install (re-grant) with new scopes drops the cached token", async () => {
+    const ctx = setup();
+    await installWithToken(ctx);
+
+    const parsed = JSON.parse(installBody()) as { data: Record<string, unknown> };
+    const regrant = JSON.stringify({
+      id: "evt-regrant-1",
+      type: "app/installed",
+      api_version: "v1",
+      created_at: "2026-09-30T00:00:00+00:00",
+      data: {
+        ...(parsed.data as object),
+        scopes: ["merchant-business_profile-read", "merchant-items-detail"],
+      },
+    });
+    const response = await postRaw(
+      ctx.app,
+      "/install",
+      regrant,
+      signedHeaders("evt-regrant-1", NOW, regrant, APP_SECRET),
+    );
+    expect(response.status).toBe(200);
+    const after = await ctx.store.getInstallation(INSTALLATION_ID);
+    expect(after?.scopes).toEqual(["merchant-business_profile-read", "merchant-items-detail"]);
+    expect(after?.token).toBeNull();
+  });
+});

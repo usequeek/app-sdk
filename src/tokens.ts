@@ -6,6 +6,7 @@ import {
   isAppTokenRevoked,
   isInstallationGone,
   isInstallationPending,
+  isInsufficientScope,
   isTokenRefusal,
   MAX_MINT_ATTEMPTS,
   MINT_BACKOFF_BASE_MS,
@@ -40,10 +41,12 @@ import type { InstallationStore } from "./store.js";
  * - A merchant-API token refusal → drop it, re-mint once, retry once; a
  *   second refusal propagates. Token refusal = any 401, or a 403 with
  *   `api_key_revoked` / `api_key_expired` / `invalid_client_key` (rev 7).
- *   A merchant 403 `app_token_revoked` is the app-wide kill switch (drop
- *   all + halt, no mint); any other merchant 403 (scope, plan, mode)
- *   propagates untouched. (If the re-mint itself hits `invalid_client` /
- *   kill-switch / gone, the mint path below applies those rules.)
+ *   A merchant 403 `insufficient_scope` (stale grant) follows the same
+ *   drop + re-mint-once + retry-once path. A merchant 403
+ *   `app_token_revoked` is the app-wide kill switch (drop all + halt, no
+ *   mint); any other merchant 403 (plan, mode) propagates untouched. (If
+ *   the re-mint itself hits `invalid_client` / kill-switch / gone, the
+ *   mint path below applies those rules.)
  * - Concurrent callers in one process share ONE in-flight mint per
  *   installation (single-flight). Across containers two mints are harmless
  *   by design: Queek keeps coexisting tokens valid (K=2 slots) and the
@@ -422,12 +425,13 @@ export interface InstallationClientOptions {
  * installation token is resolved per request (usually a cache hit — the
  * store IS the cache, one shared row per installation), sent as
  * `X-Client-Key`, and on a merchant-API token refusal (any 401, or 403
- * `api_key_revoked` / `api_key_expired` / `invalid_client_key`) it is
- * dropped, re-minted once, and the call retried once; a second refusal
- * propagates to the caller. A merchant 403 `app_token_revoked` drops all
- * cached tokens and halts minting; any other 403 propagates without a
- * mint. 429/network retries (`requestWithRetry`) reuse one idempotency key
- * exactly like the static client.
+ * `api_key_revoked` / `api_key_expired` / `invalid_client_key`) — or a 403
+ * `insufficient_scope` after a grant change — it is dropped, re-minted
+ * once, and the call retried once; a second refusal propagates to the
+ * caller. A merchant 403 `app_token_revoked` drops all cached tokens and
+ * halts minting; any other 403 propagates without a mint. 429/network
+ * retries (`requestWithRetry`) reuse one idempotency key exactly like the
+ * static client.
  */
 export function createInstallationClient(options: InstallationClientOptions): QueekClient {
   // Validated here, once, before any fetch — same rules as the static client.
@@ -467,9 +471,19 @@ export function createInstallationClient(options: InstallationClientOptions): Qu
         await options.tokens.revokeAppAccess();
         throw error;
       }
+      // Stale grant: the cached token predates a scope change (e.g. the
+      // dev loop re-granted with a new scope). Drop it, re-mint once,
+      // retry once — exactly like a dead token. The retry is a direct
+      // client call, never a recursive `request()`, so a second 403
+      // propagates instead of looping.
+      if (isInsufficientScope(error.status, error.code)) {
+        await options.tokens.dropCachedToken(options.installationId);
+        const fresh = await options.tokens.acquireToken(options.installationId);
+        return (await clientForToken(fresh)).request<T>(method, path, requestOptions);
+      }
       // Token refusals ONLY (rev 7): any 401, or a 403 carrying a
-      // revoked/expired-key code. Every other 403 (scope, plan, mode)
-      // propagates to the caller without burning a mint.
+      // revoked/expired-key code. Every other 403 (plan, mode) propagates
+      // to the caller without burning a mint.
       if (!isTokenRefusal(error.status, error.code)) throw error;
       // Dead token: drop it, re-mint once, retry once. The re-mint runs
       // the full contract error mapping (halt/purge on
