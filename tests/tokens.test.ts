@@ -435,6 +435,47 @@ describe("installation client merchant refusals (rev 7: re-mint only on token re
     expect(ctx.fake.merchantCalls).toHaveLength(2);
   });
 
+  it("POST with body on 403 insufficient_scope: re-sends the same body under the same Idempotency-Key", async () => {
+    const ctx = setup({
+      merchantQueue: [{ status: 403, code: "insufficient_scope", message: "No scope." }],
+    });
+    seed(ctx, { token: "tok_old_scope", tokenExpiresAt: new Date(Date.now() + 3_600_000).toISOString() });
+    const body = { definition: "app_test_orders", values: { total: "42.00" } };
+    const response = await clientFor(ctx).request<{ data: unknown }>("POST", "/records", { body });
+    expect(response).toEqual({ data: {} });
+    expect(mintAttempts(ctx)).toBe(1);
+    expect(ctx.fake.merchantCalls).toHaveLength(2);
+    const [first, second] = ctx.fake.merchantCalls;
+    // Same body re-sent intact on the retry …
+    expect(first?.body).toBe(JSON.stringify(body));
+    expect(second?.body).toBe(JSON.stringify(body));
+    // … under the same Idempotency-Key (one key for both attempts, so the
+    // retry can never execute twice).
+    expect(first?.idempotencyKey).toMatch(/^[0-9a-f-]{36}$/);
+    expect(second?.idempotencyKey).toBe(first?.idempotencyKey);
+    expect(second?.clientKey).toBe(ctx.fake.mintCalls[0]?.token);
+  });
+
+  it("concurrent double 403 insufficient_scope: at most one extra mint and no loop", async () => {
+    const ctx = setup({
+      merchantQueue: [
+        { status: 403, code: "insufficient_scope", message: "No scope." },
+        { status: 403, code: "insufficient_scope", message: "No scope." },
+      ],
+    });
+    seed(ctx, { token: "tok_old_scope", tokenExpiresAt: new Date(Date.now() + 3_600_000).toISOString() });
+    const client = clientFor(ctx);
+    const [first, second] = await Promise.all([client.getStore(), client.getStore()]);
+    expect(first).toMatchObject({ data: { p_id: "store_xyz" } });
+    expect(second).toMatchObject({ data: { p_id: "store_xyz" } });
+    // Two first attempts (both 403) + two retries on the re-minted token.
+    expect(ctx.fake.merchantCalls).toHaveLength(4);
+    // Compare-and-clear plus single-flight minting bound the recovery to
+    // one extra mint: the loser's late drop is a no-op and it reuses the
+    // winner's fresh token instead of minting again.
+    expect(mintAttempts(ctx)).toBe(1);
+  });
+
   it("403 api_key_revoked: drops the token, re-mints once, retries with the fresh token", async () => {
     const ctx = setup({
       merchantQueue: [{ status: 403, code: API_KEY_REVOKED_CODE, message: "Revoked." }],
@@ -549,6 +590,23 @@ describe("grant change drops the cached token so the next call re-mints", () => 
     expect(mintAttempts(ctx)).toBe(1);
     expect(ctx.fake.merchantCalls).toHaveLength(1);
     expect(ctx.fake.merchantCalls[0]?.clientKey).toBe(ctx.fake.mintCalls[0]?.token);
+  });
+
+  it("a drop for a superseded token value is a no-op: the fresh token survives", async () => {
+    const ctx = setup();
+    seed(ctx, {
+      token: "tok_fresh",
+      tokenExpiresAt: new Date(Date.now() + 3_600_000).toISOString(),
+      tokenKid: "kid-1",
+    });
+    // A late drop carrying the old (superseded) value must not wipe the
+    // fresh token a concurrent re-mint just stored.
+    await ctx.provider.dropCachedToken(INSTALLATION_ID, "tok_old_scope");
+    await expect(ctx.provider.acquireToken(INSTALLATION_ID)).resolves.toBe("tok_fresh");
+    expect(mintAttempts(ctx)).toBe(0);
+    // A drop carrying the current value still clears.
+    await ctx.provider.dropCachedToken(INSTALLATION_ID, "tok_fresh");
+    expect((await ctx.store.getInstallation(INSTALLATION_ID))?.token).toBeNull();
   });
 });
 

@@ -123,7 +123,7 @@ export async function verifySessionTokenDetailed(
   // refused here with the same failure path callers map to 401. Any other
   // present purpose fails closed as well — the bridge verifier accepts
   // exactly the bridge purposes, never a foreign one.
-  if (!isBridgePurpose(payload["purpose"])) {
+  if (!isBridgePurpose(payload.purpose)) {
     return { ok: false, reason: "wrong_purpose" };
   }
 

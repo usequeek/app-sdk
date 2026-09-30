@@ -50,8 +50,9 @@ import type { InstallationRecord, InstallationStore } from "./store.js";
  * falling back to `install_url`. Both `install` and `settings` accept it
  * with the same signature/verification rules and apply it via the resync
  * merge (`saveResyncedInstallation`: refreshes secrets/settings/scopes,
- * keeps `installedAt` + the cached token, keeps stored values the resync
- * omits).
+ * keeps `installedAt` + the cached token unless the grant changed (a scope
+ * change drops it so the next call re-mints), keeps stored values the
+ * resync omits).
  *
  * Order per request: verify signature (freshness included) → parse the
  * typed payload → atomically claim the header `webhook-id` (a claimed id
@@ -101,7 +102,8 @@ function installationRecordFromInstall(data: InstallData, nowIso: string): Insta
     apiBase: data.api_base,
     // No credential crosses the handoff (S1): a fresh row caches no token
     // (the first call mints one); see `saveResyncedInstallation` for the
-    // existing-row path, which keeps the cached token.
+    // existing-row path, which keeps the cached token unless the grant
+    // changed.
     token: null,
     tokenExpiresAt: null,
     tokenKid: null,
@@ -258,8 +260,9 @@ function isInstallPayload(data: unknown): data is InstallData {
 }
 
 /** Default resync apply: merge into the existing row (keeping
- * `installedAt`, the cached token and stored values the resync omits) or
- * store a fresh row when nothing is stored (post-outage recovery). */
+ * `installedAt`, the cached token unless the grant changed, and stored
+ * values the resync omits) or store a fresh row when nothing is stored
+ * (post-outage recovery). */
 async function applyResync(store: InstallationStore, data: InstallData): Promise<void> {
   const existing = await store.getInstallation(data.installation.id);
   await store.saveInstallation(
@@ -303,7 +306,7 @@ async function installDelivery(
     } else {
       // A resync redelivers the install envelope for an EXISTING
       // installation: merge idempotently (keep `installedAt` + the cached
-      // token) instead of resetting the row.
+      // token unless the grant changed) instead of resetting the row.
       await applyResync(options.store, (envelope as ResyncEnvelope).data);
     }
   } catch {

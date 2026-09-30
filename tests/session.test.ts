@@ -198,6 +198,7 @@ describe("verifySessionToken", () => {
   it("accepts bridge purposes (absent or session) and fails closed on foreign ones", async () => {
     expect(await verifySessionToken(await signValid(), OPTIONS)).toBe(true);
     expect(await verifySessionToken(await signValid({ purpose: "session" }), OPTIONS)).toBe(true);
+    expect(await verifySessionToken(await signValid({ purpose: null }), OPTIONS)).toBe(true);
     for (const purpose of ["launch", "refresh", "other", 42]) {
       const token = await signValid({ purpose });
       expect(await verifySessionToken(token, OPTIONS), String(purpose)).toBe(false);

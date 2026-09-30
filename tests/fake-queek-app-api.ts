@@ -89,6 +89,8 @@ export interface RecordedAppCall {
   path: string;
   authorization: string | null;
   clientKey: string | null;
+  idempotencyKey: string | null;
+  body: string | null;
 }
 
 export interface FakeAppApi {
@@ -244,7 +246,15 @@ export function fakeQueekAppApi(options: FakeAppApiOptions): FakeAppApi {
     }
 
     if (path.startsWith("/api/v1/merchant")) {
-      merchantCalls.push({ method, path, authorization: auth, clientKey });
+      const rawBody = init?.body;
+      merchantCalls.push({
+        method,
+        path,
+        authorization: auth,
+        clientKey,
+        idempotencyKey: headers.get("idempotency-key"),
+        body: typeof rawBody === "string" ? rawBody : null,
+      });
       const scripted = options.merchantQueue?.shift();
       if (scripted)
         return jsonResponse(

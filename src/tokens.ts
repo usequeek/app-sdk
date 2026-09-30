@@ -19,6 +19,7 @@ import {
 import {
   createQueekClient,
   MERCHANT_API_PATH,
+  newIdempotencyKey,
   QueekApiError,
   type QueekClient,
   queekApiErrorFromResponse,
@@ -68,7 +69,13 @@ export const APP_API_PATH = "/api/v1/apps";
 /** Minimal surface the installation client needs (stubs stay one-liners). */
 export interface AppTokens {
   acquireToken(installationId: string): Promise<string>;
-  dropCachedToken(installationId: string): Promise<void>;
+  /**
+   * Forget one installation's cached token. When `expectedToken` (the value
+   * the failing call presented) is given, the drop is compare-and-clear: a
+   * no-op when the store already holds a different (fresher) token, so a
+   * late drop can never wipe a concurrent re-mint.
+   */
+  dropCachedToken(installationId: string, expectedToken?: string): Promise<void>;
   /**
    * Kill-switch path: forget EVERY cached token for the app and halt
    * minting (loud log inside). Called on a merchant 403 `app_token_revoked`.
@@ -198,8 +205,12 @@ export class AppTokenProvider implements AppTokens {
     return expiresMs - this.nowMs() > TOKEN_VALIDITY_SKEW_SECONDS * 1000;
   }
 
-  async dropCachedToken(installationId: string): Promise<void> {
-    await this.store.clearCachedToken(installationId);
+  async dropCachedToken(installationId: string, expectedToken?: string): Promise<void> {
+    if (expectedToken === undefined) {
+      await this.store.clearCachedToken(installationId);
+      return;
+    }
+    await this.store.clearCachedTokenIfMatches(installationId, expectedToken);
   }
 
   /** Kill-switch path (also used by ops): forget every cached token, keep the rows. */
@@ -460,8 +471,17 @@ export function createInstallationClient(options: InstallationClientOptions): Qu
 
   async function request<T>(method: string, path: string, requestOptions: RequestOptions = {}): Promise<T> {
     const token = await options.tokens.acquireToken(options.installationId);
+    // One Idempotency-Key for both attempts (generated here when the caller
+    // did not supply one): the inner client would otherwise mint a fresh key
+    // per attempt, so the retry would carry a different key. Reads keep no
+    // key, exactly like the static client.
+    const upper = method.toUpperCase();
+    const isWrite = upper === "POST" || upper === "PUT" || upper === "PATCH" || upper === "DELETE";
+    const idempotencyKey = requestOptions.idempotencyKey ?? (isWrite ? newIdempotencyKey() : undefined);
+    const attemptOptions =
+      idempotencyKey === undefined ? requestOptions : { ...requestOptions, idempotencyKey };
     try {
-      return await (await clientForToken(token)).request<T>(method, path, requestOptions);
+      return await (await clientForToken(token)).request<T>(method, path, attemptOptions);
     } catch (error) {
       if (!(error instanceof QueekApiError)) throw error;
       // Kill switch / disabled app, observed on the merchant path: drop
@@ -475,11 +495,13 @@ export function createInstallationClient(options: InstallationClientOptions): Qu
       // dev loop re-granted with a new scope). Drop it, re-mint once,
       // retry once — exactly like a dead token. The retry is a direct
       // client call, never a recursive `request()`, so a second 403
-      // propagates instead of looping.
+      // propagates instead of looping. A scope 403 fails the scope check
+      // before executing anything, so re-sending the same body under the
+      // same Idempotency-Key cannot duplicate a write.
       if (isInsufficientScope(error.status, error.code)) {
-        await options.tokens.dropCachedToken(options.installationId);
+        await options.tokens.dropCachedToken(options.installationId, token);
         const fresh = await options.tokens.acquireToken(options.installationId);
-        return (await clientForToken(fresh)).request<T>(method, path, requestOptions);
+        return (await clientForToken(fresh)).request<T>(method, path, attemptOptions);
       }
       // Token refusals ONLY (rev 7): any 401, or a 403 carrying a
       // revoked/expired-key code. Every other 403 (plan, mode) propagates
@@ -489,9 +511,9 @@ export function createInstallationClient(options: InstallationClientOptions): Qu
       // the full contract error mapping (halt/purge on
       // invalid_client/kill-switch/gone); a second merchant refusal
       // propagates to the caller.
-      await options.tokens.dropCachedToken(options.installationId);
+      await options.tokens.dropCachedToken(options.installationId, token);
       const fresh = await options.tokens.acquireToken(options.installationId);
-      return (await clientForToken(fresh)).request<T>(method, path, requestOptions);
+      return (await clientForToken(fresh)).request<T>(method, path, attemptOptions);
     }
   }
 

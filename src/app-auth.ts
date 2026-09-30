@@ -84,7 +84,7 @@ export function isResyncCooldown(code: string | undefined): boolean {
  * is dead — drop it, re-mint once, retry once. `api_key_revoked` covers the
  * uninstalled store, the removed kid, and the replaced K-slot; the re-mint
  * then answers 404 `app_installation_gone` (purge) or 401 `invalid_client`
- * (halt) where applicable. Every OTHER merchant 403 (scope, plan, mode)
+ * (halt) where applicable. Every OTHER merchant 403 (plan, mode)
  * propagates to the caller without a mint.
  */
 export const API_KEY_REVOKED_CODE = "api_key_revoked";

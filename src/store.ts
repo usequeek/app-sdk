@@ -94,6 +94,13 @@ export interface InstallationStore {
    * mints fresh.
    */
   clearCachedToken(installationId: string): Promise<void> | void;
+  /**
+   * Forget one installation's cached token ONLY when the stored token still
+   * equals `expectedToken` (the value the failing call presented). A late
+   * drop after a concurrent re-mint is a no-op instead of wiping the fresh
+   * token. Returns true when the token was cleared.
+   */
+  clearCachedTokenIfMatches(installationId: string, expectedToken: string): Promise<boolean> | boolean;
   /** Forget EVERY cached token (kill switch) while keeping the rows. */
   clearAllCachedTokens(): Promise<void> | void;
   /**
@@ -322,6 +329,29 @@ export class SqliteInstallationStore implements InstallationStore {
          WHERE installation_id = ?`,
       )
       .run(installationId);
+  }
+
+  clearCachedTokenIfMatches(installationId: string, expectedToken: string): boolean {
+    // Synchronous start to finish, so no other JS in this process can
+    // interleave a mint between the read and the clear.
+    const row = this.db
+      .prepare(`SELECT token_enc FROM installations WHERE installation_id = ?`)
+      .get(installationId) as { token_enc: string | null } | undefined;
+    if (!row || row.token_enc === null) return false;
+    let current: string;
+    try {
+      current = decryptSecret(row.token_enc, this.key);
+    } catch {
+      return false;
+    }
+    if (current !== expectedToken) return false;
+    this.db
+      .prepare(
+        `UPDATE installations SET token_enc = NULL, token_expires_at = NULL, token_kid = NULL
+         WHERE installation_id = ?`,
+      )
+      .run(installationId);
+    return true;
   }
 
   clearAllCachedTokens(): void {
@@ -683,6 +713,50 @@ export class PostgresInstallationStore implements InstallationStore {
        WHERE installation_id = $1`,
       [installationId],
     );
+  }
+
+  async clearCachedTokenIfMatches(installationId: string, expectedToken: string): Promise<boolean> {
+    await this.ready;
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      const result = await client.query(
+        `SELECT token_enc FROM installations WHERE installation_id = $1 FOR UPDATE`,
+        [installationId],
+      );
+      const row = result.rows[0] as { token_enc: string | null } | undefined;
+      if (!row || row.token_enc === null) {
+        await client.query("ROLLBACK");
+        return false;
+      }
+      let current: string;
+      try {
+        current = decryptSecret(row.token_enc, this.key);
+      } catch {
+        await client.query("ROLLBACK");
+        return false;
+      }
+      if (current !== expectedToken) {
+        await client.query("ROLLBACK");
+        return false;
+      }
+      await client.query(
+        `UPDATE installations SET token_enc = NULL, token_expires_at = NULL, token_kid = NULL
+         WHERE installation_id = $1`,
+        [installationId],
+      );
+      await client.query("COMMIT");
+      return true;
+    } catch (error) {
+      try {
+        await client.query("ROLLBACK");
+      } catch {
+        // The rollback itself failed; the original error is what matters.
+      }
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
   async clearAllCachedTokens(): Promise<void> {
