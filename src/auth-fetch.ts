@@ -247,10 +247,12 @@ export function installAuthFetch(options: AuthFetchOptions): InstalledAuth {
     init: RequestInit | undefined,
     token: string,
   ): Promise<Response> => {
+    // A fresh clone per attempt: a body-carrying Request is consumed by its
+    // first fetch, so the 401 retry would otherwise throw.
+    const isRequest = typeof Request !== "undefined" && input instanceof Request;
+    const attempt = isRequest ? (input as Request).clone() : input;
     // Merge: the Request's own headers first, the explicit init wins.
-    const headers = new Headers(
-      typeof Request !== "undefined" && input instanceof Request ? input.headers : undefined,
-    );
+    const headers = new Headers(isRequest ? (input as Request).headers : undefined);
     if (init?.headers !== undefined) {
       new Headers(init.headers).forEach((value, key) => {
         headers.set(key, value);
@@ -259,7 +261,7 @@ export function installAuthFetch(options: AuthFetchOptions): InstalledAuth {
     if (!headers.has("authorization")) {
       headers.set("authorization", `Bearer ${token}`);
     }
-    return fetchFn(input as string, { ...init, headers, credentials: "omit" });
+    return fetchFn(attempt as string, { ...init, headers, credentials: "omit" });
   };
 
   const recover = async (): Promise<string | null> => {
@@ -295,11 +297,16 @@ export function installAuthFetch(options: AuthFetchOptions): InstalledAuth {
     if (session !== null && session !== used) {
       return withSession(input, init, session);
     }
-    // One re-establishment per 401, then exactly one retry.
+    // One re-establishment per 401, then exactly one retry — through the
+    // same framed / remembered-failure gate as the no-session path.
+    const next = await recover();
+    if (next === null) {
+      return first;
+    }
     try {
-      const next = await refresh();
       return await withSession(input, init, next);
     } catch {
+      recoveryFailed = true;
       return first;
     }
   };

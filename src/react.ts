@@ -42,7 +42,7 @@ import {
   type TitleActionDef,
   type ToastTone,
 } from "./frame.js";
-import { applyTheme, getThemeModeFromUrl, rememberThemeMode, type ThemeMode } from "./theme.js";
+import { applyTheme, getThemeModeFromUrl, rememberThemeMode, syncThemeUrl, type ThemeMode } from "./theme.js";
 
 /** A pick with no dashboard answer settles after this long (never deadlocks). */
 export const PICK_TIMEOUT_MS = 5 * 60 * 1000;
@@ -235,6 +235,7 @@ export function QueekProvider(props: QueekProviderProps): ReactNode {
     (handshakeTimer as unknown as { unref?: () => void }).unref?.();
     // Sync the URL theme after mount (render stayed SSR-safe "light").
     const initial = getThemeModeFromUrl(config.getHref());
+    rememberThemeMode(initial);
     if (initial !== modeRef.current) {
       modeRef.current = initial;
       applyTheme(initial);
@@ -250,6 +251,7 @@ export function QueekProvider(props: QueekProviderProps): ReactNode {
         modeRef.current = theme.mode;
         applyTheme(theme.mode);
         rememberThemeMode(theme.mode);
+        syncThemeUrl(theme.mode, { getHref: config.getHref });
         for (const handler of themeHandlers.current) {
           handler(theme.mode);
         }

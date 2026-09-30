@@ -74,6 +74,7 @@ describe("useQueek", () => {
 
   beforeEach(() => {
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+    sessionStorage.clear();
     container = document.createElement("div");
     document.body.appendChild(container);
     root = createRoot(container);
@@ -539,6 +540,25 @@ describe("useQueek", () => {
       });
     });
     await expect(picking).resolves.toEqual([{ p_id: "p_new", title: "New" }]);
+  });
+
+  it("rewrites the URL theme param on live theme and remembers the first-load mode", async () => {
+    const bridge = fakeBridge();
+    sessionStorage.clear();
+    window.history.replaceState(null, "", "/admin?shop=demo&theme=light");
+    await render(
+      createElement(
+        QueekProvider,
+        { dashboardOrigin: ORIGIN, postTarget: bridge.postTarget, listenTarget: bridge.listenTarget },
+        createElement(probe(() => {})),
+      ),
+    );
+    expect(sessionStorage.getItem("queek.theme")).toBe("light");
+    await act(async () => {
+      bridge.fire(ORIGIN, { source: DASHBOARD_SOURCE, type: "theme", mode: "dark" });
+    });
+    expect(window.location.search).toBe("?shop=demo&theme=dark");
+    window.history.replaceState(null, "", "/");
   });
 
   it("remembers the live theme mode so an in-frame reload keeps it", async () => {

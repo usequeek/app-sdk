@@ -105,6 +105,50 @@ export function getThemeModeFromUrl(
   return storedThemeMode(storage) ?? "light";
 }
 
+export interface ThemeUrlOptions {
+  param?: string;
+  /** Current href (defaults to the global window location). */
+  getHref?: () => string;
+  /** Replace the URL without navigating (defaults to history.replaceState). */
+  replaceUrl?: (url: string) => void;
+}
+
+/**
+ * Rewrite the `theme` URL param to the live mode (other params and the hash
+ * are kept) so an in-frame reload's bootstrap reads the CURRENT mode, not the
+ * stale one from the first load. Best-effort: never throws.
+ */
+export function syncThemeUrl(mode: ThemeMode, options: ThemeUrlOptions = {}): void {
+  try {
+    const win = (
+      globalThis as unknown as {
+        window?: {
+          location: { href: string };
+          history: { replaceState(d: unknown, u: string, url: string): void };
+        };
+      }
+    ).window;
+    const href = options.getHref !== undefined ? options.getHref() : win?.location.href;
+    if (href === undefined) {
+      return;
+    }
+    const param = options.param ?? THEME_PARAM;
+    const url = new URL(href, "https://app.invalid");
+    if (url.searchParams.get(param) === mode) {
+      return;
+    }
+    url.searchParams.set(param, mode);
+    const relative = `${url.pathname}${url.search}${url.hash}`;
+    if (options.replaceUrl !== undefined) {
+      options.replaceUrl(relative);
+    } else {
+      win?.history.replaceState(null, "", relative);
+    }
+  } catch {
+    // A denied replaceState must not break theming.
+  }
+}
+
 /**
  * Apply the mode: toggle `.dark` on `<html>` + set `color-scheme`
  * (shadcn's dark-mode mechanism). No-op without a document (SSR-safe).
@@ -131,6 +175,7 @@ export function themeBootstrapScript(param: string = THEME_PARAM): string {
   return (
     `try{var m=new URLSearchParams(location.search).get(${key});` +
     `if(m===null){try{m=sessionStorage.getItem(${storageKey})}catch(x){}}` +
+    `else{try{sessionStorage.setItem(${storageKey},m==="dark"?"dark":"light")}catch(x){}}` +
     `var d=m==="dark";var e=document.documentElement;` +
     `e.classList.toggle("dark",d);e.style.colorScheme=d?"dark":"light"}catch(e){}`
   );
@@ -152,6 +197,9 @@ export interface ThemeListenerOptions {
   capabilities?: string[];
   sdkVersion?: string;
   storage?: ThemeStorage | null;
+  /** URL access for the live `theme` param rewrite (default: the global window). */
+  getHref?: () => string;
+  replaceUrl?: (url: string) => void;
 }
 
 /**
@@ -173,6 +221,7 @@ export function installThemeListener(options: ThemeListenerOptions): () => void 
     onTheme: (theme) => {
       applyTheme(theme.mode, doc);
       rememberThemeMode(theme.mode, storage);
+      syncThemeUrl(theme.mode, { getHref: options.getHref, replaceUrl: options.replaceUrl });
       onChange?.(theme.mode);
     },
   });

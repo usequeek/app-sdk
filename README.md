@@ -357,8 +357,8 @@ Hono: mount `createProxyHandler({ store, path, onVerified })` from
   resize only). `<QueekProvider>` stores the declared set: `pickResource`
   rejects at once when it lacks `pick-resource`, waits up to 1.5 s after
   `ready` when the set is still unknown, and rejects if no handshake arrives.
-  Each pick carries a `requestId` (on `pick-resource`); the dashboard MUST
-  echo it on `resource-picked` / `resource-pick-cancelled` — answers with a
+  Each pick carries a `requestId` (on `pick-resource`); a dashboard that
+  declares `pick-resource` MUST echo it on `resource-picked` / `resource-pick-cancelled` — answers with a
   different or missing id are dropped as stale.
 - **auth** (`auth-fetch.ts`, browser-safe, no secret): `installAuthFetch({ exchange })`
   — reads the launch token (`id_token` query param) from the signed first
@@ -376,7 +376,10 @@ Hono: mount `createProxyHandler({ store, path, onVerified })` from
   `installThemeListener` follows live bridge `theme{mode}` messages (only from
   `window.parent` by default; pass `expectSource` to override). The live mode is
   remembered in `sessionStorage`, and the bootstrap script falls back to it when
-  the URL carries no `theme` param, so an in-frame reload never flashes light.
+  the URL carries no `theme` param, so an in-frame reload never flashes light. Every live `theme` message also
+  rewrites the `theme` URL param (other params kept) so a stale first-load param
+  never beats the current mode on reload, and the first-load mode is remembered
+  too (a legacy dashboard that never sends `theme` still reloads flash-free).
 - **react** (`react.ts`, via `@usequeek/app-sdk/react` — `react` is an
   optional peer, same pattern as `./hono`): `<QueekProvider>` owns one
   bridge subscription; `useQueek()` returns `{ toast, saveBar, title,

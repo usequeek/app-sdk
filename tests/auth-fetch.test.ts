@@ -319,6 +319,94 @@ describe("installAuthFetch", () => {
     }
   });
 
+  it("a 401 with a session does not stall when unframed", async () => {
+    const win = {
+      location: { href: "https://app.example.test/admin?id_token=launch" },
+      history: { replaceState: () => {} },
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    };
+    vi.stubGlobal("window", win);
+    try {
+      const auth = installAuthFetch({
+        exchange: async () => "sess",
+        dashboardOrigin: ORIGIN,
+        fetchImpl: async () => jsonResponse(401),
+        getHref: () => "https://app.example.test/admin?id_token=launch",
+        replaceUrl: () => {},
+      });
+      await auth.ready;
+      const started = Date.now();
+      const res = await auth.fetch("/admin/api/orders");
+      expect(res.status).toBe(401);
+      expect(Date.now() - started).toBeLessThan(1000);
+      auth.dispose();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("a framed 401 against a silent dashboard fails once, then is remembered", async () => {
+    vi.useFakeTimers();
+    try {
+      const listenTarget = fakeListenTarget();
+      const { posts, postTarget } = fakePosts();
+      const fetchImpl = vi.fn(async () => jsonResponse(401));
+      const auth = installAuthFetch({
+        exchange: async () => "sess",
+        dashboardOrigin: ORIGIN,
+        postTarget,
+        listenTarget,
+        fetchImpl,
+        getHref: () => APP_URL,
+        replaceUrl: () => {},
+      });
+      await auth.ready;
+      const first = auth.fetch("/admin/api/a");
+      await vi.advanceTimersByTimeAsync(BRIDGE_TOKEN_TIMEOUT_MS);
+      expect((await first).status).toBe(401);
+      expect(posts).toHaveLength(1);
+      // Second 401: no new ready, no 8s wait.
+      const second = await auth.fetch("/admin/api/b");
+      expect(second.status).toBe(401);
+      expect(posts).toHaveLength(1);
+      auth.dispose();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("retries a body-carrying Request after a 401 refresh (fresh clone per attempt)", async () => {
+    const listenTarget = fakeListenTarget();
+    const { posts, postTarget } = fakePosts();
+    const bodies: string[] = [];
+    let calls = 0;
+    const auth = installAuthFetch({
+      exchange: async (token) => `sess-${token}`,
+      dashboardOrigin: ORIGIN,
+      postTarget,
+      listenTarget,
+      fetchImpl: async (input: string | URL | Request) => {
+        calls += 1;
+        bodies.push(await (input as Request).text());
+        return jsonResponse(calls === 1 ? 401 : 200);
+      },
+      getHref: () => APP_URL,
+      replaceUrl: () => {},
+    });
+    await auth.ready;
+    const pending = auth.fetch(
+      new Request("https://app.example.test/admin/api/save", { method: "POST", body: "payload" }),
+    );
+    await vi.waitFor(() => {
+      expect(posts).toHaveLength(1);
+    });
+    listenTarget.fire(ORIGIN, { source: DASHBOARD_SOURCE, type: "token", token: "fresh" });
+    expect((await pending).status).toBe(200);
+    expect(bodies).toEqual(["payload", "payload"]);
+    auth.dispose();
+  });
+
   it("remembers a failed recovery and retries only after a later token arrives", async () => {
     vi.useFakeTimers();
     try {

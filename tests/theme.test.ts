@@ -5,6 +5,7 @@ import {
   getThemeModeFromUrl,
   installThemeListener,
   rememberThemeMode,
+  syncThemeUrl,
   type ThemeDocument,
   themeBootstrapScript,
 } from "../src/theme.js";
@@ -155,6 +156,66 @@ describe("themeBootstrapScript storage fallback", () => {
       denied,
     );
     expect(doc.documentElement.style.colorScheme).toBe("light");
+  });
+});
+
+describe("syncThemeUrl / stale param on reload", () => {
+  it("rewrites the theme param, keeping other params and the hash", () => {
+    const replaced: string[] = [];
+    syncThemeUrl("dark", {
+      getHref: () => "https://app.example.test/admin/x?shop=demo&theme=light#top",
+      replaceUrl: (url) => replaced.push(url),
+    });
+    expect(replaced).toEqual(["/admin/x?shop=demo&theme=dark#top"]);
+    // Already current: no history write.
+    syncThemeUrl("dark", {
+      getHref: () => "https://app.example.test/admin?theme=dark",
+      replaceUrl: (url) => replaced.push(url),
+    });
+    expect(replaced).toHaveLength(1);
+  });
+
+  it("a live switch then an in-frame reload paints the live mode, not the stale param", () => {
+    const listeners: ((event: { origin: string; data: unknown }) => void)[] = [];
+    let href = "https://app.example.test/admin?shop=demo&theme=light";
+    const store = new Map<string, string>();
+    installThemeListener({
+      dashboardOrigin: ORIGIN,
+      target: {
+        addEventListener: (_t: string, l: (event: { origin: string; data: unknown }) => void) => {
+          listeners.push(l);
+        },
+        removeEventListener: () => {},
+      },
+      expectSource: null,
+      doc: fakeDocument(),
+      storage: { getItem: (k) => store.get(k) ?? null, setItem: (k, v) => void store.set(k, v) },
+      getHref: () => href,
+      replaceUrl: (url) => {
+        href = new URL(url, "https://app.example.test").toString();
+      },
+    });
+    listeners[0]?.({ origin: ORIGIN, data: { source: DASHBOARD_SOURCE, type: "theme", mode: "dark" } });
+    // The reload: bootstrap reads the (rewritten) URL.
+    const reloaded = fakeDocument();
+    new Function("document", "location", "URLSearchParams", themeBootstrapScript())(
+      reloaded,
+      { search: new URL(href).search },
+      URLSearchParams,
+    );
+    expect(reloaded.hasDarkClass()).toBe(true);
+    expect(href).toContain("shop=demo");
+  });
+
+  it("the bootstrap remembers the first-load mode for legacy dashboards", () => {
+    const store = new Map<string, string>();
+    new Function("document", "location", "URLSearchParams", "sessionStorage", themeBootstrapScript())(
+      fakeDocument(),
+      { search: "?theme=dark" },
+      URLSearchParams,
+      { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => store.set(k, v) },
+    );
+    expect(store.get("queek.theme")).toBe("dark");
   });
 });
 
