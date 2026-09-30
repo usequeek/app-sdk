@@ -106,9 +106,11 @@ export function buildInstallationRecord(
 function installationRecordFromInstall(data: InstallData, nowIso: string): InstallationRecord {
   return {
     installationId: data.installation.id,
-    // Defensive: a backend sending JSON integers reaches here as JS
-    // numbers, which `node:sqlite` would store as `"1021.0"` in the TEXT
-    // column — never equal to the proxy `kid`. Normalise to integer strings.
+    // The installation p_id arrives as a string on the wire (the backend
+    // casts). `normalisePid` stays as tolerance: a JSON integer would reach
+    // here as a JS number, which `node:sqlite` would store as `"1021.0"`
+    // in the TEXT column — never equal to the proxy `kid` — so non-string
+    // forms still normalise to integer strings.
     installationPid: normalisePid(data.installation.p_id),
     vendorId: data.store.id,
     storePid: normaliseNullablePid(data.store.p_id),
@@ -328,9 +330,9 @@ function isScopesUpdatePayload(data: unknown): data is ScopesUpdateData {
  * moved. Unknown `p_id` answers 404 (released, like the settings path).
  */
 async function applyScopesUpdate(store: InstallationStore, data: ScopesUpdateData): Promise<DeliveryResult> {
-  // The installation p_id is a string on the wire, but a backend sending
-  // a JSON integer reaches here as a JS number — normalise before
-  // comparing, exactly like the install mapping does.
+  // The installation p_id arrives as a string on the wire (the backend
+  // casts) — normalise before comparing anyway, exactly like the install
+  // mapping does, so a non-conforming integer form still matches.
   const pid = normalisePid(data.installation.p_id);
   const rows = await store.listInstallations();
   const existing = rows.find((row) => row.installationPid === pid) ?? null;

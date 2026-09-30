@@ -454,10 +454,11 @@ export class SqliteInstallationStore implements InstallationStore {
 
 /**
  * Canonical integer-string form of a Queek `p_id`: the handoff contract
- * types p_ids as strings, but a backend that sends a JSON integer reaches
- * here as a JS number — and `node:sqlite` binds that number into a TEXT
- * column as `"1021.0"`, which never equals the proxy `kid` (`"1021"`).
- * Non-numeric pids pass through untouched.
+ * types p_ids as strings and the backend casts on the wire, but the
+ * tolerance stays — a JSON integer would reach here as a JS number, and
+ * `node:sqlite` binds that number into a TEXT column as `"1021.0"`, which
+ * never equals the proxy `kid` (`"1021"`). Non-numeric pids pass through
+ * untouched.
  */
 export function normalisePid(value: unknown): string {
   if (typeof value === "number" && Number.isFinite(value)) return String(Math.trunc(value));

@@ -271,24 +271,24 @@ describe("queryScopes", () => {
 });
 
 describe("requestScopes", () => {
-  it("builds the dashboard-relative consent link", () => {
+  it("builds the dashboard-relative consent link (the AppsPage query route)", () => {
     const { client } = clientSetup();
     expect(client.requestScopes([OPTIONAL_A, OPTIONAL_B])).toBe(
-      `/apps/test-app/scopes/request?installation=${INSTALLATION_ID}&scopes=${OPTIONAL_A}&scopes=${OPTIONAL_B}`,
+      `/apps?app=test-app&view=scopes&scopes=${OPTIONAL_A},${OPTIONAL_B}`,
     );
   });
 
   it("builds an absolute link under the dashboard origin", () => {
     const { client } = clientSetup({ dashboardOrigin: "https://dashboard.usequeek.com" });
     expect(client.requestScopes([OPTIONAL_A])).toBe(
-      `https://dashboard.usequeek.com/apps/test-app/scopes/request?installation=${INSTALLATION_ID}&scopes=${OPTIONAL_A}`,
+      `https://dashboard.usequeek.com/apps?app=test-app&view=scopes&scopes=${OPTIONAL_A}`,
     );
   });
 
   it("normalises the requested scopes and honours the per-call slug", () => {
     const { client } = clientSetup();
     expect(client.requestScopes([` ${OPTIONAL_A} `, OPTIONAL_A], { appSlug: "other-app" })).toBe(
-      `/apps/other-app/scopes/request?installation=${INSTALLATION_ID}&scopes=${OPTIONAL_A}`,
+      `/apps?app=other-app&view=scopes&scopes=${OPTIONAL_A}`,
     );
   });
 
@@ -304,7 +304,9 @@ describe("requestScopes", () => {
       signJwt: () => "test-app-jwt",
     });
     expect(() => slugless.requestScopes([OPTIONAL_A])).toThrow(InvalidScopesError);
-    expect(slugless.requestScopes([OPTIONAL_A], { appSlug: "late-slug" })).toContain("/apps/late-slug/");
+    expect(slugless.requestScopes([OPTIONAL_A], { appSlug: "late-slug" })).toContain(
+      "/apps?app=late-slug&view=scopes",
+    );
   });
 });
 
@@ -363,14 +365,25 @@ describe("revokeScopes", () => {
   });
 
   it("surfaces 422 app_scope_required as a typed error and keeps the cache", async () => {
+    // The body mirrors the backend `ApiError::response(code, message,
+    // status, errors)` shape exactly: legacy top-level keys plus the
+    // `error` envelope, with the per-field detail at `error.errors`.
     const { store, client } = revokeSetup(
       (_url, _init) =>
         new Response(
           JSON.stringify({
+            status: "failed",
+            error_code: "app_scope_required",
+            message: "These scopes are required and cannot be revoked.",
+            data: null,
+            errors: { scopes: [REQUIRED] },
             error: {
               code: "app_scope_required",
               message: "These scopes are required and cannot be revoked.",
+              field: "scopes",
               errors: { scopes: [REQUIRED] },
+              doc_url: "https://docs.usequeek.com/errors#app_scope_required",
+              request_id: "req_test_scopes_1",
             },
           }),
           { status: 422, headers: { "Content-Type": "application/json" } },
@@ -388,12 +401,14 @@ describe("revokeScopes", () => {
     expect(stored?.token).toBe("tok_old");
   });
 
-  it("treats revoke of a never-granted scope as idempotent 200 and still drops the token", async () => {
+  it("treats revoke of a never-granted scope as idempotent 200 and keeps the token", async () => {
     const { store, client } = revokeSetup((_url, _init) => okRevoke([REQUIRED]));
     await seedWithToken(store);
 
+    // Same compare-and-clear as the scopes_update handler: the returned
+    // grant equals the cached one, so the cached token still matches live.
     await expect(client.revokeScopes([OPTIONAL_B])).resolves.toEqual([REQUIRED]);
-    expect((await store.getInstallation(INSTALLATION_ID))?.token).toBeNull();
+    expect((await store.getInstallation(INSTALLATION_ID))?.token).toBe("tok_old");
   });
 
   it("purges the local row on 404 app_installation_gone", async () => {

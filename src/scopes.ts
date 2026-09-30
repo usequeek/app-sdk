@@ -1,6 +1,7 @@
 import { isInstallationGone, UnknownInstallationError } from "./app-auth.js";
 import { newIdempotencyKey, QueekApiError, queekApiErrorFromResponse } from "./client.js";
 import { isAllowedOpenTarget } from "./frame.js";
+import { installationScopesEqual } from "./install-handlers.js";
 import type { InstallationStore } from "./store.js";
 import { resolveAppApiBase } from "./tokens.js";
 
@@ -13,23 +14,26 @@ import { resolveAppApiBase } from "./tokens.js";
  *   surface exposes the effective grant but no declared-optional list, so
  *   the split needs the app's manifest knowledge (passed at client
  *   construction). No network, no guessing.
- * - `requestScopes`: builds the dashboard deep link the merchant approves
- *   at. The SDK never renders consent — it hands the app a link shaped
- *   like the bridge `open`/`navigate` targets (dashboard-relative path, or
- *   an absolute URL under a given dashboard origin) for the app to open via
- *   `sendOpen` or redirect to. The consent screen itself lands with the
- *   dashboard (plan item 8), which honours this link shape.
+ * - `requestScopes`: builds the dashboard deep link that opens the
+ *   merchant's consent screen in the dashboard. The SDK never renders
+ *   consent — it hands the app a link shaped like the bridge
+ *   `open`/`navigate` targets (dashboard-relative path, or an absolute URL
+ *   under a given dashboard origin) for the app to open via `sendOpen` or
+ *   redirect to. The consent screen itself ships with the dashboard (plan
+ *   item 8), which honours this link shape.
  * - `revokeScopes`: `POST
  *   /api/v1/apps/installations/{installation}/scopes/revoke` with the app
  *   JWT (same credential as mint/resync — never auth:sanctum, never the
  *   installation token). Body `{scopes[]}` (1–50, backend
- *   `RevokeAppScopesRequest`); writes carry an `Idempotency-Key`, generated
- *   when the caller does not supply one (the client write discipline).
- *   Required scopes refuse 422 `app_scope_required` (surfaced as
- *   `AppScopeRequiredError`); revoking a never-granted optional scope is
- *   idempotent 200 with no handoff. On 200 the cached grant is refreshed
- *   from the response and the cached token dropped (the backend rewrites
- *   live token rows in place, so the drop is backstop, not mechanism).
+ *   `RevokeAppScopesRequest`); an `Idempotency-Key` rides the write for
+ *   discipline (generated when the caller does not supply one — the client
+ *   write discipline), though the route is naturally idempotent: revoking
+ *   a never-granted optional scope is 200 with no change. Required scopes
+ *   refuse 422 `app_scope_required` (surfaced as `AppScopeRequiredError`).
+ *   On 200 the cached grant is refreshed from the response and the cached
+ *   token dropped only when the grant moved (same compare-and-clear as the
+ *   scopes_update handler — the backend rewrites live token rows in place,
+ *   so the drop is backstop, not mechanism).
  *
  * Types here are hand-written: the revoke endpoint and the scopes_update
  * handoff live on the app-credential surface, which the frozen
@@ -150,8 +154,6 @@ export function revokeScopesPath(installationId: string): string {
 export interface ScopeRequestLinkOptions {
   /** The app's dashboard slug (addresses the consent screen). */
   appSlug: string;
-  /** The installation UUID (routing hint for the dashboard session). */
-  installationId: string;
   /** Optional scopes to request (validated + normalised). */
   scopes: string[];
   /**
@@ -163,27 +165,26 @@ export interface ScopeRequestLinkOptions {
 }
 
 /**
- * Build the dashboard deep link the merchant approves optional scopes at.
- * Pure — no store, no network. Shaped like the bridge `open` targets: a
- * dashboard-relative path, or an absolute https URL under `dashboardOrigin`
- * (refused exactly like `sendOpen` refuses a bad target).
+ * Build the dashboard deep link that opens the merchant's consent screen
+ * in the dashboard. Pure — no store, no network. Shaped like the bridge
+ * `open` targets: a dashboard-relative path, or an absolute https URL
+ * under `dashboardOrigin` (refused exactly like `sendOpen` refuses a bad
+ * target).
  *
- * Link shape (the SDK↔dashboard contract the consent screen honours):
- * `/apps/{slug}/scopes/request?installation={id}&scopes={a}&scopes={b}`.
+ * Link shape (the SDK↔dashboard contract the consent screen honours —
+ * the only query route the dashboard `AppsPage` serves):
+ * `/apps?app={slug}&view=scopes&scopes={a},{b}` (each scope
+ * URL-encoded, comma-separated). The link carries the slug + the scope
+ * list only: the dashboard resolves the installation from the signed-in
+ * store.
  */
 export function buildScopeRequestLink(options: ScopeRequestLinkOptions): string {
   const slug = options.appSlug.trim();
   if (slug === "" || slug.includes("/") || slug.includes("\\")) {
     throw new InvalidScopesError("A dashboard app slug is required to build the scope-request link.");
   }
-  if (options.installationId.trim() === "") {
-    throw new InvalidScopesError("An installation id is required to build the scope-request link.");
-  }
   const requested = normaliseScopeList(options.scopes);
-  const params = new URLSearchParams();
-  params.set("installation", options.installationId);
-  for (const scope of requested) params.append("scopes", scope);
-  const path = `/apps/${encodeURIComponent(slug)}/scopes/request?${params.toString()}`;
+  const path = `/apps?app=${encodeURIComponent(slug)}&view=scopes&scopes=${requested.map((scope) => encodeURIComponent(scope)).join(",")}`;
   const origin = options.dashboardOrigin?.trim();
   if (!origin) return path;
   let url: URL;
@@ -221,7 +222,7 @@ export interface RevokeScopesOptions {
 }
 
 export interface InstallationScopesClientOptions {
-  /** The installation UUID (addresses the revoke endpoint; rides the request link). */
+  /** The installation UUID (addresses the revoke endpoint). */
   installationId: string;
   /** The installation row cache: query reads it, revoke refreshes it. */
   store: InstallationStore;
@@ -296,11 +297,12 @@ export function createInstallationScopesClient(
   }
 
   /**
-   * The dashboard deep link the merchant approves optional scopes at.
-   * Pure (no store, no network): the app opens it via `sendOpen` or a
-   * redirect and the merchant consents in the dashboard. Shaped like the
-   * bridge `open` targets — dashboard-relative, or absolute under the
-   * dashboard origin when one is configured.
+   * The dashboard deep link that opens the merchant's consent screen in
+   * the dashboard. Pure (no store, no network): the app opens it via
+   * `sendOpen` or a redirect and the merchant consents in the dashboard
+   * (shipped with dashboard item 8). Shaped like the bridge `open`
+   * targets — dashboard-relative, or absolute under the dashboard origin
+   * when one is configured.
    */
   function requestScopes(scopes: string[], linkOptions: RequestScopesLinkOptions = {}): string {
     const appSlug = linkOptions.appSlug ?? options.appSlug;
@@ -309,7 +311,6 @@ export function createInstallationScopesClient(
     }
     return buildScopeRequestLink({
       appSlug,
-      installationId: options.installationId,
       scopes,
       dashboardOrigin: linkOptions.dashboardOrigin ?? options.dashboardOrigin,
     });
@@ -318,13 +319,16 @@ export function createInstallationScopesClient(
   /**
    * App-initiated revoke of optional scopes (backend
    * `AppInstallationController::revokeScopes`): the app JWT signs the call
-   * (same credential as mint/resync), an `Idempotency-Key` rides every
-   * write, and on 200 the cached grant is refreshed from the response and
-   * the cached token dropped (backstop — the backend rewrites live token
-   * rows in place). A required scope refuses 422 `app_scope_required` as
-   * `AppScopeRequiredError`; a gone installation purges the local row and
-   * rethrows; anything else propagates untouched. A 401 never halts here —
-   * the mint path owns that mapping and halts on its next call.
+   * (same credential as mint/resync), an `Idempotency-Key` rides the write
+   * for discipline only (the route is naturally idempotent), and on 200
+   * the cached grant is refreshed from the response with the cached token
+   * dropped only when the grant moved (same compare-and-clear as the
+   * scopes_update handler — backstop, since the backend rewrites live
+   * token rows in place). A required scope refuses 422
+   * `app_scope_required` as `AppScopeRequiredError`; a gone installation
+   * purges the local row and rethrows; anything else propagates untouched.
+   * A 401 never halts here — the mint path owns that mapping and halts on
+   * its next call.
    */
   async function revokeScopes(scopes: string[], revokeOptions: RevokeScopesOptions = {}): Promise<string[]> {
     const requested = normaliseScopeList(scopes);
@@ -367,8 +371,14 @@ export function createInstallationScopesClient(
       throw error;
     }
     const updated = parseRevokeBody(parsed);
+    // Same compare-and-clear as the scopes_update handler: an unchanged
+    // grant (e.g. revoking a never-granted scope — idempotent 200) keeps
+    // the cached token, since it still matches the live grant.
+    const grantChanged = !installationScopesEqual(row.scopes, updated);
     await options.store.saveInstallation({ ...row, scopes: updated, updatedAt: new Date().toISOString() });
-    await options.store.clearCachedToken(options.installationId);
+    if (grantChanged) {
+      await options.store.clearCachedToken(options.installationId);
+    }
     return updated;
   }
 

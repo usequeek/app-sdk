@@ -421,11 +421,14 @@ await scopes.revokeScopes(["merchant-orders-read"]); // 422 app_scope_required �
 `queryScopes` splits the cached effective grant against the declared-optional
 list you pass (the app surface exposes the grant but no declared list, so the
 split needs your manifest knowledge). `requestScopes` returns
-`/apps/{slug}/scopes/request?installation={id}&scopes={…}` (absolute under
-`dashboardOrigin` when configured) — the merchant approves in the dashboard;
-the grant reaches you as a signed `app/scopes_update` handoff, which the
-install/settings handlers apply like a resync (same verifier, same replay
-claim): cached grant refreshed, cached token dropped only when the grant moved.
+`/apps?app={slug}&view=scopes&scopes={a},{b}` (absolute under
+`dashboardOrigin` when configured) — open it via `sendOpen` or a redirect: it
+opens the merchant's consent screen in the dashboard (shipped with dashboard
+item 8). The link carries the slug + the scope list only; the dashboard
+resolves the installation from the signed-in store. The grant reaches you as a
+signed `app/scopes_update` handoff, which the install/settings handlers apply
+like a resync (same verifier, same replay claim): cached grant refreshed,
+cached token dropped only when the grant moved.
 
 ## Embedded merchant page (S4 stage 2)
 
