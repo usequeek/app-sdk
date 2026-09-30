@@ -16,7 +16,8 @@
  * .test/.local, tunnels) or a non-public usequeek host: api.usequeek.com,
  * docs.usequeek.com (backend-generated descriptions link it),
  * apps.usequeek.com + *.apps.usequeek.com, and media.usequeek.com (public
- * media CDN examples inside openapi/merchant.json) may appear; public links
+ * media CDN examples inside the generated merchant schema, shipped in
+ * `dist/` comments) may appear; public links
  * (github.com, npmjs.com) are fine.
  */
 import { execFileSync } from "node:child_process";
@@ -26,7 +27,10 @@ import { fileURLToPath } from "node:url";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 
-const ALLOWED_FILES = new Set(["package.json", "openapi/merchant.json", "README.md", "LICENSE"]);
+// `openapi/merchant.json` stays IN-REPO as `gen:merchant`'s reference input
+// (S2) and is deliberately NOT packed: the published types are the
+// compiled `dist/` output of `src/merchant-schema.ts`.
+const ALLOWED_FILES = new Set(["package.json", "README.md", "LICENSE"]);
 function allowedFile(path) {
   return ALLOWED_FILES.has(path) || path.startsWith("dist/");
 }

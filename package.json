@@ -34,7 +34,6 @@
   },
   "files": [
     "dist",
-    "openapi/merchant.json",
     "README.md",
     "LICENSE"
   ],

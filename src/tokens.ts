@@ -20,6 +20,7 @@ import {
   createQueekClient,
   isWriteMethod,
   MERCHANT_API_PATH,
+  type MerchantPaths,
   newIdempotencyKey,
   QueekApiError,
   type QueekClient,
@@ -27,6 +28,7 @@ import {
   type RequestOptions,
   type RetryOptions,
   resolveApiBase,
+  type StoreProfile,
 } from "./client.js";
 import { createLogger, type Logger } from "./logger.js";
 import { defaultClearCachedTokenIfMatches, type InstallationStore } from "./store.js";
@@ -450,21 +452,29 @@ export interface InstallationClientOptions {
  * halts minting; any other 403 propagates without a mint. 429/network
  * retries (`requestWithRetry`) reuse one idempotency key exactly like the
  * static client.
+ *
+ * Generic over the app's Merchant API paths (`TPaths`, default: the
+ * bundled `MerchantPaths` compat shim). Pass the app's own codegen output
+ * (`createInstallationClient<AppPaths>(...)`) for current types with zero
+ * SDK publish; the default keeps existing apps compiling unchanged but
+ * does NOT auto-update (re-run codegen in the app; sunset signal at 1.0).
  */
-export function createInstallationClient(options: InstallationClientOptions): QueekClient {
+export function createInstallationClient<TPaths = MerchantPaths>(
+  options: InstallationClientOptions,
+): QueekClient<TPaths> {
   // Validated here, once, before any fetch — same rules as the static client.
   const probe = resolveApiBase(options.apiBase, options.allowedApiHosts ?? []);
   void probe;
   const fetchImpl = options.fetchImpl ?? fetch;
   const userAgent = options.userAgent ?? "queek-app/1.0";
   const allowedApiHosts = options.allowedApiHosts ?? [];
-  let cached: { token: string; client: QueekClient } | null = null;
+  let cached: { token: string; client: QueekClient<TPaths> } | null = null;
 
-  async function clientForToken(token: string): Promise<QueekClient> {
+  async function clientForToken(token: string): Promise<QueekClient<TPaths>> {
     if (!cached || cached.token !== token) {
       cached = {
         token,
-        client: createQueekClient({
+        client: createQueekClient<TPaths>({
           apiBase: options.apiBase,
           apiKey: token,
           fetchImpl,
@@ -553,7 +563,7 @@ export function createInstallationClient(options: InstallationClientOptions): Qu
   }
 
   return {
-    getStore: (signal?: AbortSignal) => request("GET", "/store", { signal }),
+    getStore: (signal?: AbortSignal) => request<StoreProfile<TPaths>>("GET", "/store", { signal }),
     request,
     requestWithRetry,
   };
