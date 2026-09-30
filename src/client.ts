@@ -28,21 +28,52 @@ import type { paths } from "./merchant-schema.js";
  *   HTTP-date). Plain `request()` never retries; `requestWithRetry()`
  *   retries 429s and network errors with the SAME idempotency key.
  *
- * Typed surface: `getStore()` is typed from the generated Merchant API
- * schema (`openapi/merchant.json` → `merchant-schema.ts` via
- * `pnpm gen:merchant`); `request()` is the generic escape hatch.
+ * Typed surface: `getStore()` is typed from the app's Merchant API
+ * paths. Pass the app's own codegen output as the type argument
+ * (`createQueekClient<AppPaths>` / `createInstallationClient<AppPaths>`);
+ * the bundled `merchant-schema.ts` stays the DEFAULT (`TPaths = paths`)
+ * so existing apps compile unchanged — but the default is a compat shim,
+ * not the freshness mechanism: it does NOT auto-update when the Merchant
+ * API gains fields (re-run codegen in the app for current types; sunset
+ * signal at 1.0). A pinned old SDK keeps working with new fields untyped
+ * until bumped (the contract is additive). `request()` is the generic
+ * escape hatch.
+ * In-repo reference: `openapi/merchant.json` → `merchant-schema.ts` via
+ * `npm run gen:merchant` (the json is NOT shipped in the published
+ * package).
  */
 
 export type MerchantPaths = paths;
 
-/** 200 JSON body of `GET <P>` for operations shaped `{responses: {200: {content: {"application/json": T}}}}`. */
-export type OperationResponse<P extends keyof paths, M extends keyof paths[P]> = paths[P][M] extends {
+/** 200 JSON body of `GET <P>` for operations shaped `{responses: {200: {content: {"application/json": T}}}}`. Over `TPaths` (default: the bundled `paths` compat shim). */
+export type OperationResponse<
+  P extends keyof TPaths,
+  M extends keyof TPaths[P],
+  TPaths = paths,
+> = TPaths[P][M] extends {
   responses: { 200: { content: { "application/json": infer T } } };
 }
   ? T
   : unknown;
 
-export type StoreProfile = OperationResponse<"/store", "get">;
+export type StoreProfile<TPaths = paths> = "get" extends keyof TPaths[Extract<"/store", keyof TPaths>]
+  ? OperationResponse<
+      Extract<"/store", keyof TPaths>,
+      Extract<"get", keyof TPaths[Extract<"/store", keyof TPaths>]>,
+      TPaths
+    >
+  : unknown;
+
+/**
+ * The paths a generic client is actually typed over. An UNRESOLVED
+ * `TPaths` collapses to the bundled default: TypeScript instantiates an
+ * unconstrained type parameter at `unknown` (ignoring `= paths`) wherever a
+ * generic function's type is inspected without type arguments, e.g.
+ * `ReturnType<typeof createInstallationClient>` — the alias every app uses.
+ * Without this collapse that alias is `QueekClient<unknown>`, not
+ * assignable with `QueekClient`, and existing apps fail to compile on upgrade.
+ */
+export type ResolvedPaths<TPaths> = unknown extends TPaths ? paths : TPaths;
 
 /** Path of the public Merchant API below the store host. */
 export const MERCHANT_API_PATH = "/api/v1/merchant";
@@ -286,9 +317,9 @@ export interface RetryOptions {
   sleep?: (ms: number) => Promise<void>;
 }
 
-export interface QueekClient {
-  /** `GET /store` — the handed-off key proving itself. Typed from the Merchant API schema. */
-  getStore(signal?: AbortSignal): Promise<StoreProfile>;
+export interface QueekClient<TPaths = paths> {
+  /** `GET /store` — the handed-off key proving itself. Typed from the app's paths (`TPaths`, default: bundled shim). */
+  getStore(signal?: AbortSignal): Promise<StoreProfile<TPaths>>;
   /** Generic typed escape hatch: `request<T>("GET", "/orders", { query })`. Never retries. */
   request<T>(method: string, path: string, options?: RequestOptions): Promise<T>;
   /**
@@ -318,7 +349,9 @@ function retryDelayMs(
   return Math.min(maxDelayMs, baseDelayMs * 2 ** attempt);
 }
 
-export function createQueekClient(clientOptions: QueekClientOptions): QueekClient {
+export function createQueekClient<TPaths = paths>(
+  clientOptions: QueekClientOptions,
+): QueekClient<ResolvedPaths<TPaths>> {
   const base = resolveApiBase(clientOptions.apiBase, clientOptions.allowedApiHosts ?? []);
   const fetchImpl = clientOptions.fetchImpl ?? fetch;
   const userAgent = clientOptions.userAgent ?? "queek-app/1.0";
@@ -393,7 +426,8 @@ export function createQueekClient(clientOptions: QueekClientOptions): QueekClien
   }
 
   return {
-    getStore: (signal?: AbortSignal) => request<StoreProfile>("GET", "/store", { signal }),
+    getStore: (signal?: AbortSignal) =>
+      request<StoreProfile<ResolvedPaths<TPaths>>>("GET", "/store", { signal }),
     request,
     requestWithRetry,
   };

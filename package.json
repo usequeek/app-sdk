@@ -34,13 +34,13 @@
   },
   "files": [
     "dist",
-    "openapi/merchant.json",
     "README.md",
     "LICENSE"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc --noEmit -p tsconfig.json",
+    "typecheck:tests": "tsc --noEmit -p tsconfig.tests.json",
     "lint": "biome check .",
     "test": "vitest run",
     "verify-package": "node scripts/verify-package.mjs",
