@@ -1,20 +1,18 @@
 import { decodeJwt, decodeProtectedHeader, jwtVerify } from "jose";
 
 /**
- * Dashboard session tokens (S4 stage 2): short-lived HS256 JWTs the backend
- * mints per installation for the framed merchant page. The app backend
- * verifies them with the per-installation `embsec_…` secret before trusting
- * any call that carries one.
+ * Dashboard session tokens: short-lived HS256 JWTs the backend mints per
+ * installation for the framed merchant page. The app backend verifies them
+ * with the per-installation `embsec_…` secret before trusting any call
+ * that carries one.
  *
- * Purpose binding (backend contract, mirrored from
- * `AppSessionTokenService::verify()`): absent or "session" is a bridge
- * token, verified by `verifySessionToken`; "launch" is the signed
- * first-load token, verified ONLY by `verifyLaunchToken` as the input to
- * the app's launch exchange (exchange it once for the app's own session so
- * the first paint needs no bridge round-trip). Each verifier refuses the
- * other's purpose with the same failure path callers map to 401, so a
- * launch token that rode a URL can never be replayed as a bridge token
- * and vice versa.
+ * ONE token type, exactly Shopify's `id_token` shape: the dashboard puts
+ * the same token in the first-load URL param (`queek_token`, stripped on
+ * arrival) and answers bridge `ready` requests with it, so the app's
+ * exchange endpoint verifies first-load and refresh tokens with this one
+ * verifier. No purpose split: extra claims the mint may carry are ignored,
+ * never gated — identity binding (installation, audience, issuer, expiry)
+ * is the whole check.
  *
  * Server-only: the secret must never enter a browser bundle, so this module
  * ships behind the `./server` export, not the main entry. Style mirrors
@@ -39,7 +37,6 @@ export type SessionTokenFailure =
   | "not_yet_valid"
   | "wrong_audience"
   | "wrong_issuer"
-  | "wrong_purpose"
   | "binding_mismatch";
 
 export interface SessionTokenClaims {
@@ -58,18 +55,6 @@ export interface SessionTokenBinding {
   vendorId: string;
   appSlug: string;
   appId: string;
-}
-
-/**
- * Launch-token claims: the bridge binding plus the launch-only hints the
- * backend mints for the signed first load — the store p_id (the URL-safe
- * store id) and the dashboard theme for a flash-free first paint. Both are
- * hints, not auth: `storePid` is null when the mint carried none, `theme`
- * is null unless the mint carried exactly `light` or `dark`.
- */
-export interface LaunchTokenClaims extends SessionTokenClaims {
-  storePid: number | null;
-  theme: "light" | "dark" | null;
 }
 
 export interface VerifySessionTokenOptions {
@@ -108,17 +93,7 @@ export async function verifySessionTokenDetailed(
   const envelope = await verifyTokenEnvelope(token, options);
   if (!envelope.ok) return envelope;
 
-  const { payload } = envelope;
-  // Purpose binding (backend contract): absent or "session" is a bridge
-  // token; "launch" belongs to the signed first-load exchange only and is
-  // refused here with the same failure path callers map to 401. Any other
-  // present purpose fails closed as well — the bridge verifier accepts
-  // exactly the bridge purposes, never a foreign one.
-  if (!isBridgePurpose(payload.purpose)) {
-    return { ok: false, reason: "wrong_purpose" };
-  }
-
-  const claims = readSessionClaims(payload);
+  const claims = readSessionClaims(envelope.payload);
   const { expected } = options;
   if (!claims || !bindingMatches(claims, expected)) {
     return { ok: false, reason: "binding_mismatch" };
@@ -127,45 +102,9 @@ export async function verifySessionTokenDetailed(
 }
 
 /**
- * Server-side launch exchange input (signed first load): verify a
- * purpose=launch token with the SAME checks as the bridge verifier
- * (signature, audience, issuer, installation binding, expiry) plus the
- * purpose pin — anything but exactly `"launch"` is refused with
- * `wrong_purpose`, so a bridge token can never open the exchange. On
- * success the app mints its own session from the claims (subject, store,
- * theme) and the first paint needs no bridge round-trip. Callers map every
- * `{ ok: false }` to 401, mirroring the backend `verify()`.
- */
-export async function verifyLaunchToken(token: string, options: VerifySessionTokenOptions): Promise<boolean> {
-  const result = await verifyLaunchTokenDetailed(token, options);
-  return result.ok;
-}
-
-export async function verifyLaunchTokenDetailed(
-  token: string,
-  options: VerifySessionTokenOptions,
-): Promise<{ ok: true; claims: LaunchTokenClaims } | { ok: false; reason: SessionTokenFailure }> {
-  const envelope = await verifyTokenEnvelope(token, options);
-  if (!envelope.ok) return envelope;
-
-  const { payload } = envelope;
-  if (payload.purpose !== "launch") {
-    return { ok: false, reason: "wrong_purpose" };
-  }
-
-  const claims = readSessionClaims(payload);
-  const { expected } = options;
-  if (!claims || !bindingMatches(claims, expected)) {
-    return { ok: false, reason: "binding_mismatch" };
-  }
-  return { ok: true, claims: { ...claims, ...readLaunchHints(payload) } };
-}
-
-/**
- * Shared envelope verification for both purposes: presence, secret shape,
- * algorithm pin, then signature + audience + issuer + expiry via jose.
- * Purpose and binding checks stay with the caller — the only thing that
- * differs between the bridge and launch verifiers.
+ * Envelope verification: presence, secret shape, algorithm pin, then
+ * signature + audience + issuer + expiry via jose. Binding checks stay
+ * with the caller.
  */
 async function verifyTokenEnvelope(
   token: string,
@@ -211,25 +150,6 @@ function bindingMatches(claims: SessionTokenClaims, expected: SessionTokenBindin
 }
 
 /**
- * Launch-only hints off a verified payload. Tolerant by design (they steer
- * first paint, never auth): `store` is the integer p_id or null, `theme`
- * survives only as exactly `light` or `dark`.
- *
- * Boundary (deliberate, pinned both sides): this `store` claim is an INT,
- * while install-handoff p_ids are STRINGS per the handoff contract — never
- * accept a string here to "match" the handoff; a string claim nulls the
- * hint (session.test.ts) exactly as the backend pins int (AppUiKitTest).
- */
-function readLaunchHints(payload: Record<string, unknown>): Pick<LaunchTokenClaims, "storePid" | "theme"> {
-  const store = payload.store;
-  const theme = payload.theme;
-  return {
-    storePid: typeof store === "number" && Number.isInteger(store) && store >= 0 ? store : null,
-    theme: theme === "light" || theme === "dark" ? theme : null,
-  };
-}
-
-/**
  * ROUTING HINT ONLY — the `installation_id` claim read WITHOUT verifying
  * anything, so a server can load the installation whose embed secret then
  * verifies the token with `verifySessionToken`. Never trust it on its
@@ -257,16 +177,6 @@ function readTokenAlg(token: string): string | null {
   } catch {
     return null;
   }
-}
-
-/**
- * True for the purposes the bridge verifier accepts: absent (legacy
- * tokens) or "session". "launch" is the signed first-load token for the
- * launch exchange (`verifyLaunchToken`) only, so the bridge verifier
- * refuses it. Any other present value fails closed.
- */
-export function isBridgePurpose(purpose: unknown): boolean {
-  return purpose === undefined || purpose === null || purpose === "session";
 }
 
 function readSessionClaims(payload: Record<string, unknown>): SessionTokenClaims | null {

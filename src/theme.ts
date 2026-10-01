@@ -1,10 +1,14 @@
 /**
  * Dashboard-following theme (U7): dark when the dashboard is dark, light
- * when light, switching live. First load carries `theme=light|dark` in the
- * frame URL (dashboard `resolvedTheme`) so the app server-renders
- * `<html class="dark">` with no flash; live changes arrive as bridge
- * `theme{mode}` messages and toggle the `dark` class — shadcn's own
- * dark-mode mechanism.
+ * when light, switching live. First load carries `theme=light|dark` as a
+ * plain UNSIGNED URL query param (dashboard `resolvedTheme`) so the app
+ * server-renders `<html class="dark">` with no flash; live changes arrive
+ * as bridge `theme{mode}` messages and toggle the `dark` class — shadcn's
+ * own dark-mode mechanism.
+ *
+ * The param is a first-paint hint only, never auth: it is validated
+ * (exactly `light` or `dark` — anything else is ignored) and the live
+ * bridge message overwrites it.
  *
  * DOM-free by design (structural minimal types, like `frame.ts`): pass a
  * document in, or let the helpers use the global one when present.

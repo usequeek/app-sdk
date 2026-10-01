@@ -15,7 +15,7 @@ Requires Node `>=22.14`. `pg` is a regular dependency (the production store). `h
 | Import | For | Pulls in |
 | --- | --- | --- |
 | `@usequeek/app-sdk` (main) | Server / universal code: handlers, client, stores, verifiers | `node:crypto`, `pg` — NOT browser-bundlable |
-| `@usequeek/app-sdk/server` | Session-token verifiers (`verifySessionToken`, `verifyLaunchToken`) | Server-only (`jose`) — never import in a browser bundle |
+| `@usequeek/app-sdk/server` | Session-token verifier (`verifySessionToken`) | Server-only (`jose`) — never import in a browser bundle |
 | `@usequeek/app-sdk/hono` | Thin Hono wrappers (`hono` optional peer) | Server-only |
 | `@usequeek/app-sdk/react` | React apps (`<QueekProvider>`, `useQueek()`; `react` optional peer) | Browser-safe (built on the same bridge modules as `/browser`) |
 | `@usequeek/app-sdk/browser` | Plain-browser code: `installAuthFetch` + bridge/theme helpers, no framework | Browser-safe ONLY — importing these helpers from the main entry drags in the whole barrel and breaks Vite/Rollup builds |
@@ -337,15 +337,17 @@ Hono: mount `createProxyHandler({ store, path, onVerified })` from
   `verifySessionToken` — HS256 dashboard session tokens minted per installation
   (`embsec_…` secret, raw UTF-8 key bytes, 20 s clock tolerance, slug audience,
   issuer = the handoff `apiBase` verbatim (`installation.apiBase` — it equals the
-  bare `app.url` the backend signs as `iss`), full installation binding). The secret never enters a
+  bare `app.url` the backend signs as `iss`), full installation binding). One token
+  type, exactly Shopify's `id_token`: the dashboard puts the same token in the
+  first-load URL param (`queek_token`, stripped on arrival) and answers bridge
+  `ready` requests with it, so the app's exchange endpoint verifies first-load and
+  refresh tokens with this one verifier — no purpose split, extra claims are
+  ignored. The secret never enters a
   browser bundle: the main entry does not export the verifier. The install
   and resync handoffs deliver `embed_secret` + `app_id`; the store keeps
   them on the installation (`embedSecret` encrypted, `appId`), and
   `sessionTokenInstallationId` reads the token's `installation_id` as an
   unverified routing hint so a server can load that row before verifying.
-  `verifyLaunchToken` checks the signed-first-load token the same way plus the purpose pin
-  (`purpose` must be `launch`, with the `store` p_id and `theme` hints) — a launch token is refused
-  as a bridge token and vice versa.
 - **frame** (`frame.ts`, browser-safe, no secret): the embedded-app bridge
   v1 — typed unions both directions (`ready{capabilities,sdkVersion}`,
   `theme`, `title`/`title-action`, `toast`, `save-bar`/`save-bar-action`,
@@ -378,7 +380,7 @@ Hono: mount `createProxyHandler({ store, path, onVerified })` from
 - **auth** (`auth-fetch.ts`, no secret — browser-safe as a module, but import it
   from `@usequeek/app-sdk/browser` in browser bundles, never from the main
   entry): `installAuthFetch({ exchange })`
-  — reads the launch token (`queek_token` query param) from the signed first
+  — reads the dashboard token (`queek_token` query param) from the first
   load, strips it with `history.replaceState`, exchanges it once for the
   app's own session, attaches `Authorization: Bearer <session>` to
   same-origin fetch (cookies stay out), and re-establishes via the bridge
@@ -386,27 +388,25 @@ Hono: mount `createProxyHandler({ store, path, onVerified })` from
   window itself) and is not retried per request after a failed attempt — only
   after a later dashboard token arrives. Pass the same `capabilities`/
   `sdkVersion` as the provider so its refresh `ready` announces one consistent set. The app's
-  token-exchange endpoint receives the LAUNCH token on first load and a BRIDGE token on every
-  401 refresh through the same `exchange` callback, so it must try
-  `verifyLaunchTokenDetailed`/`verifyLaunchToken` first and fall back to `verifySessionToken`
-  (both purposes):
+  token-exchange endpoint receives the first-load token and every 401-refresh
+  token through the same `exchange` callback — one token type, so it verifies
+  both with the single `verifySessionToken` verifier:
 
   ```ts
-  import { verifyLaunchTokenDetailed, verifySessionTokenDetailed } from "@usequeek/app-sdk/server";
+  import { verifySessionTokenDetailed } from "@usequeek/app-sdk/server";
 
   async function exchange(token: string): Promise<string> {
     const options = { secret: installation.embedSecret!, audience: "my-app", issuer: installation.apiBase, expected };
-    const launch = await verifyLaunchTokenDetailed(token, options);
-    if (launch.ok) return mintAppSession(launch.claims);
-    const bridge = await verifySessionTokenDetailed(token, options);
-    if (bridge.ok) return mintAppSession(bridge.claims);
-    throw Object.assign(new Error("unauthorized"), { status: 401 });
+    const checked = await verifySessionTokenDetailed(token, options);
+    if (!checked.ok) throw Object.assign(new Error("unauthorized"), { status: 401 });
+    return mintAppSession(checked.claims);
   }
   ```
 - **theme** (`theme.ts`, browser-safe, no secret): `applyTheme(mode)` toggles
   `.dark` on `<html>` + `color-scheme` (shadcn's dark-mode mechanism);
-  `themeBootstrapScript()` returns the inline `<head>` snippet that reads
-  `theme` from the URL before first paint (no flash);
+  `themeBootstrapScript()` returns the inline `<head>` snippet that reads the
+  unsigned `theme` URL param before first paint (no flash — a first-paint hint
+  only, validated to `light`|`dark`, overwritten by the live bridge message);
   `installThemeListener` follows live bridge `theme{mode}` messages (only from
   `window.parent` by default; pass `expectSource` to override). The live mode is
   remembered in `sessionStorage`, and the bootstrap script falls back to it when
@@ -475,10 +475,9 @@ Replace the host with the dashboard origin you registered. `frame-ancestors`
 is a docs-only control the dashboard cannot enforce for you: without it any
 site may frame the page, and the token handshake (origin-bound) is your only
 remaining gate. Verify every token server-side before trusting calls that carry one:
-the token-exchange endpoint receives the LAUNCH token on first load and a BRIDGE token on
-every 401 refresh through the same `installAuthFetch({ exchange })` callback, so it must try
-`verifyLaunchTokenDetailed`/`verifyLaunchToken` first and fall back to `verifySessionToken`
-(both purposes — see the `auth` entry above).
+the token-exchange endpoint receives the first-load token and every 401-refresh
+token through the same `installAuthFetch({ exchange })` callback — one token type,
+verified with the single `verifySessionToken` verifier (see the `auth` entry above).
 
 ## Local development
 

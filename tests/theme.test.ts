@@ -44,6 +44,15 @@ describe("getThemeModeFromUrl", () => {
     expect(getThemeModeFromUrl("not a url at all")).toBe("light");
   });
 
+  it("ignores junk theme values (only exactly light|dark paints)", () => {
+    for (const junk of ["neon", "DARK", "Dark", "", "0", "dark "]) {
+      const href = `https://app.example.test/admin?theme=${encodeURIComponent(junk)}`;
+      expect(getThemeModeFromUrl(href), JSON.stringify(junk)).toBe("light");
+    }
+    // Repeated params: the first wins per URLSearchParams — still validated.
+    expect(getThemeModeFromUrl("https://app.example.test/admin?theme=neon&theme=dark")).toBe("light");
+  });
+
   it("falls back to the remembered mode when the URL has no theme param", () => {
     const store = new Map<string, string>();
     const storage = {

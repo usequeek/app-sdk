@@ -1,21 +1,20 @@
 /**
  * Same-origin session carriage for embedded apps (U-validation "Auth
- * carriage"): `installAuthFetch()` reads the launch token from the signed
- * first load, exchanges it ONCE for the app's own session, and attaches
+ * carriage"): `installAuthFetch()` reads the dashboard token from the
+ * first-load URL (`?queek_token=`, stripped immediately), exchanges it
+ * ONCE for the app's own session, and attaches
  * `Authorization: Bearer <session>` to every same-origin fetch. A 401
  * re-establishes the session via the bridge `ready→token` flow and retries
  * once. Cookies stay out (`credentials: "omit"` on handled requests —
  * the cross-site iframe cannot rely on them anyway).
  *
  * The caller supplies `exchange(token) => session`: the app's own endpoint
- * that verifies the dashboard token server-side and mints the app
- * session — the exchange runs once on the signed first load so the first
- * paint needs no bridge round-trip, and again (same callback) with a
- * bridge token after every 401 refresh. The endpoint therefore receives
- * the LAUNCH token on first load and a BRIDGE token on every refresh, so
- * it must try `verifyLaunchTokenDetailed`/`verifyLaunchToken` first and
- * fall back to `verifySessionToken` (both purposes). This module never
- * sees secrets — it only carries opaque tokens.
+ * that verifies the dashboard token server-side with the single
+ * `verifySessionToken` verifier and mints the app session — the exchange
+ * runs once on the first load so the first paint needs no bridge
+ * round-trip, and again (same callback) with a fresh token of the same
+ * type after every 401 refresh. This module never sees secrets — it only
+ * carries opaque tokens.
  *
  * DOM-free by design (like `frame.ts`): location/history access is
  * injectable and defaults to the global window when present.
@@ -24,10 +23,12 @@
 import { type EmbedEventTarget, type EmbedPostTarget, listenToDashboard, sendReady } from "./frame.js";
 
 /**
- * Launch token query param on the signed first load. Matches the dashboard
- * frame src contract (`launchFrameUrl` in queek-merchant: the ONLY token
- * that may ride a URL, namespaced so it cannot collide with an app's own
- * `token` param).
+ * Dashboard token query param on the first load. Matches the dashboard
+ * frame src contract (the ONLY token that may ride a URL, namespaced so it
+ * cannot collide with an app's own `token` param). The token is the same
+ * type the bridge `ready→token` flow returns on refresh — first load and
+ * refresh differ only in transport (URL param vs postMessage), exactly
+ * Shopify's `id_token`.
  */
 export const LAUNCH_TOKEN_PARAM = "queek_token";
 
@@ -37,15 +38,14 @@ export const BRIDGE_TOKEN_TIMEOUT_MS = 8000;
 export interface AuthFetchOptions {
   /**
    * Exchange a dashboard token for the app's own session (caller's endpoint).
-   * The endpoint receives the LAUNCH token on first load and a BRIDGE token
-   * on every 401 refresh through this same callback, so it must try
-   * `verifyLaunchTokenDetailed`/`verifyLaunchToken` first and fall back to
-   * `verifySessionToken` (both purposes).
+   * The endpoint receives the first-load token and every 401-refresh token
+   * through this same callback — one token type, so it verifies both with
+   * the single `verifySessionToken` verifier.
    */
   exchange: (token: string) => Promise<string>;
   /** Exact dashboard origin for the `ready→token` refresh flow. */
   dashboardOrigin: string;
-  /** Launch-token query param (default `queek_token`). */
+  /** First-load token query param (default `queek_token`). */
   param?: string;
   /** postMessage target for `ready` (defaults to the global window's parent). */
   postTarget?: EmbedPostTarget;
@@ -98,7 +98,7 @@ function globalWindow(): WindowLike | null {
   return scope.window?.location !== undefined ? (scope.window ?? null) : null;
 }
 
-/** Read the launch token from a URL without touching it. */
+/** Read the first-load token from a URL without touching it. */
 export function readLaunchToken(href: string, param: string = LAUNCH_TOKEN_PARAM): string | null {
   try {
     const token = new URL(href, "https://app.invalid").searchParams.get(param);
@@ -109,8 +109,9 @@ export function readLaunchToken(href: string, param: string = LAUNCH_TOKEN_PARAM
 }
 
 /**
- * Strip the launch token from a URL (every other param, plus the hash, is
- * preserved). Returns the stripped href, or null when no token is present.
+ * Strip the first-load token from a URL (every other param, plus the hash,
+ * is preserved). Returns the stripped href, or null when no token is
+ * present.
  */
 export function stripLaunchToken(href: string, param: string = LAUNCH_TOKEN_PARAM): string | null {
   try {
@@ -138,11 +139,11 @@ export function installAuthFetch(options: AuthFetchOptions): InstalledAuth {
   const listenTarget = options.listenTarget ?? (win as unknown as EmbedEventTarget | null) ?? undefined;
   const postTarget = options.postTarget ?? win?.parent;
 
-  // Signed first load: read the launch token, strip it from the URL bar
+  // Signed first load: read the token, strip it from the URL bar
   // immediately (it must not linger in history), exchange it once.
   const href = getHref();
-  const launchToken = readLaunchToken(href, param);
-  const stripped = launchToken === null ? null : stripLaunchToken(href, param);
+  const firstLoadToken = readLaunchToken(href, param);
+  const stripped = firstLoadToken === null ? null : stripLaunchToken(href, param);
   if (stripped !== null) {
     try {
       replaceUrl(stripped);
@@ -172,7 +173,7 @@ export function installAuthFetch(options: AuthFetchOptions): InstalledAuth {
   };
 
   const ready: Promise<string | null> =
-    launchToken === null ? Promise.resolve(null) : runExchange(launchToken).catch(() => null);
+    firstLoadToken === null ? Promise.resolve(null) : runExchange(firstLoadToken).catch(() => null);
 
   // A recovery only makes sense inside a dashboard frame: unframed, nothing
   // can ever answer the ready. After one failed recovery, later requests skip
