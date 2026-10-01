@@ -84,6 +84,7 @@ describe("browser entry", () => {
       "readLaunchToken",
       "stripLaunchToken",
       "sendReady",
+      "sendResize",
       "listenToDashboard",
       "sendNavigated",
       "sendOpen",

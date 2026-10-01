@@ -50,6 +50,7 @@ export {
   sendOpen,
   sendPickResource,
   sendReady,
+  sendResize,
   sendSaveBar,
   sendTitle,
   type ThemeMode,
