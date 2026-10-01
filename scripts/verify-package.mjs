@@ -2,8 +2,8 @@
 /**
  * Consumes the SDK the way an OUTSIDER does, from a packed tarball.
  *
- * Packs the CURRENT SOURCE (not the registry) and proves two things in
- * two sandboxes:
+ * Packs the CURRENT SOURCE (not the registry) and proves four things in
+ * four sandboxes:
  *
  * A. WITHOUT `hono` installed: `import "@usequeek/app-sdk"` works and the
  *    framework-agnostic core (`handleInstallRequest` /
@@ -14,14 +14,22 @@
  *    framework imports.
  * B. WITH `hono` installed: `@usequeek/app-sdk/hono` serves the same
  *    handoff + webhooks through the thin Hono wrappers.
+ * C. WITH `react` installed: `@usequeek/app-sdk/react` resolves and renders
+ *    once via `react-dom/server`.
+ * D. WITHOUT any framework: `@usequeek/app-sdk/browser` loads in a DOM-free
+ *    runtime AND bundles cleanly with esbuild (`platform=browser`, no node
+ *    polyfills) — the Booking guard: the bundle must build and must contain
+ *    no `node:` or `__vite-browser-external` strings.
  */
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const rootRequire = createRequire(join(ROOT, "package.json"));
 
 function run(cmd, args, cwd, extraEnv) {
   return execFileSync(cmd, args, {
@@ -325,14 +333,112 @@ function sandbox(pkgName, tarballPath, withHono, exampleSource, extraDeps) {
   }
 }
 
+/** Sandbox D: the plain-browser entry — DOM-free load plus a real browser-style bundle. */
+const BROWSER_ENTRY = `import {
+  LAUNCH_TOKEN_PARAM,
+  applyTheme,
+  installAuthFetch,
+  installThemeListener,
+  listenToDashboard,
+  readLaunchToken,
+  sendNavigated,
+  sendOpen,
+  sendPickResource,
+  sendReady,
+  sendSaveBar,
+  sendTitle,
+  themeBootstrapScript,
+} from "@usequeek/app-sdk/browser";
+
+for (const [name, fn] of Object.entries({
+  installAuthFetch,
+  listenToDashboard,
+  sendReady,
+  sendNavigated,
+  sendOpen,
+  sendTitle,
+  sendSaveBar,
+  sendPickResource,
+  applyTheme,
+  installThemeListener,
+  themeBootstrapScript,
+  readLaunchToken,
+})) {
+  if (typeof fn !== "function") throw new Error("missing browser export: " + name);
+}
+if (LAUNCH_TOKEN_PARAM !== "queek_token") throw new Error("LAUNCH_TOKEN_PARAM moved");
+if (readLaunchToken("https://app.example/?queek_token=abc") !== "abc") {
+  throw new Error("readLaunchToken broken");
+}
+if (!themeBootstrapScript().includes("sessionStorage")) throw new Error("themeBootstrapScript broken");
+console.log("browser entry ok: installAuthFetch + bridge/theme helpers load with no DOM");
+`;
+
+function sandboxBrowser(pkgName, tarballPath) {
+  const dir = mkdtempSync(join(tmpdir(), "sdk-consumer-browser-"));
+  try {
+    writeFileSync(
+      join(dir, "package.json"),
+      JSON.stringify(
+        {
+          name: "sdk-consumer-browser",
+          private: true,
+          version: "1.0.0",
+          type: "module",
+          dependencies: { [pkgName]: `file:${tarballPath}` },
+        },
+        null,
+        2,
+      ),
+    );
+    console.log("verify-package: installing from the tarball (browser bundle, no node polyfills)…");
+    run("npm", ["install", "--no-audit", "--no-fund"], dir);
+    writeFileSync(join(dir, "entry.js"), BROWSER_ENTRY);
+    // The subpath must load in a DOM-free runtime first (browser entry, no browser).
+    console.log(run("node", ["entry.js"], dir).trim());
+    // Then it must bundle the way a browser app bundler does: a node-only
+    // import anywhere in the graph fails this build (esbuild ships no node
+    // polyfills), which is exactly the Booking Vite failure.
+    let esbuild;
+    try {
+      esbuild = rootRequire("esbuild");
+    } catch {
+      throw new Error("esbuild is required for the browser bundle check (devDependency via vitest)");
+    }
+    esbuild.buildSync({
+      entryPoints: [join(dir, "entry.js")],
+      bundle: true,
+      platform: "browser",
+      format: "iife",
+      outfile: join(dir, "bundle.js"),
+      logLevel: "error",
+    });
+    const bundle = readFileSync(join(dir, "bundle.js"), "utf-8");
+    if (!bundle.includes("queek_token")) {
+      throw new Error("browser bundle looks tree-shaken empty (no queek_token)");
+    }
+    for (const banned of ["node:", "__vite-browser-external"]) {
+      if (bundle.includes(banned)) {
+        throw new Error(`browser bundle leaks ${banned}`);
+      }
+    }
+    console.log(
+      "browser ok: esbuild platform=browser bundles ./browser with no node: or __vite-browser-external",
+    );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
 function main() {
   const { pkg, tarballPath } = pack();
   try {
     sandbox(pkg.name, tarballPath, false, CORE_EXAMPLE);
     sandbox(pkg.name, tarballPath, true, HONO_EXAMPLE);
     sandbox(pkg.name, tarballPath, false, REACT_EXAMPLE, { react: "^19", "react-dom": "^19" });
+    sandboxBrowser(pkg.name, tarballPath);
     console.log(
-      "verify-package: outsider consumer passed (core without hono/react, wrappers with hono, react entry with react)",
+      "verify-package: outsider consumer passed (core without hono/react, wrappers with hono, react entry with react, browser entry bundles clean)",
     );
   } finally {
     rmSync(join(tarballPath, ".."), { recursive: true, force: true });

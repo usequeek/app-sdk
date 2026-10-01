@@ -10,6 +10,18 @@ npm i @usequeek/app-sdk pg
 
 Requires Node `>=22.14`. `pg` is a regular dependency (the production store). `hono` is an optional peer — install it (`npm i hono`) only if you use the Hono wrappers.
 
+## Which entry do I import?
+
+| Import | For | Pulls in |
+| --- | --- | --- |
+| `@usequeek/app-sdk` (main) | Server / universal code: handlers, client, stores, verifiers | `node:crypto`, `pg` — NOT browser-bundlable |
+| `@usequeek/app-sdk/server` | Session-token verifiers (`verifySessionToken`, `verifyLaunchToken`) | Server-only (`jose`) — never import in a browser bundle |
+| `@usequeek/app-sdk/hono` | Thin Hono wrappers (`hono` optional peer) | Server-only |
+| `@usequeek/app-sdk/react` | React apps (`<QueekProvider>`, `useQueek()`; `react` optional peer) | Browser-safe (built on the same bridge modules as `/browser`) |
+| `@usequeek/app-sdk/browser` | Plain-browser code: `installAuthFetch` + bridge/theme helpers, no framework | Browser-safe ONLY — importing these helpers from the main entry drags in the whole barrel and breaks Vite/Rollup builds |
+
+Browser rule of thumb: if the code ships to the browser and does not need React, import it from `@usequeek/app-sdk/browser`. `installAuthFetch` is a browser-safe MODULE, but it is not browser-safe FROM THE MAIN ENTRY — the main barrel re-exports server modules (`app-auth` → `node:crypto`, `store` → `pg`), so a bundler resolving `installAuthFetch` from `@usequeek/app-sdk` still parses those Node-only files and fails.
+
 The shape follows [`@shopify/shopify-api`](https://github.com/Shopify/shopify-app-js/blob/main/packages/apps/shopify-api/README.md): the core "doesn't rely on any specific framework, so you can include it alongside your preferred stack" (runtime differences are covered by adapters such as `@shopify/shopify-api/adapters/node`), and framework integrations are separate packages in the [shopify-app-js monorepo](https://github.com/Shopify/shopify-app-js) (e.g. `@shopify/shopify-app-express` and `@shopify/shopify-app-remix` build on `@shopify/shopify-api`).
 
 ## Example (any framework)
@@ -363,7 +375,9 @@ Hono: mount `createProxyHandler({ store, path, onVerified })` from
   Each pick carries a `requestId` (on `pick-resource`); a dashboard that
   declares `pick-resource` MUST echo it on `resource-picked` / `resource-pick-cancelled` — answers with a
   different or missing id are dropped as stale.
-- **auth** (`auth-fetch.ts`, browser-safe, no secret): `installAuthFetch({ exchange })`
+- **auth** (`auth-fetch.ts`, no secret — browser-safe as a module, but import it
+  from `@usequeek/app-sdk/browser` in browser bundles, never from the main
+  entry): `installAuthFetch({ exchange })`
   — reads the launch token (`queek_token` query param) from the signed first
   load, strips it with `history.replaceState`, exchanges it once for the
   app's own session, attaches `Authorization: Bearer <session>` to
