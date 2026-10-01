@@ -8,9 +8,13 @@
  * the cross-site iframe cannot rely on them anyway).
  *
  * The caller supplies `exchange(token) => session`: the app's own endpoint
- * that verifies the launch token (server-side, via `verifyLaunchToken`)
- * and mints the app session — the exchange runs once on the signed first
- * load so the first paint needs no bridge round-trip. This module never
+ * that verifies the dashboard token server-side and mints the app
+ * session — the exchange runs once on the signed first load so the first
+ * paint needs no bridge round-trip, and again (same callback) with a
+ * bridge token after every 401 refresh. The endpoint therefore receives
+ * the LAUNCH token on first load and a BRIDGE token on every refresh, so
+ * it must try `verifyLaunchTokenDetailed`/`verifyLaunchToken` first and
+ * fall back to `verifySessionToken` (both purposes). This module never
  * sees secrets — it only carries opaque tokens.
  *
  * DOM-free by design (like `frame.ts`): location/history access is
@@ -31,7 +35,13 @@ export const LAUNCH_TOKEN_PARAM = "queek_token";
 export const BRIDGE_TOKEN_TIMEOUT_MS = 8000;
 
 export interface AuthFetchOptions {
-  /** Exchange a dashboard token for the app's own session (caller's endpoint). */
+  /**
+   * Exchange a dashboard token for the app's own session (caller's endpoint).
+   * The endpoint receives the LAUNCH token on first load and a BRIDGE token
+   * on every 401 refresh through this same callback, so it must try
+   * `verifyLaunchTokenDetailed`/`verifyLaunchToken` first and fall back to
+   * `verifySessionToken` (both purposes).
+   */
   exchange: (token: string) => Promise<string>;
   /** Exact dashboard origin for the `ready→token` refresh flow. */
   dashboardOrigin: string;

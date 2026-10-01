@@ -126,7 +126,8 @@ export type ResyncEnvelope = HandoffEnvelope<typeof RESYNC_EVENT, InstallData>;
  * install-shaped payloads, absent on `app/scopes_update`.
  */
 export interface HandoffPidRef {
-  p_id: string;
+  /** String on the wire (the backend casts); the SDK normalises via `normalisePid`, so a JSON integer still matches. */
+  p_id: string | number;
   id?: string;
 }
 

@@ -951,6 +951,134 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/locales": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List locales
+         * @description Requires scope `merchant-locales-read`.
+         *
+         *     Lists the store’s enabled locales with catalogue names, publish state and the primary flag.
+         */
+        get: operations["locales.list"];
+        put?: never;
+        /**
+         * Add a locale
+         * @description Requires scope `merchant-locales-write`.
+         *
+         *     Enables a catalogue locale on the store; answers the added locale, unpublished until published.
+         */
+        post: operations["locales.create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/locales/{locale}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Remove a locale
+         * @description Requires scope `merchant-locales-write`.
+         *
+         *     Removes a locale with all of its translations. {locale} is a catalogue code of this store.
+         */
+        delete: operations["locales.delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Publish a locale
+         * @description Requires scope `merchant-locales-write`.
+         *
+         *     Publishes or unpublishes an enabled locale. {locale} is a catalogue code of this store.
+         */
+        patch: operations["locales.update"];
+        trace?: never;
+    };
+    "/translatable-resources": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List translatable resources
+         * @description Requires scope `merchant-translations-read`.
+         *
+         *     Lists one resource type’s translatable content — the current source value, digest and kind per key — with cursor pagination (`limit` + `starting_after`, `has_more`/`next_cursor`).
+         */
+        get: operations["translatable_resources.list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/translatable-resources/{type}/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Retrieve translatable content
+         * @description Requires scope `merchant-translations-read`.
+         *
+         *     Retrieves one resource’s translatable content with its stored translations, each flagged outdated when the source changed since. {id} is a p_id or UUID of this store.
+         */
+        get: operations["translatable_resources.retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/translations/{type}/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Register translations
+         * @description Requires scope `merchant-translations-write`.
+         *
+         *     Registers up to 100 translations on one resource against the current source digests — all or nothing. A stale digest, unknown locale or unknown key answers a per-item `translation_*` code and writes nothing. {id} is a p_id or UUID of this store.
+         */
+        put: operations["translations.update"];
+        post?: never;
+        /**
+         * Remove translations
+         * @description Requires scope `merchant-translations-write`.
+         *
+         *     Removes one resource’s translations, optionally narrowed to `locales` and/or `keys`. {id} is a p_id or UUID of this store.
+         */
+        delete: operations["translations.delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/products/{product}/variants": {
         parameters: {
             query?: never;
@@ -1060,10 +1188,10 @@ export interface components {
             shop_id: string;
             id: string;
             p_id: string;
-            title: string;
+            title: string | null;
             slug: string;
             excerpt: string | null;
-            description: string;
+            description: string | null;
             image: string | null;
             thumbnail_image: string | null;
             video_url: string | null;
@@ -1573,7 +1701,7 @@ export interface components {
             id: string;
             name: string;
             slug: string;
-            description: string;
+            description: string | null;
             image: string;
             /**
              * @description Pre-sized copies of the image, resolved from its URL (categories
@@ -1584,7 +1712,7 @@ export interface components {
             parent_id: string | null;
             mode: string | null;
             products_count: number;
-            children: unknown[];
+            children: string[];
         };
         /** CustomerAddressResource */
         CustomerAddressResource: {
@@ -2265,7 +2393,7 @@ export interface components {
                  * @description Stable identifier a client switches on. A new failure mode gets a new code; an existing code never changes meaning.
                  * @enum {string}
                  */
-                code: "ai_unavailable_in_test_mode" | "api_key_expired" | "api_key_mode_mismatch" | "api_key_revoked" | "app_embed_not_ready" | "app_grant_insufficient" | "app_handoff_failed" | "app_installation_gone" | "app_installation_pending" | "app_ip_not_allowed" | "app_proxy_failed" | "app_proxy_gone" | "app_token_revoked" | "bad_request" | "client_key_required" | "conflict" | "custom_gateway_forbidden" | "custom_gateway_kyc_required" | "custom_gateway_not_configured" | "custom_gateway_not_verified" | "custom_gateway_plan_required" | "custom_gateway_store_ineligible" | "custom_gateway_verification_failed" | "forbidden" | "gone" | "idempotency_key_in_progress" | "idempotency_key_reuse" | "insufficient_scope" | "invalid_client" | "invalid_client_key" | "metafield_definition_missing" | "metafield_filter_unsupported_type" | "metafield_namespace_reserved" | "metafield_value_invalid" | "metaobject_definition_missing" | "metaobject_field_invalid" | "metaobject_reference_invalid" | "metaobject_type_reserved" | "method_not_allowed" | "not_found" | "origin_not_allowed" | "origin_required" | "payload_too_large" | "payment_amount_mismatch" | "plan_inactive" | "private_key_required" | "requires_slot" | "resync_cooldown" | "route_not_available" | "server_error" | "service_unavailable" | "subscription_feature_locked" | "too_many_requests" | "unauthenticated" | "unknown_product_ref" | "unknown_service" | "unknown_variant_ref" | "unsupported_media_type" | "validation_failed" | "vendor_access_denied" | "vendor_mail_sender_forbidden" | "vendor_mail_sender_not_configured" | "vendor_mail_sender_plan_required" | "vendor_mail_sender_verification_failed";
+                code: "ai_unavailable_in_test_mode" | "api_key_expired" | "api_key_mode_mismatch" | "api_key_revoked" | "app_embed_not_ready" | "app_grant_insufficient" | "app_handoff_failed" | "app_installation_gone" | "app_installation_pending" | "app_ip_not_allowed" | "app_proxy_failed" | "app_proxy_gone" | "app_token_revoked" | "bad_request" | "channel_gateway_unreachable" | "client_key_required" | "conflict" | "custom_domain_provisioning_failed" | "custom_gateway_forbidden" | "custom_gateway_kyc_required" | "custom_gateway_not_configured" | "custom_gateway_not_verified" | "custom_gateway_plan_required" | "custom_gateway_store_ineligible" | "custom_gateway_verification_failed" | "forbidden" | "gone" | "idempotency_key_in_progress" | "idempotency_key_reuse" | "insufficient_scope" | "invalid_client" | "invalid_client_key" | "metafield_definition_missing" | "metafield_filter_unsupported_type" | "metafield_namespace_reserved" | "metafield_value_invalid" | "metaobject_definition_missing" | "metaobject_field_invalid" | "metaobject_reference_invalid" | "metaobject_type_reserved" | "method_not_allowed" | "not_found" | "origin_not_allowed" | "origin_required" | "payload_too_large" | "payment_amount_mismatch" | "plan_inactive" | "private_key_required" | "requires_slot" | "resync_cooldown" | "route_not_available" | "server_error" | "service_unavailable" | "subscription_feature_locked" | "too_many_requests" | "translation_digest_stale" | "translation_locale_is_primary" | "translation_max_published_locales" | "translation_unknown_key" | "translation_unknown_locale" | "unauthenticated" | "unknown_product_ref" | "unknown_service" | "unknown_variant_ref" | "unsupported_media_type" | "validation_failed" | "vendor_access_denied" | "vendor_mail_sender_forbidden" | "vendor_mail_sender_not_configured" | "vendor_mail_sender_plan_required" | "vendor_mail_sender_verification_failed";
                 /** @description Human-readable explanation. Not stable — never switch on it. */
                 message: string;
                 /** @description First offending field, on validation failures only. */
@@ -2402,9 +2530,32 @@ export interface components {
          *     `customers/create` — A customer record was created for the store.
          *     `customers/update` — A customer profile field changed.
          *     `inventory_levels/update` — A product or variant stock level changed, with the reason.
+         *     `locales/create` — A locale was added to the store.
+         *     `locales/update` — A locale was published or unpublished on the store.
+         *     `locales/destroy` — A locale was removed from the store, with its translations.
+         *     `translations/update` — Translations were registered on one resource, for the locales and keys in the payload.
+         *     `translations/delete` — Translations were removed from one resource, for the locales and keys in the payload.
          * @enum {string}
          */
-        QueekWebhookTopic: "orders/create" | "orders/paid" | "orders/updated" | "orders/fulfilled" | "orders/cancelled" | "products/create" | "products/update" | "products/delete" | "customers/create" | "customers/update" | "inventory_levels/update";
+        QueekWebhookTopic: "orders/create" | "orders/paid" | "orders/updated" | "orders/fulfilled" | "orders/cancelled" | "products/create" | "products/update" | "products/delete" | "customers/create" | "customers/update" | "inventory_levels/update" | "locales/create" | "locales/update" | "locales/destroy" | "translations/update" | "translations/delete";
+        /**
+         * RegisterTranslationsRequest
+         * @description PUT translations/{type}/{id} — register a batch of translations against
+         *     the CURRENT source digests. Shape is checked here (at most max_batch
+         *     items); each item's locale, key and digest are checked against the live
+         *     source inside the service, which answers per-item codes
+         *     (translation_unknown_locale, translation_unknown_key,
+         *     translation_digest_stale) and writes nothing unless every item passes.
+         */
+        RegisterTranslationsRequest: {
+            translations: {
+                locale: string;
+                key: string;
+                /** @description Largest v1 source field is ProductRequest's description (50000). */
+                value: string;
+                digest: string;
+            }[];
+        };
         /** ReorderCollectionProductsRequest */
         ReorderCollectionProductsRequest: {
             product_ids: string[];
@@ -2537,7 +2688,7 @@ export interface components {
              */
             content: string | string[];
             media_index: string;
-            excerpt: string;
+            excerpt: string | null;
             cover_image_url: string;
             cover_image_variants: string | null;
             tags: string | string[];
@@ -2695,6 +2846,15 @@ export interface components {
             /** @description When the store was last updated (ISO-8601). */
             updated_at: string | null;
         };
+        /**
+         * StoreVendorLocaleRequest
+         * @description POST locales {locale} — enable a catalogue locale on the store. The code
+         *     must come from config/locales.php; anything else is a 422, never a guess.
+         */
+        StoreVendorLocaleRequest: {
+            /** @enum {string} */
+            locale: "en" | "fr" | "es" | "pt" | "pt-BR" | "de" | "it" | "nl" | "pl" | "ru" | "uk" | "tr" | "ar" | "ur" | "fa" | "he" | "hi" | "ja" | "ko" | "zh-CN" | "zh-TW" | "id" | "ms" | "vi" | "th" | "tl" | "sw" | "ha" | "yo" | "ig" | "pcm";
+        };
         /** TaxonomyCategoryResource */
         TaxonomyCategoryResource: {
             id: string;
@@ -2707,7 +2867,7 @@ export interface components {
              */
             image_variants: string | null;
             products_count: number;
-            children: unknown[];
+            children: string[];
         };
         /**
          * UpdateAppSetupNoticeRequest
@@ -2788,6 +2948,16 @@ export interface components {
             /** Format: date-time */
             delivered_at?: string | null;
             notes?: string | null;
+        };
+        /**
+         * UpdateVendorLocaleRequest
+         * @description PATCH locales/{locale} {published} — publish or unpublish an enabled
+         *     locale. The {locale} segment itself is resolved in the controller (unknown
+         *     code or a code the store never added is a 404); only the body is validated
+         *     here.
+         */
+        UpdateVendorLocaleRequest: {
+            published: boolean;
         };
         /** UpdateVendorOrderStatusRequest */
         UpdateVendorOrderStatusRequest: {
@@ -13216,6 +13386,1302 @@ export interface operations {
                      *         "code": "server_error",
                      *         "message": "The store could not be read. Retry shortly.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#server_error",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+        };
+    };
+    "locales.list": {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @example {{merchantKey}}
+                 */
+                "X-Client-Key": string;
+                /** @description Your own correlation id (8–128 chars, `^[A-Za-z0-9_.:-]+$`). Echoed back on the response and on every log line of the request; one is generated when you omit it. */
+                "X-Request-Id"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "status": "success",
+                     *       "message": "Locales retrieved",
+                     *       "data": [
+                     *         {
+                     *           "locale": "en",
+                     *           "name": "English",
+                     *           "native_name": "English",
+                     *           "html_lang": "en",
+                     *           "dir": "ltr",
+                     *           "published": true,
+                     *           "is_primary": true
+                     *         },
+                     *         {
+                     *           "locale": "fr",
+                     *           "name": "French",
+                     *           "native_name": "Français",
+                     *           "html_lang": "fr",
+                     *           "dir": "ltr",
+                     *           "published": true,
+                     *           "is_primary": false
+                     *         },
+                     *         {
+                     *           "locale": "de",
+                     *           "name": "German",
+                     *           "native_name": "Deutsch",
+                     *           "html_lang": "de",
+                     *           "dir": "ltr",
+                     *           "published": false,
+                     *           "is_primary": false
+                     *         }
+                     *       ]
+                     *     }
+                     */
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "invalid_client_key",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Forbidden — the key cannot call this operation. Switch on `error.code`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "insufficient_scope",
+                     *         "message": "This API key does not carry the 'merchant-locales-read' scope it was called with.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Too many requests — slow down and retry. Switch on `error.code`. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "too_many_requests",
+                     *         "message": "Too Many Attempts.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+        };
+    };
+    "locales.create": {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @example {{merchantKey}}
+                 */
+                "X-Client-Key": string;
+                /** @description Your own correlation id (8–128 chars, `^[A-Za-z0-9_.:-]+$`). Echoed back on the response and on every log line of the request; one is generated when you omit it. */
+                "X-Request-Id"?: string;
+                /** @description Retry-safe write key. The same key with the same body replays the stored response for 24h with `Idempotent-Replayed: true`; with a different body it is `409 idempotency_key_reuse`; while the first call is still running it is `409 idempotency_key_in_progress`. */
+                "Idempotency-Key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "locale": "fr"
+                 *     }
+                 */
+                "application/json": components["schemas"]["StoreVendorLocaleRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "status": "success",
+                     *       "message": "Locale added",
+                     *       "data": {
+                     *         "locale": "fr",
+                     *         "name": "French",
+                     *         "native_name": "Français",
+                     *         "html_lang": "fr",
+                     *         "dir": "ltr",
+                     *         "published": false,
+                     *         "is_primary": false
+                     *       }
+                     *     }
+                     */
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "invalid_client_key",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Forbidden — the key cannot call this operation. Switch on `error.code`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "insufficient_scope",
+                     *         "message": "This API key does not carry the 'merchant-locales-write' scope it was called with.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Idempotency conflict — `idempotency_key_reuse` or `idempotency_key_in_progress`. Switch on `error.code`. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "idempotency_key_reuse",
+                     *         "message": "This Idempotency-Key was already used for a different request body. Use a new key for a new request.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#idempotency_key_reuse",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Validation failed — `error.errors` carries per-field detail. Switch on `error.code`. The store primary locale answers translation_locale_is_primary instead — it is the source language, never a translation target. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "validation_failed",
+                     *         "message": "The selected locale is invalid.",
+                     *         "field": "locale",
+                     *         "errors": {
+                     *           "locale": [
+                     *             "The selected locale is invalid."
+                     *           ]
+                     *         },
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Too many requests — slow down and retry. Switch on `error.code`. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "too_many_requests",
+                     *         "message": "Too Many Attempts.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+        };
+    };
+    "locales.delete": {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @example {{merchantKey}}
+                 */
+                "X-Client-Key": string;
+                /** @description Your own correlation id (8–128 chars, `^[A-Za-z0-9_.:-]+$`). Echoed back on the response and on every log line of the request; one is generated when you omit it. */
+                "X-Request-Id"?: string;
+                /** @description Retry-safe write key. The same key with the same body replays the stored response for 24h with `Idempotent-Replayed: true`; with a different body it is `409 idempotency_key_reuse`; while the first call is still running it is `409 idempotency_key_in_progress`. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                /** @example de */
+                locale: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "status": "success",
+                     *       "message": "Locale removed",
+                     *       "data": {
+                     *         "locale": "de",
+                     *         "deleted": true
+                     *       }
+                     *     }
+                     */
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "invalid_client_key",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Forbidden — the key cannot call this operation. Switch on `error.code`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "insufficient_scope",
+                     *         "message": "This API key does not carry the 'merchant-locales-write' scope it was called with.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Not found — the addressed record does not exist at this store. Switch on `error.code`. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "not_found",
+                     *         "message": "Locale not found.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#not_found",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Idempotency conflict — `idempotency_key_reuse` or `idempotency_key_in_progress`. Switch on `error.code`. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "idempotency_key_reuse",
+                     *         "message": "This Idempotency-Key was already used for a different request body. Use a new key for a new request.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#idempotency_key_reuse",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Too many requests — slow down and retry. Switch on `error.code`. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "too_many_requests",
+                     *         "message": "Too Many Attempts.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+        };
+    };
+    "locales.update": {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @example {{merchantKey}}
+                 */
+                "X-Client-Key": string;
+                /** @description Your own correlation id (8–128 chars, `^[A-Za-z0-9_.:-]+$`). Echoed back on the response and on every log line of the request; one is generated when you omit it. */
+                "X-Request-Id"?: string;
+                /** @description Retry-safe write key. The same key with the same body replays the stored response for 24h with `Idempotent-Replayed: true`; with a different body it is `409 idempotency_key_reuse`; while the first call is still running it is `409 idempotency_key_in_progress`. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                /** @example fr */
+                locale: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "published": true
+                 *     }
+                 */
+                "application/json": components["schemas"]["UpdateVendorLocaleRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "status": "success",
+                     *       "message": "Locale updated",
+                     *       "data": {
+                     *         "locale": "fr",
+                     *         "name": "French",
+                     *         "native_name": "Français",
+                     *         "html_lang": "fr",
+                     *         "dir": "ltr",
+                     *         "published": true,
+                     *         "is_primary": false
+                     *       }
+                     *     }
+                     */
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "invalid_client_key",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Forbidden — the key cannot call this operation. Switch on `error.code`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "insufficient_scope",
+                     *         "message": "This API key does not carry the 'merchant-locales-write' scope it was called with.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Not found — the addressed record does not exist at this store. Switch on `error.code`. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "not_found",
+                     *         "message": "Locale not found.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#not_found",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Idempotency conflict — `idempotency_key_reuse` or `idempotency_key_in_progress`. Switch on `error.code`. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "idempotency_key_reuse",
+                     *         "message": "This Idempotency-Key was already used for a different request body. Use a new key for a new request.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#idempotency_key_reuse",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Validation failed — `error.errors` carries per-field detail. Switch on `error.code`. Publishing the store primary locale answers translation_locale_is_primary instead — it is the source language, never a translation target. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "validation_failed",
+                     *         "message": "The published field must be true or false.",
+                     *         "field": "published",
+                     *         "errors": {
+                     *           "published": [
+                     *             "The published field must be true or false."
+                     *           ]
+                     *         },
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Too many requests — slow down and retry. Switch on `error.code`. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "too_many_requests",
+                     *         "message": "Too Many Attempts.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+        };
+    };
+    "translatable_resources.list": {
+        parameters: {
+            query: {
+                /** @example 2 */
+                limit?: number | null;
+                starting_after?: string | null;
+                /** @example product */
+                type: "product" | "product_variation" | "product_variation_item" | "collection" | "category" | "page" | "post" | "menu";
+            };
+            header: {
+                /**
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @example {{merchantKey}}
+                 */
+                "X-Client-Key": string;
+                /** @description Your own correlation id (8–128 chars, `^[A-Za-z0-9_.:-]+$`). Echoed back on the response and on every log line of the request; one is generated when you omit it. */
+                "X-Request-Id"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "data": [
+                     *         {
+                     *           "type": "product",
+                     *           "id": 20417,
+                     *           "content": [
+                     *             {
+                     *               "key": "title",
+                     *               "value": "Jollof Rice Party Pack",
+                     *               "digest": "717305e87d2a399c8e9bb34ec9185ed112d0f79dad537eef7390b4a16fd23227",
+                     *               "type": "text"
+                     *             },
+                     *             {
+                     *               "key": "description",
+                     *               "value": "Firewood-smoked party jollof cooked to order, served with dodo and six pieces of grilled chicken. Feeds 10.",
+                     *               "digest": "fe36ee78505f529bfdd4a2712f6d5cee201e4260b3d9a814535b1b6b92d3622c",
+                     *               "type": "html"
+                     *             },
+                     *             {
+                     *               "key": "excerpt",
+                     *               "value": "Smoky party jollof for 10, with fried plantain and grilled chicken.",
+                     *               "digest": "5fd1090cc7510d55f0cba61ef520a4e5b8c2fbce650a2032ae84cf2a1c0584cd",
+                     *               "type": "text"
+                     *             }
+                     *           ]
+                     *         },
+                     *         {
+                     *           "type": "product",
+                     *           "id": 20418,
+                     *           "content": [
+                     *             {
+                     *               "key": "title",
+                     *               "value": "Homemade Chapman",
+                     *               "digest": "1b3a09a0177033cf7132f3b625228c66f2112485288611e3fd4309e4cbc3b4ed",
+                     *               "type": "text"
+                     *             },
+                     *             {
+                     *               "key": "description",
+                     *               "value": "Our house Chapman, mixed fresh every morning. Served chilled.",
+                     *               "digest": "5dc5de76314169d70ac5f1008ed3c62e6ed0ac4ebd6b6be334e3a316a355c8e6",
+                     *               "type": "html"
+                     *             },
+                     *             {
+                     *               "key": "excerpt",
+                     *               "value": "Fresh Chapman with cucumber and orange slices.",
+                     *               "digest": "da2da5ed20ba1c1a185ffcf1ed030b1e0f4d0455283599b9b950d7fba32b42e9",
+                     *               "type": "text"
+                     *             }
+                     *           ]
+                     *         }
+                     *       ],
+                     *       "has_more": true,
+                     *       "next_cursor": "eyJpZCI6MjA0MTgsIl9wb2ludHNUb05leHRJdGVtcyI6dHJ1ZX0"
+                     *     }
+                     */
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "invalid_client_key",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Forbidden — the key cannot call this operation. Switch on `error.code`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "insufficient_scope",
+                     *         "message": "This API key does not carry the 'merchant-translations-read' scope it was called with.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Validation failed — `error.errors` carries per-field detail. Switch on `error.code`. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "validation_failed",
+                     *         "message": "The selected type is invalid.",
+                     *         "field": "type",
+                     *         "errors": {
+                     *           "type": [
+                     *             "The selected type is invalid."
+                     *           ]
+                     *         },
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Too many requests — slow down and retry. Switch on `error.code`. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "too_many_requests",
+                     *         "message": "Too Many Attempts.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+        };
+    };
+    "translatable_resources.retrieve": {
+        parameters: {
+            query?: {
+                /** @example fr */
+                locale?: "en" | "fr" | "es" | "pt" | "pt-BR" | "de" | "it" | "nl" | "pl" | "ru" | "uk" | "tr" | "ar" | "ur" | "fa" | "he" | "hi" | "ja" | "ko" | "zh-CN" | "zh-TW" | "id" | "ms" | "vi" | "th" | "tl" | "sw" | "ha" | "yo" | "ig" | "pcm" | null;
+            };
+            header: {
+                /**
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @example {{merchantKey}}
+                 */
+                "X-Client-Key": string;
+                /** @description Your own correlation id (8–128 chars, `^[A-Za-z0-9_.:-]+$`). Echoed back on the response and on every log line of the request; one is generated when you omit it. */
+                "X-Request-Id"?: string;
+            };
+            path: {
+                /** @example product */
+                type: string;
+                /** @example 20417 */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "status": "success",
+                     *       "message": "Translatable resource retrieved",
+                     *       "data": {
+                     *         "type": "product",
+                     *         "id": 20417,
+                     *         "content": [
+                     *           {
+                     *             "key": "title",
+                     *             "value": "Jollof Rice Party Pack",
+                     *             "digest": "717305e87d2a399c8e9bb34ec9185ed112d0f79dad537eef7390b4a16fd23227",
+                     *             "type": "text"
+                     *           },
+                     *           {
+                     *             "key": "description",
+                     *             "value": "Firewood-smoked party jollof cooked to order, served with dodo and six pieces of grilled chicken. Feeds 10.",
+                     *             "digest": "fe36ee78505f529bfdd4a2712f6d5cee201e4260b3d9a814535b1b6b92d3622c",
+                     *             "type": "html"
+                     *           },
+                     *           {
+                     *             "key": "excerpt",
+                     *             "value": "Smoky party jollof for 10, with fried plantain and grilled chicken.",
+                     *             "digest": "5fd1090cc7510d55f0cba61ef520a4e5b8c2fbce650a2032ae84cf2a1c0584cd",
+                     *             "type": "text"
+                     *           }
+                     *         ],
+                     *         "translations": [
+                     *           {
+                     *             "key": "title",
+                     *             "locale": "fr",
+                     *             "value": "Pack Fête Jollof",
+                     *             "outdated": false,
+                     *             "updated_at": "2026-09-30T12:00:00+01:00"
+                     *           }
+                     *         ]
+                     *       }
+                     *     }
+                     */
+                    "application/json": {
+                        /** @constant */
+                        status: "success";
+                        /** @constant */
+                        message: "Translatable resource retrieved";
+                        data: string[];
+                        meta: string;
+                    };
+                };
+            };
+            /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "invalid_client_key",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Forbidden — the key cannot call this operation. Switch on `error.code`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "insufficient_scope",
+                     *         "message": "This API key does not carry the 'merchant-translations-read' scope it was called with.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Not found — the addressed record does not exist at this store. Switch on `error.code`. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "not_found",
+                     *         "message": "Translatable resource not found.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#not_found",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Validation failed — `error.errors` carries per-field detail. Switch on `error.code`. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "validation_failed",
+                     *         "message": "The selected locale is invalid.",
+                     *         "field": "locale",
+                     *         "errors": {
+                     *           "locale": [
+                     *             "The selected locale is invalid."
+                     *           ]
+                     *         },
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Too many requests — slow down and retry. Switch on `error.code`. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "too_many_requests",
+                     *         "message": "Too Many Attempts.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+        };
+    };
+    "translations.update": {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @example {{merchantKey}}
+                 */
+                "X-Client-Key": string;
+                /** @description Your own correlation id (8–128 chars, `^[A-Za-z0-9_.:-]+$`). Echoed back on the response and on every log line of the request; one is generated when you omit it. */
+                "X-Request-Id"?: string;
+                /** @description Retry-safe write key. The same key with the same body replays the stored response for 24h with `Idempotent-Replayed: true`; with a different body it is `409 idempotency_key_reuse`; while the first call is still running it is `409 idempotency_key_in_progress`. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                /** @example product */
+                type: string;
+                /** @example 20417 */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "translations": [
+                 *         {
+                 *           "locale": "fr",
+                 *           "key": "title",
+                 *           "value": "Pack Fête Jollof",
+                 *           "digest": "717305e87d2a399c8e9bb34ec9185ed112d0f79dad537eef7390b4a16fd23227"
+                 *         }
+                 *       ]
+                 *     }
+                 */
+                "application/json": components["schemas"]["RegisterTranslationsRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "status": "success",
+                     *       "message": "Translations registered",
+                     *       "data": {
+                     *         "type": "product",
+                     *         "id": 20417,
+                     *         "translations": [
+                     *           {
+                     *             "key": "title",
+                     *             "locale": "fr",
+                     *             "value": "Pack Fête Jollof",
+                     *             "outdated": false,
+                     *             "updated_at": "2026-09-30T12:00:00+01:00"
+                     *           }
+                     *         ]
+                     *       }
+                     *     }
+                     */
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "invalid_client_key",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Forbidden — the key cannot call this operation. Switch on `error.code`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "insufficient_scope",
+                     *         "message": "This API key does not carry the 'merchant-translations-write' scope it was called with.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Not found — the addressed record does not exist at this store. Switch on `error.code`. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "not_found",
+                     *         "message": "Translatable resource not found.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#not_found",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Idempotency conflict — `idempotency_key_reuse` or `idempotency_key_in_progress`. Switch on `error.code`. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "idempotency_key_reuse",
+                     *         "message": "This Idempotency-Key was already used for a different request body. Use a new key for a new request.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#idempotency_key_reuse",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Validation failed — `error.errors` carries per-field detail. Switch on `error.code`. An unknown locale, key or stale digest answers translation_unknown_locale, translation_unknown_key or translation_digest_stale instead, with the item index. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "validation_failed",
+                     *         "message": "The translations field is required.",
+                     *         "field": "translations",
+                     *         "errors": {
+                     *           "translations": [
+                     *             "The translations field is required."
+                     *           ]
+                     *         },
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Too many requests — slow down and retry. Switch on `error.code`. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "too_many_requests",
+                     *         "message": "Too Many Attempts.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+        };
+    };
+    "translations.delete": {
+        parameters: {
+            query?: {
+                "locales[]"?: "en" | "fr" | "es" | "pt" | "pt-BR" | "de" | "it" | "nl" | "pl" | "ru" | "uk" | "tr" | "ar" | "ur" | "fa" | "he" | "hi" | "ja" | "ko" | "zh-CN" | "zh-TW" | "id" | "ms" | "vi" | "th" | "tl" | "sw" | "ha" | "yo" | "ig" | "pcm";
+                "keys[]"?: string[];
+            };
+            header: {
+                /**
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @example {{merchantKey}}
+                 */
+                "X-Client-Key": string;
+                /** @description Your own correlation id (8–128 chars, `^[A-Za-z0-9_.:-]+$`). Echoed back on the response and on every log line of the request; one is generated when you omit it. */
+                "X-Request-Id"?: string;
+                /** @description Retry-safe write key. The same key with the same body replays the stored response for 24h with `Idempotent-Replayed: true`; with a different body it is `409 idempotency_key_reuse`; while the first call is still running it is `409 idempotency_key_in_progress`. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                /** @example product */
+                type: string;
+                /** @example 20417 */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "status": "success",
+                     *       "message": "Translations removed",
+                     *       "data": {
+                     *         "type": "product",
+                     *         "id": 20417,
+                     *         "deleted": 2
+                     *       }
+                     *     }
+                     */
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "invalid_client_key",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Forbidden — the key cannot call this operation. Switch on `error.code`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "insufficient_scope",
+                     *         "message": "This API key does not carry the 'merchant-translations-write' scope it was called with.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Not found — the addressed record does not exist at this store. Switch on `error.code`. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "not_found",
+                     *         "message": "Translatable resource not found.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#not_found",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Idempotency conflict — `idempotency_key_reuse` or `idempotency_key_in_progress`. Switch on `error.code`. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "idempotency_key_reuse",
+                     *         "message": "This Idempotency-Key was already used for a different request body. Use a new key for a new request.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#idempotency_key_reuse",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Validation failed — `error.errors` carries per-field detail. Switch on `error.code`. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "validation_failed",
+                     *         "message": "The locales field must be an array.",
+                     *         "field": "locales",
+                     *         "errors": {
+                     *           "locales": [
+                     *             "The locales field must be an array."
+                     *           ]
+                     *         },
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Too many requests — slow down and retry. Switch on `error.code`. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "too_many_requests",
+                     *         "message": "Too Many Attempts.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }

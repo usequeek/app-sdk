@@ -1,6 +1,6 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { type DeliveryResult, toResponse } from "./delivery.js";
-import type { InstallationRecord, InstallationStore } from "./store.js";
+import { type InstallationRecord, type InstallationStore, normalisePid } from "./store.js";
 
 /**
  * Storefront app-proxy query verification, byte-for-byte compatible with
@@ -205,9 +205,13 @@ export async function verifyProxyDelivery(
 
   const kid = params[PROXY_KID_PARAM];
   const rows = await options.store.listInstallations();
+  // Normalise the routing hint before comparing: stored pids are canonical
+  // integer strings, but the hint may arrive as a JSON integer or a
+  // non-canonical decimal string (`"1021.0"`); canonical strings compare
+  // exactly as before.
   const candidates =
     kid !== undefined && kid !== ""
-      ? rows.filter((row) => row.installationPid === kid)
+      ? rows.filter((row) => row.installationPid === normalisePid(kid))
       : rows.filter((row) => row.proxySecret !== null && row.proxySecret !== undefined);
   if (candidates.length === 0) {
     return fail("unknown_installation");

@@ -371,8 +371,24 @@ Hono: mount `createProxyHandler({ store, path, onVerified })` from
   `ready→token` flow + one retry on 401. Session recovery runs only when framed (a post target other than the
   window itself) and is not retried per request after a failed attempt — only
   after a later dashboard token arrives. Pass the same `capabilities`/
-  `sdkVersion` as the provider so its refresh `ready` announces one consistent set. The exchange endpoint
-  verifies the launch token server-side with `verifyLaunchToken` (purpose must be `launch`).
+  `sdkVersion` as the provider so its refresh `ready` announces one consistent set. The app's
+  token-exchange endpoint receives the LAUNCH token on first load and a BRIDGE token on every
+  401 refresh through the same `exchange` callback, so it must try
+  `verifyLaunchTokenDetailed`/`verifyLaunchToken` first and fall back to `verifySessionToken`
+  (both purposes):
+
+  ```ts
+  import { verifyLaunchTokenDetailed, verifySessionTokenDetailed } from "@usequeek/app-sdk/server";
+
+  async function exchange(token: string): Promise<string> {
+    const options = { secret: installation.embedSecret!, audience: "my-app", issuer: installation.apiBase, expected };
+    const launch = await verifyLaunchTokenDetailed(token, options);
+    if (launch.ok) return mintAppSession(launch.claims);
+    const bridge = await verifySessionTokenDetailed(token, options);
+    if (bridge.ok) return mintAppSession(bridge.claims);
+    throw Object.assign(new Error("unauthorized"), { status: 401 });
+  }
+  ```
 - **theme** (`theme.ts`, browser-safe, no secret): `applyTheme(mode)` toggles
   `.dark` on `<html>` + `color-scheme` (shadcn's dark-mode mechanism);
   `themeBootstrapScript()` returns the inline `<head>` snippet that reads
@@ -444,8 +460,11 @@ Content-Security-Policy: frame-ancestors https://merchant.queek.com
 Replace the host with the dashboard origin you registered. `frame-ancestors`
 is a docs-only control the dashboard cannot enforce for you: without it any
 site may frame the page, and the token handshake (origin-bound) is your only
-remaining gate. Verify every token server-side with `verifySessionToken`
-before trusting calls that carry one.
+remaining gate. Verify every token server-side before trusting calls that carry one:
+the token-exchange endpoint receives the LAUNCH token on first load and a BRIDGE token on
+every 401 refresh through the same `installAuthFetch({ exchange })` callback, so it must try
+`verifyLaunchTokenDetailed`/`verifyLaunchToken` first and fall back to `verifySessionToken`
+(both purposes — see the `auth` entry above).
 
 ## Local development
 

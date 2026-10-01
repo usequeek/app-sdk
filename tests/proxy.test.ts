@@ -172,6 +172,23 @@ describe("verifyProxyDelivery (store-backed layer 1)", () => {
     expect(result.params).toMatchObject({ shop: "store_xyz", date: "2026-10-01", slot: "09:00" });
   });
 
+  it('matches the kid across pid forms ("1021" vs 1021 vs "1021.0")', async () => {
+    const store = seeded({ installationPid: "1021" });
+    const kids: unknown[] = ["1021", 1021, "1021.0"];
+    let n = 0;
+    for (const kid of kids) {
+      const params = { ...BACKEND_PARAMS, kid, jti: `kid-form-${n++}` } as unknown as Record<string, string>;
+      const query = { ...params, sig: signProxyQuery(PATH, params, BACKEND_SECRET) };
+      const result = await verifyProxyDelivery(
+        { path: PATH, query: query as unknown as Parameters<typeof verifyProxyDelivery>[0]["query"] },
+        { store, nowSeconds: NOW },
+      );
+      expect(result.ok).toBe(true);
+      if (!result.ok) throw new Error(`expected ok for kid ${String(kid)}`);
+      expect(result.installation.installationPid).toBe("1021");
+    }
+  });
+
   it("rejects a replayed jti (single-use inside the skew window)", async () => {
     const store = seeded();
     const options = { store, nowSeconds: NOW };

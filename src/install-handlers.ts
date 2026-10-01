@@ -152,16 +152,6 @@ export function installationScopesEqual(a: string[], b: string[]): boolean {
 }
 
 /**
- * Merge a re-delivered install envelope (resync or re-grant) into an
- * existing row: refresh the ref fields, scopes, settings and webhook
- * secret, but keep the original `installedAt`. The cached installation
- * token survives a secret rotation (minted tokens stay valid) but is
- * dropped whenever the grant changes — a token minted for the old scopes
- * fails with `insufficient_scope` on the new grant, so the next call
- * re-mints. `resyncFromQueek` drops tokens explicitly when it wants fresh
- * ones.
- */
-/**
  * Merge a grant-change handoff (`app/scopes_update`) into an existing row:
  * refresh the cached grant, nothing else. The cached installation token is
  * dropped whenever the grant changed — same compare-and-clear as the resync
@@ -185,6 +175,16 @@ export function saveScopesUpdateInstallation(
   };
 }
 
+/**
+ * Merge a re-delivered install envelope (resync or re-grant) into an
+ * existing row: refresh the ref fields, scopes, settings and webhook
+ * secret, but keep the original `installedAt`. The cached installation
+ * token survives a secret rotation (minted tokens stay valid) but is
+ * dropped whenever the grant changes — a token minted for the old scopes
+ * fails with `insufficient_scope` on the new grant, so the next call
+ * re-mints. `resyncFromQueek` drops tokens explicitly when it wants fresh
+ * ones.
+ */
 export function saveResyncedInstallation(
   existing: InstallationRecord,
   data: InstallData,
