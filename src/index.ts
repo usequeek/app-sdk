@@ -80,6 +80,7 @@ export {
   type QueekErrorDetails,
   queekApiErrorFromResponse,
   type RequestOptions,
+  type ResolvedPaths,
   type RetryOptions,
   resolveApiBase,
   type StoreProfile,
