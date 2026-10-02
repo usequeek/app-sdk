@@ -21,7 +21,7 @@ export interface paths {
          * Update the installation setup notice
          * @description Requires scope `merchant-app_setup-update`.
          *
-         *     Stores the merchant-visible setup values for the calling installation (status plus the items sheet): the app calls this after its install/settings handoff answers 2xx, once its key is active. Full-body PUT — send the whole sheet every time.
+         *     Stores the merchant-visible setup values for the calling installation (status plus the items sheet): the app calls this once its installation key is active. Full-body PUT — send the whole sheet every time.
          */
         put: operations["app.setup_update"];
         post?: never;
@@ -94,7 +94,7 @@ export interface paths {
          * Create a collected definition
          * @description Requires scope `merchant-collected-definitions-manage`.
          *
-         *     Creates a collected definition owned by the calling installation. The type must carry the installation’s own app_{slug}_{installation} prefix — anything else 403s. The class is forced collected and the row is stamped with the installation.
+         *     Creates a collected definition owned by the calling installation. The type must carry the installation’s own app_{slug}_{installation} prefix — anything else is refused with a 403. The data class is always `collected` and ownership is always the calling installation; neither is sent in the body.
          */
         post: operations["app.collected_definitions_create"];
         delete?: never;
@@ -138,7 +138,7 @@ export interface paths {
          * Submit a collected record
          * @description Requires scope `merchant-collected-records-submit`.
          *
-         *     Submits one record under one of the calling installation’s collected types. Values run the same field validation entries use; the source is forced app. Rate-limited per installation with 429 + Retry-After past the caps, on top of the per-definition storage cap.
+         *     Submits one record under one of the calling installation’s collected types. Values run the same field validation entries use; every record is filed with source `app`. Rate-limited per installation with 429 + Retry-After past the caps, on top of the per-definition storage cap.
          */
         post: operations["app.records_submit"];
         delete?: never;
@@ -702,7 +702,7 @@ export interface paths {
          * Update an order
          * @description Requires scope `merchant-orders-update`.
          *
-         *     Changes an order’s developer-extension fields only: metafields, metadata, and per-line properties (`line_items`: merged by key into each line’s `properties`; a string sets a key, null deletes it, keys left out keep their value). An app installation key writes property keys only under its own `app.{slug}.` namespace; any other key writes none under `app.*` or `queek.*`. Order state has its own endpoints. Answers the updated order.
+         *     Changes an order’s developer-extension fields only: metafields, metadata, and per-line properties (`line_items`: merged by key into each line’s `properties`; a string sets a key, null deletes it, keys left out keep their value). `metafields` must reference an existing definition and never use an app-owned (`app.*`, `queek.*`) namespace here. `metadata` is free-form integrator bookkeeping — replaced wholesale (`null` clears it), capped in size and count, with no namespace rule and no definitions. Line-item property keys from an installation key must live under its own `app.{slug}.` namespace; any other key writes none under `app.*` or `queek.*`. Order state has its own endpoints. Answers the updated order.
          */
         patch: operations["orders.update"];
         trace?: never;
@@ -742,7 +742,7 @@ export interface paths {
          * Update an order status
          * @description Requires scope `merchant-orders-status-update`.
          *
-         *     Moves an order to a new status through the order action service; answers the updated order.
+         *     Moves an order to a new status and answers the updated order. `approve_payment` is accepted only while the order awaits payment confirmation — `payment_status` `awaiting_confirmation`, order status `pending_payment`, a payment method other than `online`/`wallet`, and not yet accepted. Anything else is refused (404) with the reason (`Order payment is already approved`, `Manual approval is not allowed for this payment method`, `Order payment is not pending approval`). `accept` and `rejected` need a paid, not-yet-accepted order; every later action needs a paid and accepted order.
          */
         post: operations["orders.update_status"];
         delete?: never;
@@ -951,6 +951,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/team-directory": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the team directory
+         * @description Requires scope `merchant-team-directory-read`.
+         *
+         *     Lists the store’s staff directory — each member’s id, display name, role names and active flag — with cursor pagination (`limit` + `starting_after`, `has_more`/`next_cursor`). Contact details, credentials and permissions are never included.
+         */
+        get: operations["team.list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/locales": {
         parameters: {
             query?: never;
@@ -1018,7 +1040,7 @@ export interface paths {
          * List translatable resources
          * @description Requires scope `merchant-translations-read`.
          *
-         *     Lists one resource type’s translatable content — the current source value, digest and kind per key — with cursor pagination (`limit` + `starting_after`, `has_more`/`next_cursor`).
+         *     Lists one resource type’s translatable content — the current source value, digest and kind per key — with cursor pagination (`limit` + `starting_after`, `has_more`/`next_cursor`). `theme_string` is the store’s own singleton: the page carries every asserted theme key with `has_more` false.
          */
         get: operations["translatable_resources.list"];
         put?: never;
@@ -1040,7 +1062,7 @@ export interface paths {
          * Retrieve translatable content
          * @description Requires scope `merchant-translations-read`.
          *
-         *     Retrieves one resource’s translatable content with its stored translations, each flagged outdated when the source changed since. {id} is a p_id or UUID of this store.
+         *     Retrieves one resource’s translatable content with its stored translations, each flagged outdated when the source changed since. {id} is a p_id or UUID of this store. For `theme_string`, {id} is the store’s own p_id, slug or UUID and keys are `<theme-slug>.<dotted-key>` against the store’s asserted English defaults (e.g. `roast.cart.title`).
          */
         get: operations["translatable_resources.retrieve"];
         put?: never;
@@ -1063,7 +1085,7 @@ export interface paths {
          * Register translations
          * @description Requires scope `merchant-translations-write`.
          *
-         *     Registers up to 100 translations on one resource against the current source digests — all or nothing. A stale digest, unknown locale or unknown key answers a per-item `translation_*` code and writes nothing. {id} is a p_id or UUID of this store.
+         *     Registers up to 100 translations on one resource against the current source digests — all or nothing. A stale digest, unknown locale or unknown key answers a per-item `translation_*` code and writes nothing. {id} is a p_id or UUID of this store. Translator flow for `theme_string`: assert the English defaults first (dashboard configs update `theme_strings_en`), echo each key’s current digest, then write at most 100 keys per call — N sequential calls carry a full dictionary.
          */
         put: operations["translations.update"];
         post?: never;
@@ -1071,7 +1093,7 @@ export interface paths {
          * Remove translations
          * @description Requires scope `merchant-translations-write`.
          *
-         *     Removes one resource’s translations, optionally narrowed to `locales` and/or `keys`. {id} is a p_id or UUID of this store.
+         *     Removes one resource’s translations, optionally narrowed to `locales` and/or `keys`. {id} is a p_id or UUID of this store. For `theme_string`, narrowing to `keys` prunes a retired theme slug’s dormant overrides.
          */
         delete: operations["translations.delete"];
         options?: never;
@@ -1149,7 +1171,7 @@ export interface components {
             type: "restock" | "adjustment" | "damage";
             reason: string;
         };
-        /** App.Http.Resources.Customer.OrderItemResource */
+        /** OrderItem */
         "App.Http.Resources.Customer.OrderItemResource": {
             id: string;
             quantity: string;
@@ -1183,7 +1205,7 @@ export interface components {
              */
             properties: string;
         };
-        /** App.Http.Resources.Customer.ProductResource */
+        /** Product */
         "App.Http.Resources.Customer.ProductResource": unknown[] | {
             shop_id: string;
             id: string;
@@ -1230,9 +1252,10 @@ export interface components {
                 original: string | null;
                 primary_variant_image: string | null;
                 /**
-                 * @description Additive — see decision_tree.json image-variants-contract-pr1/2.
-                 *     null when the primary image isn't Media-backed (raw URL only) or
-                 *     'variants' wasn't eager-loaded; existing keys above are unaffected.
+                 * @description Sized variants of the primary image (thumbnail, card, hero),
+                 *     keyed by size. Null when the image is a plain URL instead of an
+                 *     uploaded image, or when no sized variants exist for it; the
+                 *     other image keys are always present.
                  */
                 image_variants: {
                     [key: string]: unknown;
@@ -1277,7 +1300,7 @@ export interface components {
             shop: unknown[];
             barcode: string;
         };
-        /** App.Http.Resources.OrderResource */
+        /** Order */
         "App.Http.Resources.OrderResource": {
             0: Record<string, never>;
             id: string;
@@ -1492,14 +1515,14 @@ export interface components {
         };
         /**
          * AppRequirementStoreRequest
-         * @description The installation-bound requirements-sheet write (PUT app/requirements,
-         *     merchant API, installation key only). The declaring app replaces its
-         *     installation's {product → required property prefix} map as product
-         *     metafield declarations in its OWN app namespace.
+         * @description The requirements sheet for the calling installation (PUT app/requirements):
+         *     the app replaces its own {product → required line-property prefix} map in
+         *     one call.
          *
-         *     Full-body PUT: the whole sheet every time, so a retry replays instead
-         *     of merging and removals are explicit. Products are addressed by p_id
-         *     (never UUID) and resolved vendor-scoped in the controller.
+         *     Full-body PUT — send the whole sheet every time, so a retry replays instead
+         *     of merging and removals are explicit. Products are addressed by p_id (never
+         *     UUID) and must belong to the calling installation's store. Each prefix must
+         *     live under the installation's own `app.{slug}.` namespace.
          */
         AppRequirementStoreRequest: {
             /**
@@ -1619,20 +1642,17 @@ export interface components {
         };
         /**
          * CollectedDefinitionRequest
-         * @description The Forms APP definitions path (merchant API, installation key only):
-         *     GET + POST collected-definitions, PATCH collected-definitions/{definition}.
+         * @description Manage the calling installation's form types (GET + POST
+         *     collected-definitions, PATCH collected-definitions/{definition}).
          *
-         *     ONE request for the three verbs, like RecordRequest on the inbox: the
-         *     definition vocabulary (type shape, reserved roots, field schemas,
-         *     display_field, budget) is the SAME trait the dashboard and the AI facade
-         *     use, so the three surfaces can never disagree about a legal type — with
-         *     one deliberate difference: allowsAppOwnedType(), because installation
-         *     types carry the app_ prefix by construction. The class is never declared here:
-         *     the service forces collected and stamps the calling installation.
+         *     One request shape serves all three verbs, with the same field-type,
+         *     reserved-name, display and budget rules the dashboard enforces — every
+         *     surface accepts the same definitions. Installation types carry the `app_`
+         *     prefix and declare it here. The data class is always `collected` and every
+         *     definition belongs to the calling installation; neither is sent in the body.
          *
-         *     Definitions are addressed by `p_id`, scoped to the installation's vendor.
-         *     Ownership (this installation's types only) is the controller's 403 — the
-         *     request resolves, the controller refuses.
+         *     Definitions are addressed by `p_id` within the installation's store. Types
+         *     owned by another installation are refused with a 403.
          */
         CollectedDefinitionRequest: {
             type: string;
@@ -1641,10 +1661,9 @@ export interface components {
             display_field: string;
             storefront_visible?: boolean | null;
             /**
-             * @description Does an entry of this type get its own public page at
-             *     `/{type}/{handle}`? See ValidatesMetaobjectDefinitionInput's
-             *     assertTypeNotReservedRoot() for why the type itself is gated
-             *     against the storefront's own path roots.
+             * @description Whether entries of this type get their own public page at
+             *     `/{type}/{handle}`. A type matching a reserved storefront route
+             *     (cart, checkout, search and similar) is refused with a 422.
              */
             has_pages?: boolean | null;
             fields: {
@@ -1676,18 +1695,17 @@ export interface components {
         };
         /**
          * CollectedRecordSubmitRequest
-         * @description The Forms APP submit path (POST records, merchant API, installation key
-         *     only): one record under one of the calling installation's collected types.
+         * @description Submit one record under one of the calling installation's collected types
+         *     (POST records).
          *
-         *     Values run the SAME writer validation entries use — one field vocabulary —
-         *     and the per-definition cap gets the same friendly pre-check the dashboard
-         *     inbox runs, while the writer enforces it in-transaction. The source is
-         *     FORCED app in the controller: the body carries no source, so a caller can
-         *     never file a person under dashboard/ai/form. The per-installation abuse
-         *     limiter runs in the controller after validation, so a 422 spends no budget.
+         *     Values are validated against the type's fields — the same field rules the
+         *     dashboard enforces — and the per-definition storage cap is checked before
+         *     anything is written. Every record is filed under the calling installation
+         *     with source `app`: the body carries no source, so a submission can never be
+         *     misfiled under another source. Calls are rate-limited per installation, and
+         *     a validation failure (422) never consumes budget.
          *
-         *     Ownership (this installation's types only) is the controller's 403 — the
-         *     request resolves, the controller refuses.
+         *     Types owned by another installation are refused with a 403.
          */
         CollectedRecordSubmitRequest: {
             definition: string;
@@ -1817,13 +1835,13 @@ export interface components {
         };
         /**
          * MerchantShippingZoneRequest
-         * @description POST shipping-zones / PUT shipping-zones/{zone} on the Merchant API.
+         * @description POST shipping-zones / PUT shipping-zones/{zone} on the merchant API.
          *
-         *     The dashboard zone rules, except the rates: the public API speaks money as
-         *     decimal strings in the currency's major unit ("1500.00", or a number), the
-         *     same format Api\ShippingZoneResource reads back, so a read round-trips into
-         *     a write. ShippingZoneService::ratesToMinor() turns them into the kobo a zone
-         *     stores; the dashboard keeps sending kobo integers.
+         *     Zone rules match the dashboard's, except the rates: this API speaks money as
+         *     decimal strings in the currency's major unit ("1500.00", or a number) — the
+         *     same shape a zone read returns, so a read round-trips into a write. Values
+         *     are stored in the currency's minor unit; the dashboard sends minor-unit
+         *     integers directly.
          */
         MerchantShippingZoneRequest: {
             name: string;
@@ -1851,9 +1869,8 @@ export interface components {
          *     `description`) and `validations` may change, and a tightened validation is
          *     documented as applying to future writes only.
          *
-         *     The rules and the schema assertions themselves live in
-         *     ValidatesMetafieldDefinitionInput, shared with the AI facade's own definition
-         *     request — the two surfaces must never disagree about what a legal definition is.
+         *     The same rules back every surface that writes definitions, so all of them
+         *     accept exactly the same legal definitions.
          */
         MetafieldDefinitionRequest: {
             /** @enum {string} */
@@ -1894,7 +1911,7 @@ export interface components {
         };
         /**
          * MetaobjectDataClass
-         * @description What KIND of data a metaobject definition holds. `content` is merchant content (designers, size charts): entries may be storefront-visible and carry their own pages. `collected` is data gathered FROM people (form submissions, applications): entries are never storefront-readable and never revalidate the storefront. The booleans (`storefront_visible`, `has_pages`) stay the permanent source of truth — a collected definition is simply forced storefront-off at all three write layers (FormRequest, MetaobjectDefinitionService, model guard).
+         * @description What KIND of data a metaobject definition holds. `content` is merchant content (designers, size charts): entries may be storefront-visible and carry their own pages. `collected` is data gathered FROM people (form submissions, applications): entries are never storefront-readable and never revalidate the storefront. The booleans (`storefront_visible`, `has_pages`) stay the permanent source of truth — a collected definition is always stored with both off, however it is written.
          * @enum {string}
          */
         MetaobjectDataClass: "content" | "collected";
@@ -1908,9 +1925,8 @@ export interface components {
          *     but removing a field (or retyping one) while entries still hold values for
          *     it is a 422.
          *
-         *     The rules and the schema assertions live in
-         *     ValidatesMetaobjectDefinitionInput, shared with the AI facade's own request —
-         *     the two surfaces must never disagree about what a legal type is.
+         *     The same rules back every surface that writes definitions, so all of them
+         *     accept exactly the same legal types.
          */
         MetaobjectDefinitionRequest: {
             type: string;
@@ -1919,10 +1935,9 @@ export interface components {
             display_field: string;
             storefront_visible?: boolean | null;
             /**
-             * @description Does an entry of this type get its own public page at
-             *     `/{type}/{handle}`? See ValidatesMetaobjectDefinitionInput's
-             *     assertTypeNotReservedRoot() for why the type itself is gated
-             *     against the storefront's own path roots.
+             * @description Whether entries of this type get their own public page at
+             *     `/{type}/{handle}`. A type matching a reserved storefront route
+             *     (cart, checkout, search and similar) is refused with a 422.
              */
             has_pages?: boolean | null;
             fields: {
@@ -1953,9 +1968,9 @@ export interface components {
             storefront_visible: boolean;
             has_pages: boolean;
             /**
-             * @description S2 decides the S1-open public-shape question: the class and its
-             *     knobs are read-only on the definition resource. Writes stay on
-             *     the dashboard-session path (merchant-key routes strip them).
+             * @description The definition's data class (`content` or `collected`). Read-only
+             *     here: it is fixed at creation and cannot be changed through
+             *     this API.
              */
             data_class: string | "content";
             entry_cap_override: number | null;
@@ -1963,9 +1978,9 @@ export interface components {
             fields: unknown[];
             entries_count?: number;
             /**
-             * @description The inbox badge: how many submissions a collected definition
-             *     holds (null for content). Rendered on dashboard paths only, so
-             *     the merchant-key and AI shapes stay byte-identical to S2.
+             * @description How many entries a collected definition holds (null for content
+             *     definitions). Rendered on dashboard reads only, so store-key
+             *     responses never carry it.
              */
             records_count?: number | null;
             created_at: string;
@@ -1975,11 +1990,9 @@ export interface components {
          * MetaobjectRequest
          * @description Create/update a metaobject entry on the REST developer surface.
          *
-         *     Shape rules only live here (`type` exists, `handle` is slug-shaped, `status`
-         *     is known). WHAT a field may hold is known solely by the definition, so each
-         *     key is checked in the after-validation pass through MetaobjectWriter — the
-         *     same writer the AI facade uses, so both surfaces refuse the same payload
-         *     with the same `fields.{key}` errors.
+         *     Shape is checked first (`type` exists, `handle` is slug-shaped, `status` is
+         *     known). Each field value is then validated against its definition — an
+         *     unknown key or a wrong-typed value fails with a `fields.{key}` error.
          */
         MetaobjectRequest: {
             type: string;
@@ -2040,9 +2053,9 @@ export interface components {
             cancelled: boolean;
             cancel_reason: string | null;
             /**
-             * @description `channel` is the inbox (messaging) channel, typed against
-             *     MessagingChannel — never the sales channel. An importing app
-             *     recognises its own orders one key further down.
+             * @description `channel` is the messaging channel the order came through — never
+             *     the sales channel. An importing app recognises its own orders one
+             *     key further down.
              */
             channel: string;
             platform: string | null;
@@ -2433,6 +2446,8 @@ export interface components {
         QueekStoreCollection: components["schemas"]["CollectionResource"];
         /** QueekStoreCustomer */
         QueekStoreCustomer: components["schemas"]["ClientAuthUserResource"];
+        /** QueekStoreLocale */
+        QueekStoreLocale: components["schemas"]["StoreLocaleResource"];
         /** QueekStoreMetafieldDefinition */
         QueekStoreMetafieldDefinition: components["schemas"]["MetafieldDefinitionResource"];
         /** QueekStoreMetaobject */
@@ -2540,12 +2555,12 @@ export interface components {
         QueekWebhookTopic: "orders/create" | "orders/paid" | "orders/updated" | "orders/fulfilled" | "orders/cancelled" | "products/create" | "products/update" | "products/delete" | "customers/create" | "customers/update" | "inventory_levels/update" | "locales/create" | "locales/update" | "locales/destroy" | "translations/update" | "translations/delete";
         /**
          * RegisterTranslationsRequest
-         * @description PUT translations/{type}/{id} — register a batch of translations against
-         *     the CURRENT source digests. Shape is checked here (at most max_batch
-         *     items); each item's locale, key and digest are checked against the live
-         *     source inside the service, which answers per-item codes
-         *     (translation_unknown_locale, translation_unknown_key,
-         *     translation_digest_stale) and writes nothing unless every item passes.
+         * @description PUT translations/{type}/{id} — register a batch of translations against the
+         *     current source digests. The body shape is validated first (at most 100
+         *     items); then each item's locale, key and digest is checked against the live
+         *     source text. Failures answer per-item codes (translation_unknown_locale,
+         *     translation_unknown_key, translation_digest_stale) and nothing is written
+         *     unless every item passes.
          */
         RegisterTranslationsRequest: {
             translations: {
@@ -2586,10 +2601,10 @@ export interface components {
         };
         /**
          * SendAppAlertRequest
-         * @description The installation-bound alert write (POST app/alerts, merchant API,
-         *     installation key only): an installed app paging the merchant through the
-         *     bell. The installation comes from the calling key — the body carries no
-         *     target, so installation A can never page for installation B.
+         * @description Send an in-app notice to the installing merchant from the calling
+         *     installation (POST app/alerts). The installation comes from the calling key
+         *     — the body carries no target, so one installation can never alert on another
+         *     installation's behalf.
          *
          *     Titles and messages are bell content by design: plain text, length-capped
          *     like the manifest listing fields, rendered escaped on every surface. The
@@ -2669,6 +2684,17 @@ export interface components {
             /** Format: uri */
             image_url?: string | null;
             settings?: string[] | null;
+        };
+        /** StoreLocaleResource */
+        StoreLocaleResource: {
+            locale: string;
+            name: string;
+            native_name: string;
+            is_primary: boolean;
+            path_prefix: string;
+            hreflang: string;
+            html_lang: string;
+            dir: string;
         };
         /** StorePageResource */
         StorePageResource: {
@@ -2849,7 +2875,7 @@ export interface components {
         /**
          * StoreVendorLocaleRequest
          * @description POST locales {locale} — enable a catalogue locale on the store. The code
-         *     must come from config/locales.php; anything else is a 422, never a guess.
+         *     must be a supported catalogue code; anything else is a 422, never a guess.
          */
         StoreVendorLocaleRequest: {
             /** @enum {string} */
@@ -2871,15 +2897,11 @@ export interface components {
         };
         /**
          * UpdateAppSetupNoticeRequest
-         * @description The installation-bound setup write (PUT app/setup, merchant API,
-         *     installation key only). ONE write path for the merchant-visible values an
-         *     app gives its installer: the install/settings handoff 2xx body stays
-         *     ignored, and the app calls here after it answers 2xx, once its key is
-         *     active.
+         * @description Store the calling installation's merchant-visible setup values (PUT
+         *     app/setup). Call it once the installation's key is active.
          *
-         *     Full-body PUT (the resource's one update verb): status + the whole items
-         *     sheet every time, so a retry replays instead of merging. Lengths come from
-         *     config/apps.php app_setup with the same defaults beside them; values that
+         *     Full-body PUT — send status plus the whole items sheet every time, so a
+         *     retry replays instead of merging. Length limits apply per field; values that
          *     look like URLs must be https (a token-bearing http URL would train the
          *     merchant to paste secrets into cleartext).
          */
@@ -2951,10 +2973,8 @@ export interface components {
         };
         /**
          * UpdateVendorLocaleRequest
-         * @description PATCH locales/{locale} {published} — publish or unpublish an enabled
-         *     locale. The {locale} segment itself is resolved in the controller (unknown
-         *     code or a code the store never added is a 404); only the body is validated
-         *     here.
+         * @description PATCH locales/{locale} — publish or unpublish an enabled locale by sending
+         *     `published`. An unknown code, or a code the store never added, answers 404.
          */
         UpdateVendorLocaleRequest: {
             published: boolean;
@@ -3063,26 +3083,26 @@ export interface components {
         };
         /**
          * VendorOrderExtensionRequest
-         * @description PATCH /api/v1/biz/vendor/orders/{order} — the developer-extension fields of an
-         *     order, and nothing else.
+         * @description PATCH orders/{order} — the developer-extension fields of an order, and
+         *     nothing else.
          *
-         *     The route reads like a general order update because that is the shape an
-         *     integrator expects, but an order's state is NOT editable here: status,
-         *     cancellation, rider assignment and shipment each have their own endpoint with
-         *     their own ability and their own side effects (stock, settlement, notifications,
-         *     webhooks). So any field outside the allowed set is REJECTED by name rather than
-         *     ignored — an integrator who believes they cancelled an order by PATCHing
-         *     `status` must find out from a 422, not from an order that shipped anyway.
+         *     An order's state is NOT editable here: status, cancellation, rider
+         *     assignment and shipment each have their own endpoint with their own side
+         *     effects (stock, settlement, notifications, webhooks). Any field outside the
+         *     allowed set is rejected by name with a 422 rather than ignored — an
+         *     integrator who tries to cancel an order by PATCHing `status` learns it from
+         *     the error, not from an order that shipped anyway.
          *
-         *     `line_items` merges per-line properties by key (OrderLinePropertiesWriter):
-         *     an app mirrors what it booked or issued onto the line it belongs to. Who
-         *     may write which keys follows the metafields rule: an app installation key
-         *     writes ONLY under its own `app.{slug}.` namespace (the BB1b derivation,
-         *     AppInstallService::declarationNamespaceFor, resolved from the calling key
-         *     alone); every other caller — the dashboard session, a store key — writes
-         *     any checkout-shaped key EXCEPT the app-owned `app.*` / `queek.*` ones
-         *     (MetafieldWriter::isAppOwnedNamespace), so no merchant can forge or clear an
-         *     app's keys. Keys and values obey the checkout caps.
+         *     `metafields` must reference an existing definition for orders and never use
+         *     an app-owned (`app.*`, `queek.*`) namespace on this endpoint. `metadata` is
+         *     free-form integrator bookkeeping — replaced wholesale (`null` clears it),
+         *     capped in size and count, with no namespace rule and no definitions.
+         *     `line_items` merges per-line properties by key: an app mirrors what it
+         *     booked or issued onto the line it belongs to. Property keys from an app
+         *     installation key must live under its own `app.{slug}.` namespace; any other
+         *     caller writes any checkout-shaped key EXCEPT the app-owned `app.*` /
+         *     `queek.*` ones, so no merchant can forge or clear an app's keys. Keys and
+         *     values obey the documented caps.
          */
         VendorOrderExtensionRequest: {
             metafields?: {
@@ -3208,9 +3228,9 @@ export interface components {
                 risk_level: string | "Not assessed";
             };
             /**
-             * @description A key caller never receives team contact or roles on a store-profile
-             *     read (founder decision 1, 23/9/26 — the contact scope is about
-             *     CUSTOMERS, never staff), whatever scopes it holds: name only.
+             * @description Team contacts on a store-profile read: a store-key caller receives
+             *     names only — contact details and roles are never included,
+             *     whatever scopes the key holds.
              */
             management: {
                 owner: {
@@ -3471,7 +3491,7 @@ export interface operations {
                         status: "success";
                         /** @constant */
                         message: "Setup notice saved.";
-                        data: string[];
+                        data: Record<string, never>;
                         meta: string;
                     };
                 };
@@ -3632,7 +3652,7 @@ export interface operations {
                         status: "success";
                         /** @enum {string} */
                         message: "Alert already sent." | "Alert sent.";
-                        data: string[];
+                        data: Record<string, never>;
                         meta: string;
                     };
                 };
@@ -3797,7 +3817,7 @@ export interface operations {
                         status: "success";
                         /** @constant */
                         message: "Requirements sheet saved.";
-                        data: string[];
+                        data: Record<string, never>;
                         meta: string;
                     };
                 };
@@ -5040,7 +5060,7 @@ export interface operations {
                         status: "success";
                         /** @enum {string} */
                         message: "Product pinned in collection." | "Product unpinned from collection.";
-                        data: string[];
+                        data: Record<string, never>;
                         meta: string;
                     };
                 };
@@ -5221,7 +5241,7 @@ export interface operations {
                         status: "success";
                         /** @constant */
                         message: "Collection products reordered successfully.";
-                        data: string[];
+                        data: Record<string, never>;
                         meta: string;
                     };
                 };
@@ -6207,7 +6227,7 @@ export interface operations {
                         status: "success";
                         /** @constant */
                         message: "Customer retrieved";
-                        data: string[];
+                        data: Record<string, never>;
                         meta: string;
                     };
                 };
@@ -6846,7 +6866,7 @@ export interface operations {
                         status: "success";
                         /** @constant */
                         message: "Discount published successfully";
-                        data: string[];
+                        data: Record<string, never>;
                         meta: string;
                     };
                 };
@@ -6990,7 +7010,7 @@ export interface operations {
                         status: "success";
                         /** @constant */
                         message: "Discount unpublished successfully";
-                        data: string[];
+                        data: Record<string, never>;
                         meta: string;
                     };
                 };
@@ -7636,7 +7656,7 @@ export interface operations {
                         status: "success";
                         /** @constant */
                         message: "Image removed";
-                        data: string[];
+                        data: Record<string, never>;
                         meta: string;
                     };
                 };
@@ -7828,7 +7848,7 @@ export interface operations {
                         status: "success";
                         /** @constant */
                         message: "Primary image set";
-                        data: string[];
+                        data: Record<string, never>;
                         meta: string;
                     };
                 };
@@ -8854,7 +8874,7 @@ export interface operations {
                         status: "success";
                         /** @constant */
                         message: "Metafield definition created";
-                        data: string[];
+                        data: Record<string, never>;
                         meta: string;
                     };
                 };
@@ -9233,7 +9253,7 @@ export interface operations {
                         status: "success";
                         /** @constant */
                         message: "Metaobject definition created";
-                        data: string[];
+                        data: Record<string, never>;
                         meta: string;
                     };
                 };
@@ -9560,7 +9580,7 @@ export interface operations {
                         status: "success";
                         /** @constant */
                         message: "Metaobject entry created";
-                        data: string[];
+                        data: Record<string, never>;
                         meta: string;
                     };
                 };
@@ -10003,7 +10023,7 @@ export interface operations {
                         status: "success";
                         /** @constant */
                         message: "Order retrieved";
-                        data: string[];
+                        data: Record<string, never>;
                         meta: string;
                     };
                 };
@@ -10203,7 +10223,7 @@ export interface operations {
                         status: "success";
                         /** @constant */
                         message: "Order updated";
-                        data: string[];
+                        data: Record<string, never>;
                         meta: string;
                     };
                 };
@@ -10442,7 +10462,7 @@ export interface operations {
                         status: "success";
                         /** @constant */
                         message: "Order already imported.";
-                        data: string[];
+                        data: Record<string, never>;
                         meta: string;
                     };
                 };
@@ -10512,7 +10532,7 @@ export interface operations {
                         /** @constant */
                         status: "success";
                         message: string;
-                        data: string[];
+                        data: Record<string, never>;
                         meta: string;
                     };
                 };
@@ -11986,7 +12006,7 @@ export interface operations {
                         status: "success";
                         /** @constant */
                         message: "product";
-                        data: string[];
+                        data: Record<string, never>;
                         meta: string;
                     };
                 };
@@ -12364,7 +12384,7 @@ export interface operations {
                         status: "success";
                         /** @constant */
                         message: "Product deleted successfully";
-                        data: string[];
+                        data: Record<string, never>;
                         meta: string;
                     };
                 };
@@ -12517,7 +12537,7 @@ export interface operations {
                         /** @constant */
                         status: "success";
                         message: string;
-                        data: string[];
+                        data: Record<string, never>;
                         meta: string;
                     };
                 };
@@ -12884,7 +12904,7 @@ export interface operations {
                         status: "success";
                         /** @constant */
                         message: "Shipping zone created";
-                        data: string[];
+                        data: Record<string, never>;
                         meta: string;
                     };
                 };
@@ -13069,7 +13089,7 @@ export interface operations {
                         status: "success";
                         /** @constant */
                         message: "Shipping zone updated";
-                        data: string[];
+                        data: Record<string, never>;
                         meta: string;
                     };
                 };
@@ -13386,6 +13406,144 @@ export interface operations {
                      *         "code": "server_error",
                      *         "message": "The store could not be read. Retry shortly.",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#server_error",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+        };
+    };
+    "team.list": {
+        parameters: {
+            query?: {
+                /** @example 2 */
+                limit?: number | null;
+                starting_after?: string | null;
+                search?: string | null;
+            };
+            header: {
+                /**
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @example {{merchantKey}}
+                 */
+                "X-Client-Key": string;
+                /** @description Your own correlation id (8–128 chars, `^[A-Za-z0-9_.:-]+$`). Echoed back on the response and on every log line of the request; one is generated when you omit it. */
+                "X-Request-Id"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "data": [
+                     *         {
+                     *           "id": 109501,
+                     *           "name": "Amina Yusuf",
+                     *           "role_names": [
+                     *             "Admin"
+                     *           ],
+                     *           "is_active": true
+                     *         },
+                     *         {
+                     *           "id": 109502,
+                     *           "name": "Tunde Bakare",
+                     *           "role_names": [
+                     *             "Manager"
+                     *           ],
+                     *           "is_active": false
+                     *         }
+                     *       ],
+                     *       "has_more": true,
+                     *       "next_cursor": "eyJpZCI6MTA5NTAyLCJfcG9pbnRzVG9OZXh0SXRlbXMiOnRydWV9"
+                     *     }
+                     */
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "invalid_client_key",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Forbidden — the key cannot call this operation. Switch on `error.code`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "insufficient_scope",
+                     *         "message": "This API key does not carry the 'merchant-team-directory-read' scope it was called with.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Validation failed — `error.errors` carries per-field detail. Switch on `error.code`. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "validation_failed",
+                     *         "message": "The limit field must not be greater than 100.",
+                     *         "field": "limit",
+                     *         "errors": {
+                     *           "limit": [
+                     *             "The limit field must not be greater than 100."
+                     *           ]
+                     *         },
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Too many requests — slow down and retry. Switch on `error.code`. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "too_many_requests",
+                     *         "message": "Too Many Attempts.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
@@ -13988,7 +14146,7 @@ export interface operations {
                 limit?: number | null;
                 starting_after?: string | null;
                 /** @example product */
-                type: "product" | "product_variation" | "product_variation_item" | "collection" | "category" | "page" | "post" | "menu";
+                type: "product" | "product_variation" | "product_variation_item" | "collection" | "category" | "page" | "post" | "menu" | "theme_string";
             };
             header: {
                 /**
@@ -14226,7 +14384,7 @@ export interface operations {
                         status: "success";
                         /** @constant */
                         message: "Translatable resource retrieved";
-                        data: string[];
+                        data: Record<string, never>;
                         meta: string;
                     };
                 };
@@ -14967,7 +15125,7 @@ export interface operations {
                         status: "success";
                         /** @constant */
                         message: "Variant created";
-                        data: string[];
+                        data: Record<string, never>;
                         meta: string;
                     };
                 };
@@ -15139,7 +15297,7 @@ export interface operations {
                         status: "success";
                         /** @constant */
                         message: "Variant deleted";
-                        data: string[];
+                        data: Record<string, never>;
                         meta: string;
                     };
                 };
@@ -15315,7 +15473,7 @@ export interface operations {
                         status: "success";
                         /** @constant */
                         message: "Variant updated";
-                        data: string[];
+                        data: Record<string, never>;
                         meta: string;
                     };
                 };

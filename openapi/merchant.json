@@ -4,7 +4,7 @@
     "title": "Merchant API",
     "version": "v1",
     "description": "Merchant API — Queek.\n\n## Errors\n\nEvery error answers `{\"error\": {\"code\", \"message\", \"field\"?, \"errors\"?, \"doc_url\", \"request_id\"}}`, alongside the\nlegacy top-level keys. Switch on `error.code`, never on the message. Codes: `ai_unavailable_in_test_mode`, `api_key_expired`, `api_key_mode_mismatch`, `api_key_revoked`, `app_embed_not_ready`, `app_grant_insufficient`, `app_handoff_failed`, `app_installation_gone`, `app_installation_pending`, `app_ip_not_allowed`, `app_proxy_failed`, `app_proxy_gone`, `app_token_revoked`, `bad_request`, `channel_gateway_unreachable`, `client_key_required`, `conflict`, `custom_domain_provisioning_failed`, `custom_gateway_forbidden`, `custom_gateway_kyc_required`, `custom_gateway_not_configured`, `custom_gateway_not_verified`, `custom_gateway_plan_required`, `custom_gateway_store_ineligible`, `custom_gateway_verification_failed`, `forbidden`, `gone`, `idempotency_key_in_progress`, `idempotency_key_reuse`, `insufficient_scope`, `invalid_client`, `invalid_client_key`, `metafield_definition_missing`, `metafield_filter_unsupported_type`, `metafield_namespace_reserved`, `metafield_value_invalid`, `metaobject_definition_missing`, `metaobject_field_invalid`, `metaobject_reference_invalid`, `metaobject_type_reserved`, `method_not_allowed`, `not_found`, `origin_not_allowed`, `origin_required`, `payload_too_large`, `payment_amount_mismatch`, `plan_inactive`, `private_key_required`, `requires_slot`, `resync_cooldown`, `route_not_available`, `server_error`, `service_unavailable`, `subscription_feature_locked`, `too_many_requests`, `translation_digest_stale`, `translation_locale_is_primary`, `translation_max_published_locales`, `translation_unknown_key`, `translation_unknown_locale`, `unauthenticated`, `unknown_product_ref`, `unknown_service`, `unknown_variant_ref`, `unsupported_media_type`, `validation_failed`, `vendor_access_denied`, `vendor_mail_sender_forbidden`, `vendor_mail_sender_not_configured`, `vendor_mail_sender_plan_required`, `vendor_mail_sender_verification_failed`.\nEach error carries `doc_url` pointing at its own entry in the error reference.\n\n## Request ids\n\nSend `X-Request-Id` (8–128 chars matching `^[A-Za-z0-9_.:-]+$`) to correlate your trace with ours,\nor read the one we generate — it is echoed on every response, error bodies included, and appears on every log line\nof the request. `X-Queek-Api-Version` carries the API version (`v1`).\n\n## Idempotency\n\nSend `Idempotency-Key` on a write and a retry cannot execute twice. Same key + same body replays the stored\nresponse verbatim with `Idempotent-Replayed: true` for 24h. Same key + a different body is\n`409 idempotency_key_reuse`. A concurrent duplicate waits 15s for the first to finish, then replays;\npast that it is `409 idempotency_key_in_progress`. Responses ≥ 400 are not stored, so a failure stays retryable.\nThe slot is vendor + caller + METHOD:path + key. The body is the fingerprint, not part of the slot. Operations that accept the header document it as a parameter.\n\n## Rate limits\n\n180 requests/min per API key + IP, or storefront origin + IP when no key is sent. On top of that, a private (`sk_live_`) key carries its\nstore's plan quota: `free` 60/min, `social_media` 120/min, `starter` 120/min, `growth` 240/min, `scale` 1200/min, `enterprise` 2400/min. sk_live_ private keys only. A pk_live_ public key is shared by every visitor of the store, so it gets no per-store bucket.\nExceeding either is `too_many_requests` with `Retry-After`.\n\n## Webhooks\n\nSubscribe an endpoint per store and Queek posts the signed event to it. Topics are listed under `webhooks`\nin this document; the body is signed with the Standard Webhooks scheme — HMAC-SHA256 over the base64-decoded secret, value `v1,<base64>` —\nover `{webhook-id}.{webhook-timestamp}.{raw body}`, tolerance 300s. A rotation keeps the previous secret valid for\n24h and sends both signatures, space delimited. Delivery is 8 attempts on a published backoff;\nan endpoint failing for 24h is disabled and the merchant notified. Every operation names the one scope it requires. A write scope also returns, in that write's own response, the record it wrote — listing or reading records needs the matching read scope. A key acts for its whole store, never only for the records one person created. Additive-only under v1: new operations, fields and enum values may be added, but existing operations, fields, values and auth behaviour never change incompatibly. A breaking change ships as v2 alongside v1, never in place.",
-    "x-queek-spec-sha": "ad6ce191a187adc34402456d2e84c645b1b82fe6e669cbe74ddca1e29631fa41"
+    "x-queek-spec-sha": "b73c1765f1aa8bc5321b324927889f45f641ea7bfda518f2ef8ec1ec0309b151"
   },
   "servers": [
     {
@@ -36,6 +36,9 @@
     },
     {
       "name": "Customers"
+    },
+    {
+      "name": "Team"
     },
     {
       "name": "Discounts"
@@ -71,7 +74,7 @@
     "/app/setup": {
       "put": {
         "operationId": "app.setup_update",
-        "description": "Requires scope `merchant-app_setup-update`.\n\nStores the merchant-visible setup values for the calling installation (status plus the items sheet): the app calls this after its install/settings handoff answers 2xx, once its key is active. Full-body PUT — send the whole sheet every time.",
+        "description": "Requires scope `merchant-app_setup-update`.\n\nStores the merchant-visible setup values for the calling installation (status plus the items sheet): the app calls this once its installation key is active. Full-body PUT — send the whole sheet every time.",
         "summary": "Update the installation setup notice",
         "tags": [
           "Apps"
@@ -144,12 +147,7 @@
                       "const": "Setup notice saved."
                     },
                     "data": {
-                      "type": "array",
-                      "items": {
-                        "type": "string"
-                      },
-                      "minItems": 0,
-                      "maxItems": 0
+                      "type": "object"
                     },
                     "meta": {
                       "type": "string"
@@ -356,12 +354,7 @@
                       ]
                     },
                     "data": {
-                      "type": "array",
-                      "items": {
-                        "type": "string"
-                      },
-                      "minItems": 0,
-                      "maxItems": 0
+                      "type": "object"
                     },
                     "meta": {
                       "type": "string"
@@ -557,12 +550,7 @@
                       "const": "Requirements sheet saved."
                     },
                     "data": {
-                      "type": "array",
-                      "items": {
-                        "type": "string"
-                      },
-                      "minItems": 0,
-                      "maxItems": 0
+                      "type": "object"
                     },
                     "meta": {
                       "type": "string"
@@ -901,7 +889,7 @@
       },
       "post": {
         "operationId": "app.collected_definitions_create",
-        "description": "Requires scope `merchant-collected-definitions-manage`.\n\nCreates a collected definition owned by the calling installation. The type must carry the installation’s own app_{slug}_{installation} prefix — anything else 403s. The class is forced collected and the row is stamped with the installation.",
+        "description": "Requires scope `merchant-collected-definitions-manage`.\n\nCreates a collected definition owned by the calling installation. The type must carry the installation’s own app_{slug}_{installation} prefix — anything else is refused with a 403. The data class is always `collected` and ownership is always the calling installation; neither is sent in the body.",
         "summary": "Create a collected definition",
         "tags": [
           "Apps"
@@ -1383,7 +1371,7 @@
     "/records": {
       "post": {
         "operationId": "app.records_submit",
-        "description": "Requires scope `merchant-collected-records-submit`.\n\nSubmits one record under one of the calling installation’s collected types. Values run the same field validation entries use; the source is forced app. Rate-limited per installation with 429 + Retry-After past the caps, on top of the per-definition storage cap.",
+        "description": "Requires scope `merchant-collected-records-submit`.\n\nSubmits one record under one of the calling installation’s collected types. Values run the same field validation entries use; every record is filed with source `app`. Rate-limited per installation with 429 + Retry-After past the caps, on top of the per-definition storage cap.",
         "summary": "Submit a collected record",
         "tags": [
           "Apps"
@@ -2077,12 +2065,7 @@
                       ]
                     },
                     "data": {
-                      "type": "array",
-                      "items": {
-                        "type": "string"
-                      },
-                      "minItems": 0,
-                      "maxItems": 0
+                      "type": "object"
                     },
                     "meta": {
                       "type": "string"
@@ -2302,12 +2285,7 @@
                       "const": "Collection products reordered successfully."
                     },
                     "data": {
-                      "type": "array",
-                      "items": {
-                        "type": "string"
-                      },
-                      "minItems": 0,
-                      "maxItems": 0
+                      "type": "object"
                     },
                     "meta": {
                       "type": "string"
@@ -3587,12 +3565,7 @@
                       "const": "Customer retrieved"
                     },
                     "data": {
-                      "type": "array",
-                      "items": {
-                        "type": "string"
-                      },
-                      "minItems": 0,
-                      "maxItems": 0
+                      "type": "object"
                     },
                     "meta": {
                       "type": "string"
@@ -4394,12 +4367,7 @@
                       "const": "Discount published successfully"
                     },
                     "data": {
-                      "type": "array",
-                      "items": {
-                        "type": "string"
-                      },
-                      "minItems": 0,
-                      "maxItems": 0
+                      "type": "object"
                     },
                     "meta": {
                       "type": "string"
@@ -4578,12 +4546,7 @@
                       "const": "Discount unpublished successfully"
                     },
                     "data": {
-                      "type": "array",
-                      "items": {
-                        "type": "string"
-                      },
-                      "minItems": 0,
-                      "maxItems": 0
+                      "type": "object"
                     },
                     "meta": {
                       "type": "string"
@@ -5380,12 +5343,7 @@
                       "const": "Primary image set"
                     },
                     "data": {
-                      "type": "array",
-                      "items": {
-                        "type": "string"
-                      },
-                      "minItems": 0,
-                      "maxItems": 0
+                      "type": "object"
                     },
                     "meta": {
                       "type": "string"
@@ -5632,12 +5590,7 @@
                       "const": "Image removed"
                     },
                     "data": {
-                      "type": "array",
-                      "items": {
-                        "type": "string"
-                      },
-                      "minItems": 0,
-                      "maxItems": 0
+                      "type": "object"
                     },
                     "meta": {
                       "type": "string"
@@ -6852,12 +6805,7 @@
                       "const": "Metafield definition created"
                     },
                     "data": {
-                      "type": "array",
-                      "items": {
-                        "type": "string"
-                      },
-                      "minItems": 0,
-                      "maxItems": 0
+                      "type": "object"
                     },
                     "meta": {
                       "type": "string"
@@ -7300,12 +7248,7 @@
                       "const": "Metaobject definition created"
                     },
                     "data": {
-                      "type": "array",
-                      "items": {
-                        "type": "string"
-                      },
-                      "minItems": 0,
-                      "maxItems": 0
+                      "type": "object"
                     },
                     "meta": {
                       "type": "string"
@@ -7741,12 +7684,7 @@
                       "const": "Metaobject entry created"
                     },
                     "data": {
-                      "type": "array",
-                      "items": {
-                        "type": "string"
-                      },
-                      "minItems": 0,
-                      "maxItems": 0
+                      "type": "object"
                     },
                     "meta": {
                       "type": "string"
@@ -8288,12 +8226,7 @@
                       "const": "Order retrieved"
                     },
                     "data": {
-                      "type": "array",
-                      "items": {
-                        "type": "string"
-                      },
-                      "minItems": 0,
-                      "maxItems": 0
+                      "type": "object"
                     },
                     "meta": {
                       "type": "string"
@@ -8448,7 +8381,7 @@
       },
       "patch": {
         "operationId": "orders.update",
-        "description": "Requires scope `merchant-orders-update`.\n\nChanges an order’s developer-extension fields only: metafields, metadata, and per-line properties (`line_items`: merged by key into each line’s `properties`; a string sets a key, null deletes it, keys left out keep their value). An app installation key writes property keys only under its own `app.{slug}.` namespace; any other key writes none under `app.*` or `queek.*`. Order state has its own endpoints. Answers the updated order.",
+        "description": "Requires scope `merchant-orders-update`.\n\nChanges an order’s developer-extension fields only: metafields, metadata, and per-line properties (`line_items`: merged by key into each line’s `properties`; a string sets a key, null deletes it, keys left out keep their value). `metafields` must reference an existing definition and never use an app-owned (`app.*`, `queek.*`) namespace here. `metadata` is free-form integrator bookkeeping — replaced wholesale (`null` clears it), capped in size and count, with no namespace rule and no definitions. Line-item property keys from an installation key must live under its own `app.{slug}.` namespace; any other key writes none under `app.*` or `queek.*`. Order state has its own endpoints. Answers the updated order.",
         "summary": "Update an order",
         "tags": [
           "Orders"
@@ -8530,12 +8463,7 @@
                       "const": "Order updated"
                     },
                     "data": {
-                      "type": "array",
-                      "items": {
-                        "type": "string"
-                      },
-                      "minItems": 0,
-                      "maxItems": 0
+                      "type": "object"
                     },
                     "meta": {
                       "type": "string"
@@ -8815,12 +8743,7 @@
                       "const": "Order already imported."
                     },
                     "data": {
-                      "type": "array",
-                      "items": {
-                        "type": "string"
-                      },
-                      "minItems": 0,
-                      "maxItems": 0
+                      "type": "object"
                     },
                     "meta": {
                       "type": "string"
@@ -8905,12 +8828,7 @@
                       "type": "string"
                     },
                     "data": {
-                      "type": "array",
-                      "items": {
-                        "type": "string"
-                      },
-                      "minItems": 0,
-                      "maxItems": 0
+                      "type": "object"
                     },
                     "meta": {
                       "type": "string"
@@ -9082,7 +9000,7 @@
     "/orders/{order}/status": {
       "post": {
         "operationId": "orders.update_status",
-        "description": "Requires scope `merchant-orders-status-update`.\n\nMoves an order to a new status through the order action service; answers the updated order.",
+        "description": "Requires scope `merchant-orders-status-update`.\n\nMoves an order to a new status and answers the updated order. `approve_payment` is accepted only while the order awaits payment confirmation — `payment_status` `awaiting_confirmation`, order status `pending_payment`, a payment method other than `online`/`wallet`, and not yet accepted. Anything else is refused (404) with the reason (`Order payment is already approved`, `Manual approval is not allowed for this payment method`, `Order payment is not pending approval`). `accept` and `rejected` need a paid, not-yet-accepted order; every later action needs a paid and accepted order.",
         "summary": "Update an order status",
         "tags": [
           "Orders"
@@ -10647,12 +10565,7 @@
                       "const": "product"
                     },
                     "data": {
-                      "type": "array",
-                      "items": {
-                        "type": "string"
-                      },
-                      "minItems": 0,
-                      "maxItems": 0
+                      "type": "object"
                     },
                     "meta": {
                       "type": "string"
@@ -11156,12 +11069,7 @@
                       "const": "Product deleted successfully"
                     },
                     "data": {
-                      "type": "array",
-                      "items": {
-                        "type": "string"
-                      },
-                      "minItems": 0,
-                      "maxItems": 0
+                      "type": "object"
                     },
                     "meta": {
                       "type": "string"
@@ -11348,12 +11256,7 @@
                       "type": "string"
                     },
                     "data": {
-                      "type": "array",
-                      "items": {
-                        "type": "string"
-                      },
-                      "minItems": 0,
-                      "maxItems": 0
+                      "type": "object"
                     },
                     "meta": {
                       "type": "string"
@@ -11761,12 +11664,7 @@
                       "const": "Shipping zone created"
                     },
                     "data": {
-                      "type": "array",
-                      "items": {
-                        "type": "string"
-                      },
-                      "minItems": 0,
-                      "maxItems": 0
+                      "type": "object"
                     },
                     "meta": {
                       "type": "string"
@@ -11990,12 +11888,7 @@
                       "const": "Shipping zone updated"
                     },
                     "data": {
-                      "type": "array",
-                      "items": {
-                        "type": "string"
-                      },
-                      "minItems": 0,
-                      "maxItems": 0
+                      "type": "object"
                     },
                     "meta": {
                       "type": "string"
@@ -12368,6 +12261,182 @@
                     "code": "server_error",
                     "message": "The store could not be read. Retry shortly.",
                     "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#server_error",
+                    "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/team-directory": {
+      "get": {
+        "operationId": "team.list",
+        "description": "Requires scope `merchant-team-directory-read`.\n\nLists the store’s staff directory — each member’s id, display name, role names and active flag — with cursor pagination (`limit` + `starting_after`, `has_more`/`next_cursor`). Contact details, credentials and permissions are never included.",
+        "summary": "List the team directory",
+        "tags": [
+          "Team"
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1,
+              "maximum": 100
+            },
+            "example": 2
+          },
+          {
+            "name": "starting_after",
+            "in": "query",
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "maxLength": 255
+            }
+          },
+          {
+            "name": "X-Client-Key",
+            "in": "header",
+            "required": true,
+            "description": "A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "{{merchantKey}}"
+          },
+          {
+            "name": "X-Request-Id",
+            "in": "header",
+            "description": "Your own correlation id (8–128 chars, `^[A-Za-z0-9_.:-]+$`). Echoed back on the response and on every log line of the request; one is generated when you omit it.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                },
+                "example": {
+                  "data": [
+                    {
+                      "id": 109501,
+                      "name": "Amina Yusuf",
+                      "role_names": [
+                        "Admin"
+                      ],
+                      "is_active": true
+                    },
+                    {
+                      "id": 109502,
+                      "name": "Tunde Bakare",
+                      "role_names": [
+                        "Manager"
+                      ],
+                      "is_active": false
+                    }
+                  ],
+                  "has_more": true,
+                  "next_cursor": "eyJpZCI6MTA5NTAyLCJfcG9pbnRzVG9OZXh0SXRlbXMiOnRydWV9"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueekError"
+                },
+                "example": {
+                  "error": {
+                    "code": "invalid_client_key",
+                    "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                    "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
+                    "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden — the key cannot call this operation. Switch on `error.code`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueekError"
+                },
+                "example": {
+                  "error": {
+                    "code": "insufficient_scope",
+                    "message": "This API key does not carry the 'merchant-team-directory-read' scope it was called with.",
+                    "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
+                    "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed — `error.errors` carries per-field detail. Switch on `error.code`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueekError"
+                },
+                "example": {
+                  "error": {
+                    "code": "validation_failed",
+                    "message": "The limit field must not be greater than 100.",
+                    "field": "limit",
+                    "errors": {
+                      "limit": [
+                        "The limit field must not be greater than 100."
+                      ]
+                    },
+                    "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
+                    "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests — slow down and retry. Switch on `error.code`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueekError"
+                },
+                "example": {
+                  "error": {
+                    "code": "too_many_requests",
+                    "message": "Too Many Attempts.",
+                    "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
                     "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                   }
                 }
@@ -13033,7 +13102,7 @@
     "/translatable-resources": {
       "get": {
         "operationId": "translatable_resources.list",
-        "description": "Requires scope `merchant-translations-read`.\n\nLists one resource type’s translatable content — the current source value, digest and kind per key — with cursor pagination (`limit` + `starting_after`, `has_more`/`next_cursor`).",
+        "description": "Requires scope `merchant-translations-read`.\n\nLists one resource type’s translatable content — the current source value, digest and kind per key — with cursor pagination (`limit` + `starting_after`, `has_more`/`next_cursor`). `theme_string` is the store’s own singleton: the page carries every asserted theme key with `has_more` false.",
         "summary": "List translatable resources",
         "tags": [
           "Translations"
@@ -13076,7 +13145,8 @@
                 "category",
                 "page",
                 "post",
-                "menu"
+                "menu",
+                "theme_string"
               ]
             },
             "example": "product"
@@ -13249,7 +13319,7 @@
     "/translatable-resources/{type}/{id}": {
       "get": {
         "operationId": "translatable_resources.retrieve",
-        "description": "Requires scope `merchant-translations-read`.\n\nRetrieves one resource’s translatable content with its stored translations, each flagged outdated when the source changed since. {id} is a p_id or UUID of this store.",
+        "description": "Requires scope `merchant-translations-read`.\n\nRetrieves one resource’s translatable content with its stored translations, each flagged outdated when the source changed since. {id} is a p_id or UUID of this store. For `theme_string`, {id} is the store’s own p_id, slug or UUID and keys are `<theme-slug>.<dotted-key>` against the store’s asserted English defaults (e.g. `roast.cart.title`).",
         "summary": "Retrieve translatable content",
         "tags": [
           "Translations"
@@ -13355,12 +13425,7 @@
                       "const": "Translatable resource retrieved"
                     },
                     "data": {
-                      "type": "array",
-                      "items": {
-                        "type": "string"
-                      },
-                      "minItems": 0,
-                      "maxItems": 0
+                      "type": "object"
                     },
                     "meta": {
                       "type": "string"
@@ -13515,7 +13580,7 @@
     "/translations/{type}/{id}": {
       "put": {
         "operationId": "translations.update",
-        "description": "Requires scope `merchant-translations-write`.\n\nRegisters up to 100 translations on one resource against the current source digests — all or nothing. A stale digest, unknown locale or unknown key answers a per-item `translation_*` code and writes nothing. {id} is a p_id or UUID of this store.",
+        "description": "Requires scope `merchant-translations-write`.\n\nRegisters up to 100 translations on one resource against the current source digests — all or nothing. A stale digest, unknown locale or unknown key answers a per-item `translation_*` code and writes nothing. {id} is a p_id or UUID of this store. Translator flow for `theme_string`: assert the English defaults first (dashboard configs update `theme_strings_en`), echo each key’s current digest, then write at most 100 keys per call — N sequential calls carry a full dictionary.",
         "summary": "Register translations",
         "tags": [
           "Translations"
@@ -13732,7 +13797,7 @@
       },
       "delete": {
         "operationId": "translations.delete",
-        "description": "Requires scope `merchant-translations-write`.\n\nRemoves one resource’s translations, optionally narrowed to `locales` and/or `keys`. {id} is a p_id or UUID of this store.",
+        "description": "Requires scope `merchant-translations-write`.\n\nRemoves one resource’s translations, optionally narrowed to `locales` and/or `keys`. {id} is a p_id or UUID of this store. For `theme_string`, narrowing to `keys` prunes a retired theme slug’s dormant overrides.",
         "summary": "Remove translations",
         "tags": [
           "Translations"
@@ -14339,12 +14404,7 @@
                       "const": "Variant created"
                     },
                     "data": {
-                      "type": "array",
-                      "items": {
-                        "type": "string"
-                      },
-                      "minItems": 0,
-                      "maxItems": 0
+                      "type": "object"
                     },
                     "meta": {
                       "type": "string"
@@ -14589,12 +14649,7 @@
                       "const": "Variant updated"
                     },
                     "data": {
-                      "type": "array",
-                      "items": {
-                        "type": "string"
-                      },
-                      "minItems": 0,
-                      "maxItems": 0
+                      "type": "object"
                     },
                     "meta": {
                       "type": "string"
@@ -14824,12 +14879,7 @@
                       "const": "Variant deleted"
                     },
                     "data": {
-                      "type": "array",
-                      "items": {
-                        "type": "string"
-                      },
-                      "minItems": 0,
-                      "maxItems": 0
+                      "type": "object"
                     },
                     "meta": {
                       "type": "string"
@@ -15125,7 +15175,7 @@
           "addons",
           "properties"
         ],
-        "title": "App.Http.Resources.Customer.OrderItemResource"
+        "title": "OrderItem"
       },
       "App.Http.Resources.Customer.ProductResource": {
         "anyOf": [
@@ -15334,7 +15384,7 @@
                       "object",
                       "null"
                     ],
-                    "description": "Additive — see decision_tree.json image-variants-contract-pr1/2.\nnull when the primary image isn't Media-backed (raw URL only) or\n'variants' wasn't eager-loaded; existing keys above are unaffected.",
+                    "description": "Sized variants of the primary image (thumbnail, card, hero),\nkeyed by size. Null when the image is a plain URL instead of an\nuploaded image, or when no sized variants exist for it; the\nother image keys are always present.",
                     "additionalProperties": {}
                   },
                   "primary_variant_image_variants": {
@@ -15520,7 +15570,7 @@
             ]
           }
         ],
-        "title": "App.Http.Resources.Customer.ProductResource"
+        "title": "Product"
       },
       "App.Http.Resources.OrderResource": {
         "anyOf": [
@@ -16552,11 +16602,11 @@
             ]
           }
         ],
-        "title": "App.Http.Resources.OrderResource"
+        "title": "Order"
       },
       "AppRequirementStoreRequest": {
         "type": "object",
-        "description": "The installation-bound requirements-sheet write (PUT app/requirements,\nmerchant API, installation key only). The declaring app replaces its\ninstallation's {product → required property prefix} map as product\nmetafield declarations in its OWN app namespace.\n\nFull-body PUT: the whole sheet every time, so a retry replays instead\nof merging and removals are explicit. Products are addressed by p_id\n(never UUID) and resolved vendor-scoped in the controller.",
+        "description": "The requirements sheet for the calling installation (PUT app/requirements):\nthe app replaces its own {product → required line-property prefix} map in\none call.\n\nFull-body PUT — send the whole sheet every time, so a retry replays instead\nof merging and removals are explicit. Products are addressed by p_id (never\nUUID) and must belong to the calling installation's store. Each prefix must\nlive under the installation's own `app.{slug}.` namespace.",
         "properties": {
           "items": {
             "type": "array",
@@ -17017,7 +17067,7 @@
       },
       "CollectedDefinitionRequest": {
         "type": "object",
-        "description": "The Forms APP definitions path (merchant API, installation key only):\nGET + POST collected-definitions, PATCH collected-definitions/{definition}.\n\nONE request for the three verbs, like RecordRequest on the inbox: the\ndefinition vocabulary (type shape, reserved roots, field schemas,\ndisplay_field, budget) is the SAME trait the dashboard and the AI facade\nuse, so the three surfaces can never disagree about a legal type — with\none deliberate difference: allowsAppOwnedType(), because installation\ntypes carry the app_ prefix by construction. The class is never declared here:\nthe service forces collected and stamps the calling installation.\n\nDefinitions are addressed by `p_id`, scoped to the installation's vendor.\nOwnership (this installation's types only) is the controller's 403 — the\nrequest resolves, the controller refuses.",
+        "description": "Manage the calling installation's form types (GET + POST\ncollected-definitions, PATCH collected-definitions/{definition}).\n\nOne request shape serves all three verbs, with the same field-type,\nreserved-name, display and budget rules the dashboard enforces — every\nsurface accepts the same definitions. Installation types carry the `app_`\nprefix and declare it here. The data class is always `collected` and every\ndefinition belongs to the calling installation; neither is sent in the body.\n\nDefinitions are addressed by `p_id` within the installation's store. Types\nowned by another installation are refused with a 403.",
         "properties": {
           "type": {
             "type": "string",
@@ -17050,7 +17100,7 @@
               "boolean",
               "null"
             ],
-            "description": "Does an entry of this type get its own public page at\n`/{type}/{handle}`? See ValidatesMetaobjectDefinitionInput's\nassertTypeNotReservedRoot() for why the type itself is gated\nagainst the storefront's own path roots."
+            "description": "Whether entries of this type get their own public page at\n`/{type}/{handle}`. A type matching a reserved storefront route\n(cart, checkout, search and similar) is refused with a 422."
           },
           "fields": {
             "type": "array",
@@ -17220,7 +17270,7 @@
       },
       "CollectedRecordSubmitRequest": {
         "type": "object",
-        "description": "The Forms APP submit path (POST records, merchant API, installation key\nonly): one record under one of the calling installation's collected types.\n\nValues run the SAME writer validation entries use — one field vocabulary —\nand the per-definition cap gets the same friendly pre-check the dashboard\ninbox runs, while the writer enforces it in-transaction. The source is\nFORCED app in the controller: the body carries no source, so a caller can\nnever file a person under dashboard/ai/form. The per-installation abuse\nlimiter runs in the controller after validation, so a 422 spends no budget.\n\nOwnership (this installation's types only) is the controller's 403 — the\nrequest resolves, the controller refuses.",
+        "description": "Submit one record under one of the calling installation's collected types\n(POST records).\n\nValues are validated against the type's fields — the same field rules the\ndashboard enforces — and the per-definition storage cap is checked before\nanything is written. Every record is filed under the calling installation\nwith source `app`: the body carries no source, so a submission can never be\nmisfiled under another source. Calls are rate-limited per installation, and\na validation failure (422) never consumes budget.\n\nTypes owned by another installation are refused with a 403.",
         "properties": {
           "definition": {
             "type": "string",
@@ -17652,7 +17702,7 @@
       },
       "MerchantShippingZoneRequest": {
         "type": "object",
-        "description": "POST shipping-zones / PUT shipping-zones/{zone} on the Merchant API.\n\nThe dashboard zone rules, except the rates: the public API speaks money as\ndecimal strings in the currency's major unit (\"1500.00\", or a number), the\nsame format Api\\ShippingZoneResource reads back, so a read round-trips into\na write. ShippingZoneService::ratesToMinor() turns them into the kobo a zone\nstores; the dashboard keeps sending kobo integers.",
+        "description": "POST shipping-zones / PUT shipping-zones/{zone} on the merchant API.\n\nZone rules match the dashboard's, except the rates: this API speaks money as\ndecimal strings in the currency's major unit (\"1500.00\", or a number) — the\nsame shape a zone read returns, so a read round-trips into a write. Values\nare stored in the currency's minor unit; the dashboard sends minor-unit\nintegers directly.",
         "properties": {
           "name": {
             "type": "string",
@@ -17755,7 +17805,7 @@
       },
       "MetafieldDefinitionRequest": {
         "type": "object",
-        "description": "Create/update a metafield definition on the REST developer surface.\n\n`namespace`, `key`, `owner_type` and `type` are immutable after creation: a\nstored value denormalises all four, so changing one would silently orphan\nevery value already written against it. Only presentation (`name`,\n`description`) and `validations` may change, and a tightened validation is\ndocumented as applying to future writes only.\n\nThe rules and the schema assertions themselves live in\nValidatesMetafieldDefinitionInput, shared with the AI facade's own definition\nrequest — the two surfaces must never disagree about what a legal definition is.",
+        "description": "Create/update a metafield definition on the REST developer surface.\n\n`namespace`, `key`, `owner_type` and `type` are immutable after creation: a\nstored value denormalises all four, so changing one would silently orphan\nevery value already written against it. Only presentation (`name`,\n`description`) and `validations` may change, and a tightened validation is\ndocumented as applying to future writes only.\n\nThe same rules back every surface that writes definitions, so all of them\naccept exactly the same legal definitions.",
         "properties": {
           "owner_type": {
             "type": "string",
@@ -17950,7 +18000,7 @@
       },
       "MetaobjectDataClass": {
         "type": "string",
-        "description": "What KIND of data a metaobject definition holds. `content` is merchant content (designers, size charts): entries may be storefront-visible and carry their own pages. `collected` is data gathered FROM people (form submissions, applications): entries are never storefront-readable and never revalidate the storefront. The booleans (`storefront_visible`, `has_pages`) stay the permanent source of truth — a collected definition is simply forced storefront-off at all three write layers (FormRequest, MetaobjectDefinitionService, model guard).\n",
+        "description": "What KIND of data a metaobject definition holds. `content` is merchant content (designers, size charts): entries may be storefront-visible and carry their own pages. `collected` is data gathered FROM people (form submissions, applications): entries are never storefront-readable and never revalidate the storefront. The booleans (`storefront_visible`, `has_pages`) stay the permanent source of truth — a collected definition is always stored with both off, however it is written.\n",
         "enum": [
           "content",
           "collected"
@@ -17959,7 +18009,7 @@
       },
       "MetaobjectDefinitionRequest": {
         "type": "object",
-        "description": "Create/update a metaobject definition on the REST developer surface.\n\n`type` is immutable after creation: entries carry it, and reference values\nresolve through it, so changing one would silently orphan every entry and\nlink already written against it. The field SET may be replaced on update,\nbut removing a field (or retyping one) while entries still hold values for\nit is a 422.\n\nThe rules and the schema assertions live in\nValidatesMetaobjectDefinitionInput, shared with the AI facade's own request —\nthe two surfaces must never disagree about what a legal type is.",
+        "description": "Create/update a metaobject definition on the REST developer surface.\n\n`type` is immutable after creation: entries carry it, and reference values\nresolve through it, so changing one would silently orphan every entry and\nlink already written against it. The field SET may be replaced on update,\nbut removing a field (or retyping one) while entries still hold values for\nit is a 422.\n\nThe same rules back every surface that writes definitions, so all of them\naccept exactly the same legal types.",
         "properties": {
           "type": {
             "type": "string",
@@ -17992,7 +18042,7 @@
               "boolean",
               "null"
             ],
-            "description": "Does an entry of this type get its own public page at\n`/{type}/{handle}`? See ValidatesMetaobjectDefinitionInput's\nassertTypeNotReservedRoot() for why the type itself is gated\nagainst the storefront's own path roots."
+            "description": "Whether entries of this type get their own public page at\n`/{type}/{handle}`. A type matching a reserved storefront route\n(cart, checkout, search and similar) is refused with a 422."
           },
           "fields": {
             "type": "array",
@@ -18141,7 +18191,7 @@
             "type": "boolean"
           },
           "data_class": {
-            "description": "S2 decides the S1-open public-shape question: the class and its\nknobs are read-only on the definition resource. Writes stay on\nthe dashboard-session path (merchant-key routes strip them).",
+            "description": "The definition's data class (`content` or `collected`). Read-only\nhere: it is fixed at creation and cannot be changed through\nthis API.",
             "anyOf": [
               {
                 "type": "string"
@@ -18178,7 +18228,7 @@
               "integer",
               "null"
             ],
-            "description": "The inbox badge: how many submissions a collected definition\nholds (null for content). Rendered on dashboard paths only, so\nthe merchant-key and AI shapes stay byte-identical to S2."
+            "description": "How many entries a collected definition holds (null for content\ndefinitions). Rendered on dashboard reads only, so store-key\nresponses never carry it."
           },
           "created_at": {
             "type": "string"
@@ -18206,7 +18256,7 @@
       },
       "MetaobjectRequest": {
         "type": "object",
-        "description": "Create/update a metaobject entry on the REST developer surface.\n\nShape rules only live here (`type` exists, `handle` is slug-shaped, `status`\nis known). WHAT a field may hold is known solely by the definition, so each\nkey is checked in the after-validation pass through MetaobjectWriter — the\nsame writer the AI facade uses, so both surfaces refuse the same payload\nwith the same `fields.{key}` errors.",
+        "description": "Create/update a metaobject entry on the REST developer surface.\n\nShape is checked first (`type` exists, `handle` is slug-shaped, `status` is\nknown). Each field value is then validated against its definition — an\nunknown key or a wrong-typed value fails with a `fields.{key}` error.",
         "properties": {
           "type": {
             "type": "string",
@@ -18430,7 +18480,7 @@
           },
           "channel": {
             "type": "string",
-            "description": "`channel` is the inbox (messaging) channel, typed against\nMessagingChannel — never the sales channel. An importing app\nrecognises its own orders one key further down."
+            "description": "`channel` is the messaging channel the order came through — never\nthe sales channel. An importing app recognises its own orders one\nkey further down."
           },
           "platform": {
             "type": [
@@ -20007,6 +20057,10 @@
         "$ref": "#/components/schemas/ClientAuthUserResource",
         "title": "QueekStoreCustomer"
       },
+      "QueekStoreLocale": {
+        "$ref": "#/components/schemas/StoreLocaleResource",
+        "title": "QueekStoreLocale"
+      },
       "QueekStoreMetafieldDefinition": {
         "$ref": "#/components/schemas/MetafieldDefinitionResource",
         "title": "QueekStoreMetafieldDefinition"
@@ -20216,7 +20270,7 @@
       },
       "RegisterTranslationsRequest": {
         "type": "object",
-        "description": "PUT translations/{type}/{id} — register a batch of translations against\nthe CURRENT source digests. Shape is checked here (at most max_batch\nitems); each item's locale, key and digest are checked against the live\nsource inside the service, which answers per-item codes\n(translation_unknown_locale, translation_unknown_key,\ntranslation_digest_stale) and writes nothing unless every item passes.",
+        "description": "PUT translations/{type}/{id} — register a batch of translations against the\ncurrent source digests. The body shape is validated first (at most 100\nitems); then each item's locale, key and digest is checked against the live\nsource text. Failures answer per-item codes (translation_unknown_locale,\ntranslation_unknown_key, translation_digest_stale) and nothing is written\nunless every item passes.",
         "properties": {
           "translations": {
             "type": "array",
@@ -20378,7 +20432,7 @@
       },
       "SendAppAlertRequest": {
         "type": "object",
-        "description": "The installation-bound alert write (POST app/alerts, merchant API,\ninstallation key only): an installed app paging the merchant through the\nbell. The installation comes from the calling key — the body carries no\ntarget, so installation A can never page for installation B.\n\nTitles and messages are bell content by design: plain text, length-capped\nlike the manifest listing fields, rendered escaped on every surface. The\noptional dedupe_key lets the app collapse repeats of one problem (one\nfailing import batch, one expired credential) inside the TTL.",
+        "description": "Send an in-app notice to the installing merchant from the calling\ninstallation (POST app/alerts). The installation comes from the calling key\n— the body carries no target, so one installation can never alert on another\ninstallation's behalf.\n\nTitles and messages are bell content by design: plain text, length-capped\nlike the manifest listing fields, rendered escaped on every surface. The\noptional dedupe_key lets the app collapse repeats of one problem (one\nfailing import batch, one expired credential) inside the TTL.",
         "properties": {
           "severity": {
             "type": "string",
@@ -20757,6 +20811,46 @@
           "value"
         ],
         "title": "StoreDiscountRequest"
+      },
+      "StoreLocaleResource": {
+        "type": "object",
+        "properties": {
+          "locale": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "native_name": {
+            "type": "string"
+          },
+          "is_primary": {
+            "type": "boolean"
+          },
+          "path_prefix": {
+            "type": "string"
+          },
+          "hreflang": {
+            "type": "string"
+          },
+          "html_lang": {
+            "type": "string"
+          },
+          "dir": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "locale",
+          "name",
+          "native_name",
+          "is_primary",
+          "path_prefix",
+          "hreflang",
+          "html_lang",
+          "dir"
+        ],
+        "title": "StoreLocaleResource"
       },
       "StorePageResource": {
         "type": "object",
@@ -21326,7 +21420,7 @@
       },
       "StoreVendorLocaleRequest": {
         "type": "object",
-        "description": "POST locales {locale} — enable a catalogue locale on the store. The code\nmust come from config/locales.php; anything else is a 422, never a guess.",
+        "description": "POST locales {locale} — enable a catalogue locale on the store. The code\nmust be a supported catalogue code; anything else is a 422, never a guess.",
         "properties": {
           "locale": {
             "type": "string",
@@ -21418,7 +21512,7 @@
       },
       "UpdateAppSetupNoticeRequest": {
         "type": "object",
-        "description": "The installation-bound setup write (PUT app/setup, merchant API,\ninstallation key only). ONE write path for the merchant-visible values an\napp gives its installer: the install/settings handoff 2xx body stays\nignored, and the app calls here after it answers 2xx, once its key is\nactive.\n\nFull-body PUT (the resource's one update verb): status + the whole items\nsheet every time, so a retry replays instead of merging. Lengths come from\nconfig/apps.php app_setup with the same defaults beside them; values that\nlook like URLs must be https (a token-bearing http URL would train the\nmerchant to paste secrets into cleartext).",
+        "description": "Store the calling installation's merchant-visible setup values (PUT\napp/setup). Call it once the installation's key is active.\n\nFull-body PUT — send status plus the whole items sheet every time, so a\nretry replays instead of merging. Length limits apply per field; values that\nlook like URLs must be https (a token-bearing http URL would train the\nmerchant to paste secrets into cleartext).",
         "properties": {
           "status": {
             "type": "string",
@@ -21632,7 +21726,7 @@
       },
       "UpdateVendorLocaleRequest": {
         "type": "object",
-        "description": "PATCH locales/{locale} {published} — publish or unpublish an enabled\nlocale. The {locale} segment itself is resolved in the controller (unknown\ncode or a code the store never added is a 404); only the body is validated\nhere.",
+        "description": "PATCH locales/{locale} — publish or unpublish an enabled locale by sending\n`published`. An unknown code, or a code the store never added, answers 404.",
         "properties": {
           "published": {
             "type": "boolean"
@@ -22048,7 +22142,7 @@
       },
       "VendorOrderExtensionRequest": {
         "type": "object",
-        "description": "PATCH /api/v1/biz/vendor/orders/{order} — the developer-extension fields of an\norder, and nothing else.\n\nThe route reads like a general order update because that is the shape an\nintegrator expects, but an order's state is NOT editable here: status,\ncancellation, rider assignment and shipment each have their own endpoint with\ntheir own ability and their own side effects (stock, settlement, notifications,\nwebhooks). So any field outside the allowed set is REJECTED by name rather than\nignored — an integrator who believes they cancelled an order by PATCHing\n`status` must find out from a 422, not from an order that shipped anyway.\n\n`line_items` merges per-line properties by key (OrderLinePropertiesWriter):\nan app mirrors what it booked or issued onto the line it belongs to. Who\nmay write which keys follows the metafields rule: an app installation key\nwrites ONLY under its own `app.{slug}.` namespace (the BB1b derivation,\nAppInstallService::declarationNamespaceFor, resolved from the calling key\nalone); every other caller — the dashboard session, a store key — writes\nany checkout-shaped key EXCEPT the app-owned `app.*` / `queek.*` ones\n(MetafieldWriter::isAppOwnedNamespace), so no merchant can forge or clear an\napp's keys. Keys and values obey the checkout caps.",
+        "description": "PATCH orders/{order} — the developer-extension fields of an order, and\nnothing else.\n\nAn order's state is NOT editable here: status, cancellation, rider\nassignment and shipment each have their own endpoint with their own side\neffects (stock, settlement, notifications, webhooks). Any field outside the\nallowed set is rejected by name with a 422 rather than ignored — an\nintegrator who tries to cancel an order by PATCHing `status` learns it from\nthe error, not from an order that shipped anyway.\n\n`metafields` must reference an existing definition for orders and never use\nan app-owned (`app.*`, `queek.*`) namespace on this endpoint. `metadata` is\nfree-form integrator bookkeeping — replaced wholesale (`null` clears it),\ncapped in size and count, with no namespace rule and no definitions.\n`line_items` merges per-line properties by key: an app mirrors what it\nbooked or issued onto the line it belongs to. Property keys from an app\ninstallation key must live under its own `app.{slug}.` namespace; any other\ncaller writes any checkout-shaped key EXCEPT the app-owned `app.*` /\n`queek.*` ones, so no merchant can forge or clear an app's keys. Keys and\nvalues obey the documented caps.",
         "properties": {
           "metafields": {
             "type": [
@@ -22542,7 +22636,7 @@
           },
           "management": {
             "type": "object",
-            "description": "A key caller never receives team contact or roles on a store-profile\nread (founder decision 1, 23/9/26 — the contact scope is about\nCUSTOMERS, never staff), whatever scopes it holds: name only.",
+            "description": "Team contacts on a store-profile read: a store-key caller receives\nnames only — contact details and roles are never included,\nwhatever scopes the key holds.",
             "properties": {
               "owner": {
                 "anyOf": [
