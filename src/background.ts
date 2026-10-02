@@ -36,7 +36,7 @@ export function backgroundTaskCount(): number {
 }
 
 /**
- * Jittered per-installation catch-up for one container (S1, SDK 0.2.0):
+ * Jittered per-installation catch-up for one container:
  * iterate every stored installation and run `forInstallation` (a token
  * proof-call, a resync batch, an inbox poll — whatever the app needs
  * hourly), with:

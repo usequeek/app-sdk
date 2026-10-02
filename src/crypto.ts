@@ -17,7 +17,7 @@ const IV_BYTES = 12;
 export function parseStoreKey(raw: string | undefined): Buffer {
   if (!raw || raw.trim() === "") {
     throw new Error(
-      "Missing store encryption key: set APP_ENCRYPTION_KEY to base64 or hex of 32 random bytes.",
+      "Missing store encryption key: set APP_ENCRYPTION_KEY to base64 or hex of 32 random bytes (`queek app dev` mints one into .queek/.env.local on first run; otherwise generate with node -e \"console.log(require('node:crypto').randomBytes(32).toString('base64'))\" and keep it in your secrets manager — key + DB loss = working data lost).",
     );
   }
   const value = raw.trim();

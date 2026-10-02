@@ -1,12 +1,12 @@
 import { createPrivateKey, createSign } from "node:crypto";
 
 /**
- * The app credential (S1, SDK 0.2.0): ONE asymmetric RS256 key per app.
- * Queek holds the PUBLIC keys (`apps.public_keys`, kid-capped); the app
+ * The app credential: ONE asymmetric RS256 key per app.
+ * Queek holds the PUBLIC keys (kid-capped); the app
  * holds the PRIVATE key in `APP_PRIVATE_KEY` and signs short-lived app
  * JWTs that mint per-installation tokens (`acquireToken()`).
  *
- * Wire contract (BINDING for B2 and S1): every call under `/api/v1/apps`
+ * Wire contract: every call under `/api/v1/apps`
  * carries `Authorization: Bearer <app JWT>` (RS256, header `kid`, claims
  * `iss` = app slug, `iat`, `exp`, `exp − iat` ≤ 600 s). `node:crypto` only
  * — no new dependency. The JWT and the private key are NEVER logged (the
@@ -15,16 +15,14 @@ import { createPrivateKey, createSign } from "node:crypto";
 
 // ---------------------------------------------------------------------------
 // Wire-contract error codes. Each code the SDK reacts to lives in EXACTLY
-// one constant here, so a backend rename is a one-line change the parallel
-// B1/B2 build must confirm.
+// one constant here, so a backend rename is a one-line change.
 // ---------------------------------------------------------------------------
 
 /** 401 on an app-credential call: bad/expired JWT or unknown kid. Fatal for the app. */
 export const INVALID_CLIENT_CODE = "invalid_client";
 /**
  * 403 on an app-credential call: the app is disabled or its token epoch was
- * bumped by `app:revoke-tokens` (kill switch). Confirmed against B1
- * (`ApiError::APP_TOKEN_REVOKED`, returned in both cases); matched in
+ * bumped (kill switch, returned in both cases); matched in
  * exactly one place (`isAppTokenRevoked`).
  */
 export const APP_TOKEN_REVOKED_CODE = "app_token_revoked";
@@ -80,7 +78,7 @@ export function isResyncCooldown(code: string | undefined): boolean {
 }
 
 /**
- * Merchant-API token-refusal codes (rev 7): a token in one of these states
+ * Merchant-API token-refusal codes: a token in one of these states
  * is dead — drop it, re-mint once, retry once. `api_key_revoked` covers the
  * uninstalled store, the removed kid, and the replaced K-slot; the re-mint
  * then answers 404 `app_installation_gone` (purge) or 401 `invalid_client`
@@ -167,13 +165,15 @@ export class UnknownInstallationError extends Error {
   readonly code = "unknown_installation";
 
   constructor(installationId: string) {
-    super(`Unknown installation ${installationId}: no local row (resync or reinstall first).`);
+    super(
+      `Unknown installation ${installationId}: no local row. Recover with resyncFromQueek() (lists the app's active installations from Queek) or reinstall the app on the store.`,
+    );
     this.name = "UnknownInstallationError";
   }
 }
 
 export interface AppCredential {
-  /** `iss`: the app slug (as registered with `app:register`). */
+  /** `iss`: the app slug (as registered on the Queek Developer page). */
   appSlug: string;
   /** `kid`: which of the app's public keys Queek verifies against (`APP_KEY_ID`). */
   keyId: string;
@@ -227,19 +227,19 @@ export function loadAppCredential(options: AppCredentialOptions = {}): AppCreden
   const appSlug = (options.appSlug ?? env.APP_SLUG ?? "").trim();
   if (appSlug === "") {
     throw new InvalidAppCredentialError(
-      "Missing app slug for `iss`: pass appSlug or set APP_SLUG to the slug registered with Queek.",
+      "Missing app slug for `iss`: pass appSlug or set APP_SLUG to the slug from the Queek Developer page (register the app there, or run `queek app dev` — it writes .queek/.env.local).",
     );
   }
   const keyId = (options.keyId ?? env.APP_KEY_ID ?? "").trim();
   if (keyId === "") {
     throw new InvalidAppCredentialError(
-      "Missing APP_KEY_ID: set it to the kid registered with Queek (`php artisan app:register --public-key=…`).",
+      "Missing APP_KEY_ID: set it to the key id shown on the Queek Developer page for this app (`queek app dev` writes it to .queek/.env.local on first run).",
     );
   }
   const privateKeyInput = (options.privateKeyPem ?? env.APP_PRIVATE_KEY ?? "").trim();
   if (privateKeyInput === "") {
     throw new InvalidAppCredentialError(
-      `Missing APP_PRIVATE_KEY: set it to base64 of the app's RSA private key PEM (one line). Accepted forms: ${APP_PRIVATE_KEY_FORMS}.`,
+      `Missing APP_PRIVATE_KEY: set it to the app's RSA private key from the Queek Developer page (\`queek app dev\` writes it to .queek/.env.local on first run). Accepted forms: ${APP_PRIVATE_KEY_FORMS}.`,
     );
   }
   const privateKeyPem = decodePrivateKeyInput(privateKeyInput);

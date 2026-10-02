@@ -43,7 +43,7 @@ import { normaliseNullablePid, normalisePid } from "./store.js";
  *
  * Every handoff — install, uninstall, settings, resync — carries the
  * Standard Webhooks headers signed with the APP signing secret (`whsec_…`,
- * minted once at `app:register`). The app answers 2xx only after the
+ * minted when the app is registered on the Queek Developer page). The app answers 2xx only after the
  * installation is durably stored; anything else makes Queek revoke the
  * just-minted key and mark the install failed (retry = a fresh install).
  *
@@ -116,7 +116,7 @@ function installationRecordFromInstall(data: InstallData, nowIso: string): Insta
     storePid: normaliseNullablePid(data.store.p_id),
     storeName: data.store.name,
     apiBase: data.api_base,
-    // No credential crosses the handoff (S1): a fresh row caches no token
+    // No credential crosses the handoff: a fresh row caches no token
     // (the first call mints one); see `saveResyncedInstallation` for the
     // existing-row path, which keeps the cached token unless the grant
     // changed.

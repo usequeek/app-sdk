@@ -24,7 +24,7 @@ export interface LoggerOptions {
 
 const SENSITIVE_KEY_RE = /key|secret|token|passwd|password|auth|credential|session/i;
 // Long opaque values Queek and friends mint: sk_live_/sk_test_, pk_*, whsec_*, Bearer …
-// — plus the S1 app credential shapes, which must NEVER reach logs: a whole PEM
+// — plus the app credential shapes, which must NEVER reach logs: a whole PEM
 // private-key block and a bare RS256 JWT (eyJ….….…, with or without a Bearer prefix).
 const SECRET_VALUE_RE =
   /-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z0-9 ]*PRIVATE KEY-----|\b(eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+|sk_(live|test)_[A-Za-z0-9_-]+|pk_(live|test)_[A-Za-z0-9_-]+|whsec_[A-Za-z0-9+/=_-]+|Bearer\s+[A-Za-z0-9._~+/-]+=*)\b/g;

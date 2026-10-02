@@ -1,6 +1,15 @@
 # @usequeek/app-sdk
 
-> In development — not yet released. APIs may change before 1.0.
+> Pre-1.0: the API can still change; pin the exact version (`npm i @usequeek/app-sdk@<version>`).
+
+## Quick start for AI agents
+
+1. Scaffold: `npm create @usequeek/app my-app` (same as `queek app init`).
+2. Develop: `queek app dev` — tunnel + dev-store install; mints credentials into `.queek/.env.local` on first run.
+3. Deploy: `queek app deploy` — pushes `queek.app.toml` as a new version (secret shown once, also written to `.queek/.env.local`).
+4. Import from the entry table below: `@usequeek/app-sdk` for server code, `@usequeek/app-sdk/browser` (or `/react`) for browser code — never the main entry in a browser bundle.
+5. Serve the install/uninstall/settings handoff (`handleInstallRequest`) and topic webhooks (`handleWebhookRequest`), then call the Merchant API via `createInstallationClient`.
+6. Capabilities: `https://api.usequeek.com/docs/capabilities.json` is not live yet — until it is, read the live list via the queek-ai-toolkit repo (`github.com/usequeek/queek-ai-toolkit`, e.g. the `queek-bridge` skill's `references/bridge-spec.md` for bridge capabilities) and confirm scope/topic names with `queek app deploy`'s validator, never a baked list.
 
 The SDK for building a Queek app on the public Merchant API and signed webhooks. Framework-agnostic Web-standard handlers for the install handoff and topic webhooks (`Request` in, `Response` out — use them from Next.js route handlers, Express, or any runtime), a typed Merchant API client (types generated from the live contract), GitHub-style app credentials (one asymmetric key per app, short-lived per-installation tokens minted on demand), resync recovery, and an encrypted installation store (SQLite for local/test, Postgres in production). Optional Hono wrappers live under `@usequeek/app-sdk/hono`.
 
@@ -179,25 +188,24 @@ export default app;
 Every Merchant API call goes through `createInstallationClient({ installationId, apiBase, tokens })`,
 which resolves the installation's token via `acquireToken()` and sends it as `X-Client-Key`.
 
-## Credential lifecycle (S1: GitHub-style installation tokens)
+## Credential lifecycle (GitHub-style installation tokens)
 
 One asymmetric credential per app — no per-installation secrets cross the handoff any more.
 
-1. **Generate a keypair** (once, offline) and keep the private key in the founder's password
-   manager beside `APP_ENCRYPTION_KEY` (key + DB loss = working data lost — see below):
+1. **Generate a keypair** (once, offline) and keep the private key in your secrets manager
+   beside `APP_ENCRYPTION_KEY` (key + DB loss = working data lost — see below):
 
    ```sh
    openssl genrsa -out app-private.pem 2048
    openssl rsa -in app-private.pem -pubout -out app-public.pem
    ```
 
-2. **Register the public key** (Queek side; the backend stores it under a `kid`):
+2. **Register the app** on the Queek Developer page (upload the public key; Queek stores it
+   under a `kid`). Faster path: run `queek app dev` in the scaffolded app — it registers the
+   development build and writes the credentials to `.queek/.env.local` (gitignored) on first
+   run; `queek app deploy` does the same for release versions (secret shown once).
 
-   ```sh
-   php artisan app:register --public-key=./app-public.pem
-   ```
-
-   Queek prints the app secret (`QUEEK_APP_SECRET`, verifies the handoff) and the key id
+   Queek issues the app secret (`QUEEK_APP_SECRET`, verifies the handoff) and the key id
    (`APP_KEY_ID`, rides the JWT `kid` header). Configure the app with `APP_SLUG` (= `iss`),
    `APP_KEY_ID`, and `APP_PRIVATE_KEY` (base64 of the private key PEM, one line — the
    Developer page shows it; raw PEM also accepted — never logged, never shipped to clients).
@@ -209,14 +217,14 @@ One asymmetric credential per app — no per-installation secrets cross the hand
    `kid` (one shared cache row per installation — restarts never burst). Concurrent callers
    in one process share one in-flight mint; two containers minting at once is harmless by
    design (Queek keeps coexisting tokens valid; a residual race self-heals via re-mint).
-   Merchant refusal table (rev 7): any 401, or 403 `api_key_revoked` / `api_key_expired` /
+   Merchant refusal table: any 401, or 403 `api_key_revoked` / `api_key_expired` /
    `invalid_client_key` → drop the token, re-mint once, retry once (a second refusal
    propagates); 403 `app_token_revoked` → drop ALL cached tokens and halt minting (kill
    switch / disabled app, no mint); every other 403 (scope, plan, mode) propagates to the
    caller without a mint.
 
 4. **Failures follow the wire contract exactly** (`app-auth.ts` holds each code in one
-   constant, confirmed against the backend build):
+   constant):
    - `401 invalid_client` — fatal for the app: loud log, minting stops, no retry loop.
    - `403 app_token_revoked` (kill switch / disabled app) — drops ALL cached tokens, stops
      minting, loud log. Minting resumes after the app is re-enabled + process restart
@@ -257,7 +265,7 @@ Business data lives in Queek. `resyncFromQueek` restores CONNECTIVITY with zero 
 action — but app WORKING data (inbound tokens, order links, form tokens, app-side-only
 settings) does NOT come back from resync: it needs the per-app `pg_dump` backup
 (RPO ≤ 24 h) plus the `APP_ENCRYPTION_KEY` backup. Events missed beyond Queek's webhook
-retries (~4 h) are gone; resync cannot backfill them. Full runbook: `docs/deploy.md` + O1.
+retries (~4 h) are gone; resync cannot backfill them. Deploy reference: `queek app deploy --help`.
 
 ## Data deletion
 
@@ -460,7 +468,7 @@ signed `app/scopes_update` handoff, which the install/settings handlers apply
 like a resync (same verifier, same replay claim): cached grant refreshed,
 cached token dropped only when the grant moved.
 
-## Embedded merchant page (S4 stage 2)
+## Embedded merchant page
 
 The dashboard frames your app's granted merchant page in a
 `sandbox="allow-scripts allow-forms"` iframe and delivers the session token
@@ -468,7 +476,7 @@ by postMessage. Serve the page with a `frame-ancestors` policy naming ONLY
 your dashboard origin, for example:
 
 ```http
-Content-Security-Policy: frame-ancestors https://merchant.queek.com
+Content-Security-Policy: frame-ancestors https://dashboard.usequeek.com
 ```
 
 Replace the host with the dashboard origin you registered. `frame-ancestors`
@@ -488,7 +496,10 @@ Postgres locally: any Postgres works — point `DATABASE_URL` at it and the pg s
 
 ## Registration
 
-App registration is by the Queek team today: you ship Queek your manifest URL and receive the app secret + store key. There is no public self-serve registration yet.
+Register the app on the Queek Developer page, then ship with the CLI: `queek app dev` for the
+local loop (tunnel + dev-store install, credentials to `.queek/.env.local`) and
+`queek app deploy` to publish `queek.app.toml` as a new version. In CI, authenticate with a
+per-app App Automation Token from the Developer page (`QUEEK_APP_AUTOMATION_TOKEN`).
 
 ## License
 

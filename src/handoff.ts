@@ -10,7 +10,7 @@
  * `type` is `app/installed` | `app/uninstalled` | `app/settings_updated`
  * | `app/resync` | `app/scopes_update`. The handoff POST carries the Standard Webhooks headers
  * (`webhook-id`, `webhook-timestamp`, `webhook-signature`) signed with the
- * APP's signing secret (`whsec_…`, minted once at `app:register`), NOT the
+ * APP's signing secret (`whsec_…`, minted when the app is registered on the Queek Developer page), NOT the
  * per-installation webhook secret. The per-installation `webhook_secret`
  * arrives INSIDE the install payload (`data.webhook_secret`) — once — so
  * the app can verify the topic events it is about to receive.
@@ -47,8 +47,7 @@ export interface InstallData {
   /** The Merchant API base for this store (e.g. https://api.usequeek.com/api/v1/merchant). */
   api_base: string;
   /**
-   * No store-callable credential crosses the handoff any more (S1, SDK
-   * 0.2.0): the app mints short-lived installation tokens with its
+   * No store-callable credential crosses the handoff any more: the app mints short-lived installation tokens with its
    * asymmetric app key (`acquireToken()`) and caches them encrypted in its
    * own database. The same envelope redelivers `webhook_secret` + the
    * non-secret settings snapshot on resync.

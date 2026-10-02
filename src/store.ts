@@ -8,7 +8,7 @@ import { decryptSecret, encryptSecret, parseStoreKey } from "./crypto.js";
  * Business data lives in Queek (product metafields,
  * orders.integrator_metadata) — never here.
  *
- * S1 (SDK 0.2.0): no store-callable credential crosses the install handoff
+ * No store-callable credential crosses the install handoff
  * any more, so there is no `api_key` column. The app mints short-lived
  * installation tokens with its asymmetric app key and caches ONE token per
  * installation here (`token_enc` + `token_expires_at` + `token_kid`);
@@ -242,7 +242,7 @@ export class SqliteInstallationStore implements InstallationStore {
       // its ciphertext is dropped, never decrypted or re-encrypted.
       this.db.exec(`ALTER TABLE installations DROP COLUMN api_key_enc;`);
     }
-    // Schema v2 (B2 review r2): the persisted 409-pending mark. Existing
+    // Schema v2: the persisted 409-pending mark. Existing
     // rows backfill to 0 (not pending); fresh tables already carry the
     // column via the CREATE above, so this is a no-op for them.
     const live = new Set(

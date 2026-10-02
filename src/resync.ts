@@ -10,7 +10,7 @@ import type { InstallationStore } from "./store.js";
 import { type AppTokenProvider, resolveAppApiBase } from "./tokens.js";
 
 /**
- * Connectivity recovery (S1, SDK 0.2.0): after a database loss (or an
+ * Connectivity recovery: after a database loss (or an
  * outage that outlasted the webhook retries), re-list the app's
  * installations from Queek and re-handshake each one's secrets.
  *
@@ -21,7 +21,7 @@ import { type AppTokenProvider, resolveAppApiBase } from "./tokens.js";
  *   settings arrive over the EXISTING signed install channel (same handoff
  *   envelope as install), handled by the install handler — which accepts a
  *   resync for an existing installation idempotently.
- * - Per-installation refusals (rev 8, distinguished by code): 409
+ * - Per-installation refusals (distinguished by code): 409
  *   `app_installation_pending` retries later with backoff (bounded, then
  *   skipped + recorded — NEVER purged); 429 `resync_cooldown` is the
  *   rotation COOLDOWN (≤1/hour: skipped + recorded, no retry loop); any
@@ -138,7 +138,7 @@ export async function resyncFromQueek(options: ResyncOptions): Promise<ResyncRes
 
   // -- List (opaque keyset cursor, secret-free) ------------------------------
   // The cursor is never interpreted — echoed back verbatim until
-  // `next_cursor` is null (rev 8: keyset on a stable unique key, scoped to
+  // `next_cursor` is null (keyset on a stable unique key, scoped to
   // the calling app; inserts/uninstalls mid-walk never skip or duplicate).
   const listed: ResyncListItem[] = [];
   let cursor: string | null = null;
@@ -210,7 +210,7 @@ export async function resyncFromQueek(options: ResyncOptions): Promise<ResyncRes
         break;
       }
       if (response.status === 429) {
-        // Per-app bucket (rev 8): back off on `Retry-After` (jittered) and
+        // Per-app bucket: back off on `Retry-After` (jittered) and
         // retry — never recorded as a cooldown skip. An exhausted budget
         // aborts the run: the whole app is throttled, so pushing on would
         // only deepen it; the caller retries later.
@@ -219,7 +219,7 @@ export async function resyncFromQueek(options: ResyncOptions): Promise<ResyncRes
         continue;
       }
       if (response.status === 409 && isInstallationPending(error.code)) {
-        // Pending installation (rev 8, mark persisted per B2 review r2):
+        // Pending installation:
         // retry later with backoff — NEVER purge. An exhausted budget
         // skips (recorded); the persisted mark survives restarts, so the
         // purge-absent step below (and after a restart) keeps the row.
@@ -260,7 +260,7 @@ export async function resyncFromQueek(options: ResyncOptions): Promise<ResyncRes
   }
   // …and purge local rows Queek no longer lists (uninstall-while-down) —
   // EXCEPT rows carrying the persisted pending mark. The list covers
-  // ACTIVE installations only (rev 8), so absence alone never purges a
+  // ACTIVE installations only, so absence alone never purges a
   // pending row — including after a process restart, because the mark
   // lives in the store column, not in memory. The row stays for a later
   // run, when it is active (listed + resynced), gone (404 → purged), or

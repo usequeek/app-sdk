@@ -15,10 +15,11 @@
  * packed), and hostnames fail only when internal (localhost, IPs,
  * .test/.local, tunnels) or a non-public usequeek host: api.usequeek.com,
  * docs.usequeek.com (backend-generated descriptions link it),
- * apps.usequeek.com + *.apps.usequeek.com, and media.usequeek.com (public
+ * apps.usequeek.com + *.apps.usequeek.com, media.usequeek.com (public
  * media CDN examples inside the generated merchant schema, shipped in
- * `dist/` comments) may appear; public links
- * (github.com, npmjs.com) are fine.
+ * `dist/` comments), and dashboard.usequeek.com (the production merchant
+ * dashboard; the README's frame-ancestors example names it) may appear;
+ * public links (github.com, npmjs.com) are fine.
  */
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
@@ -59,6 +60,7 @@ function badHost(host) {
   if (/(ngrok|herd|tunnel)/.test(host)) return "tunnel/dev";
   if (host.endsWith(".usequeek.com")) {
     if (host === "api.usequeek.com" || host === "docs.usequeek.com") return null;
+    if (host === "dashboard.usequeek.com") return null;
     if (host === "apps.usequeek.com" || host.endsWith(".apps.usequeek.com")) return null;
     if (host === "media.usequeek.com") return null;
     return "non-public usequeek host";

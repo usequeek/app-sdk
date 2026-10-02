@@ -35,7 +35,7 @@ import { createLogger, type Logger } from "./logger.js";
 import { defaultClearCachedTokenIfMatches, type InstallationStore } from "./store.js";
 
 /**
- * Installation tokens (S1, SDK 0.2.0): the app holds ONE asymmetric app
+ * Installation tokens: the app holds ONE asymmetric app
  * credential and mints short-lived installation tokens from Queek on
  * demand, cached (encrypted) in its own database to near-expiry.
  *
@@ -45,7 +45,7 @@ import { defaultClearCachedTokenIfMatches, type InstallationStore } from "./stor
  *   installation client goes through it.
  * - A merchant-API token refusal → drop it, re-mint once, retry once; a
  *   second refusal propagates. Token refusal = any 401, or a 403 with
- *   `api_key_revoked` / `api_key_expired` / `invalid_client_key` (rev 7).
+ *   `api_key_revoked` / `api_key_expired` / `invalid_client_key`.
  *   A merchant 403 `insufficient_scope` (stale grant) follows the same
  *   drop + re-mint-once + retry-once path. A merchant 403
  *   `app_token_revoked` is the app-wide kill switch (drop all + halt, no
@@ -230,7 +230,7 @@ export class AppTokenProvider implements AppTokens {
 
   /**
    * Persist the 409 `app_installation_pending` mark for this installation
-   * (store column — survives restarts, B2 review r2). Resync's purge-absent
+   * (store column — survives restarts). Resync's purge-absent
    * step keeps marked rows (the list covers active installations only).
    * Called by the mint path and by `resyncFromQueek`; idempotent, and a
    * no-op when the row is already gone.
@@ -338,8 +338,7 @@ export class AppTokenProvider implements AppTokens {
           await this.handleAppEndpointError(error, { id: installationId, pid: installationPid });
         }
         if (error.status === 409 && isInstallationPending(error.code)) {
-          // Pending installation (rev 8, mark persisted per B2 review
-          // r2): retry later with backoff — NEVER purge, NEVER halt. The
+          // Pending installation: retry later with backoff — NEVER purge, NEVER halt. The
           // persisted mark keeps the row through restarts and resync's
           // purge-absent step (the list covers active rows only). After
           // the bounded budget the 409 propagates to the caller, which
@@ -520,7 +519,7 @@ export function createInstallationClient<TPaths = MerchantPaths>(
         const fresh = await options.tokens.acquireToken(options.installationId);
         return (await clientForToken(fresh)).request<T>(method, path, attemptOptions);
       }
-      // Token refusals ONLY (rev 7): any 401, or a 403 carrying a
+      // Token refusals ONLY: any 401, or a 403 carrying a
       // revoked/expired-key code. Every other 403 (plan, mode) propagates
       // to the caller without burning a mint.
       if (!isTokenRefusal(error.status, error.code)) throw error;
