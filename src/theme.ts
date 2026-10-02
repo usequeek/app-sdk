@@ -1,5 +1,5 @@
 /**
- * Dashboard-following theme (U7): dark when the dashboard is dark, light
+ * Dashboard-following theme: dark when the dashboard is dark, light
  * when light, switching live. First load carries `theme=light|dark` as a
  * plain UNSIGNED URL query param (dashboard `resolvedTheme`) so the app
  * server-renders `<html class="dark">` with no flash; live changes arrive

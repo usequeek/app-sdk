@@ -190,25 +190,31 @@ which resolves the installation's token via `acquireToken()` and sends it as `X-
 
 ## Credential lifecycle (GitHub-style installation tokens)
 
-One asymmetric credential per app — no per-installation secrets cross the handoff any more.
+One asymmetric credential per app — no per-installation secrets cross the handoff.
 
-1. **Generate a keypair** (once, offline) and keep the private key in your secrets manager
-   beside `APP_ENCRYPTION_KEY` (key + DB loss = working data lost — see below):
+1. **Keypair — two paths.** (a) Offline: generate locally, then upload the PUBLIC key on
+   the Developer page (Keys) — Queek never receives the private key:
 
    ```sh
    openssl genrsa -out app-private.pem 2048
    openssl rsa -in app-private.pem -pubout -out app-public.pem
    ```
 
-2. **Register the app** on the Queek Developer page (upload the public key; Queek stores it
-   under a `kid`). Faster path: run `queek app dev` in the scaffolded app — it registers the
-   development build and writes the credentials to `.queek/.env.local` (gitignored) on first
-   run; `queek app deploy` does the same for release versions (secret shown once).
+   (b) Faster: `queek app dev` server-generates the pair and stores the kid + private key
+   (base64, one line) in `.queek/.env.local` (gitignored, 0600) — the private key is
+   returned once and never shown again; if lost, generate a new key. Either way, keep the
+   private key in your secrets manager beside `APP_ENCRYPTION_KEY` (key + DB loss = working
+   data lost — see below).
 
-   Queek issues the app secret (`QUEEK_APP_SECRET`, verifies the handoff) and the key id
-   (`APP_KEY_ID`, rides the JWT `kid` header). Configure the app with `APP_SLUG` (= `iss`),
-   `APP_KEY_ID`, and `APP_PRIVATE_KEY` (base64 of the private key PEM, one line — the
-   Developer page shows it; raw PEM also accepted — never logged, never shipped to clients).
+2. **Register the app** on the Queek Developer page, then configure five values — each from
+   exactly one place: `APP_SLUG` is the slug in `queek.app.toml` (= JWT `iss`); `APP_KEY_ID`
+   is the kid from Keys (returned by generate/upload, or written by `queek app dev`);
+   `APP_PRIVATE_KEY` is the matching private key (your offline file, or the once-shown
+   server-generated one; raw PEM also accepted — never logged, never shipped to clients);
+   `QUEEK_APP_SECRET` verifies the handoff (shown once on first registration — `queek app
+   deploy` appends it to `.queek/.env.local`; `queek app dev` fetches it there; or Reveal
+   it on the dashboard) and is never rotated by dev; `APP_ENCRYPTION_KEY` is 32 local
+   random bytes, base64 or hex (`queek app dev` mints one into `.queek/.env.local`).
 
 3. **Acquire / cache / re-mint.** `acquireToken(installationId)` serves the cached token while
    its expiry is more than 5 minutes away; otherwise it signs an RS256 app JWT
@@ -461,8 +467,8 @@ list you pass (the app surface exposes the grant but no declared list, so the
 split needs your manifest knowledge). `requestScopes` returns
 `/apps?app={slug}&view=scopes&scopes={a},{b}` (absolute under
 `dashboardOrigin` when configured) — open it via `sendOpen` or a redirect: it
-opens the merchant's consent screen in the dashboard (shipped with dashboard
-item 8). The link carries the slug + the scope list only; the dashboard
+opens the merchant's consent screen in the dashboard (requires a dashboard that
+supports the consent screen). The link carries the slug + the scope list only; the dashboard
 resolves the installation from the signed-in store. The grant reaches you as a
 signed `app/scopes_update` handoff, which the install/settings handlers apply
 like a resync (same verifier, same replay claim): cached grant refreshed,

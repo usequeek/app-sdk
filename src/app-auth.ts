@@ -191,7 +191,8 @@ export interface AppCredentialOptions {
 /**
  * Accepted `APP_PRIVATE_KEY` forms (env files are one line per variable):
  * raw PEM text, one-line PEM with literal `\n` escapes, or base64 of the
- * full PEM text (one line, no wrapping — what the Developer page shows).
+ * full PEM text (one line, no wrapping — the form `queek app dev` writes to
+ * `.queek/.env.local`; a server-generated key is shown once, never again).
  */
 export const APP_PRIVATE_KEY_FORMS =
   "raw PEM text, one-line PEM with literal \\n escapes, or base64 of the PEM text";
@@ -239,7 +240,7 @@ export function loadAppCredential(options: AppCredentialOptions = {}): AppCreden
   const privateKeyInput = (options.privateKeyPem ?? env.APP_PRIVATE_KEY ?? "").trim();
   if (privateKeyInput === "") {
     throw new InvalidAppCredentialError(
-      `Missing APP_PRIVATE_KEY: set it to the app's RSA private key from the Queek Developer page (\`queek app dev\` writes it to .queek/.env.local on first run). Accepted forms: ${APP_PRIVATE_KEY_FORMS}.`,
+      `Missing APP_PRIVATE_KEY: set it to the app's RSA private key — your offline-generated file, or the server-generated key (shown once on the Developer page; \`queek app dev\` stores it in .queek/.env.local). If lost, generate a new key. Accepted forms: ${APP_PRIVATE_KEY_FORMS}.`,
     );
   }
   const privateKeyPem = decodePrivateKeyInput(privateKeyInput);

@@ -29,7 +29,7 @@ import { fileURLToPath } from "node:url";
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 
 // `openapi/merchant.json` stays IN-REPO as `gen:merchant`'s reference input
-// (S2) and is deliberately NOT packed: the published types are the
+// and is deliberately NOT packed: the published types are the
 // compiled `dist/` output of `src/merchant-schema.ts`.
 const ALLOWED_FILES = new Set(["package.json", "README.md", "LICENSE"]);
 function allowedFile(path) {

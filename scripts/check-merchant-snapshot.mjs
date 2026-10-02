@@ -8,7 +8,7 @@
  * green offline: only a real contract diff fails the check.
  *
  * Intended ahead-of-production drift is DECLARED, not hidden: when the
- * snapshot carries an undeployed backend slice (S3a at c1fa1c31),
+ * snapshot carries an undeployed backend slice,
  * openapi/merchant.drift.json lists exactly the paths/schemas ahead of
  * live, and only diff lines OUTSIDE that list fail. A drift entry that no
  * longer appears warns (the slice deployed — delete the file).

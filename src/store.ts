@@ -213,7 +213,7 @@ const INSTALLATIONS_TABLE_SQLITE = `
  * Revisit when the apps run on a Node line where it is fully stable — the
  * swap is contained here, behind `InstallationStore`.
  *
- * 0.1.x → 0.2.0 upgrade: databases created by SDK 0.1.x carry a legacy
+ * Legacy upgrade: databases created by SDK 0.1.x carry a legacy
  * `api_key_enc` column (the handoff no longer delivers that key, so its
  * value is dead — minted tokens replace it; resync restores connectivity).
  * Opening such a database adds the token-cache columns and drops
@@ -253,14 +253,14 @@ export class SqliteInstallationStore implements InstallationStore {
     if (!live.has("pending")) {
       this.db.exec(`ALTER TABLE installations ADD COLUMN pending INTEGER NOT NULL DEFAULT 0;`);
     }
-    // Schema v3 (FA1): the installation proxy secret for slot-claim
+    // Schema v3: the installation proxy secret for slot-claim
     // signing. Existing rows backfill to NULL (no proxy secret known
     // until the next install/resync handoff); fresh tables already carry
     // the column via the CREATE above, so this is a no-op for them.
     if (!live.has("proxy_secret_enc")) {
       this.db.exec(`ALTER TABLE installations ADD COLUMN proxy_secret_enc TEXT;`);
     }
-    // Schema v4 (S4): the embed secret + app id that verify dashboard
+    // Schema v4: the embed secret + app id that verify dashboard
     // session tokens. Existing rows backfill to NULL until the next
     // install/resync handoff delivers them.
     if (!live.has("embed_secret_enc")) {
@@ -651,17 +651,17 @@ export class PostgresInstallationStore implements InstallationStore {
             webhook_id TEXT PRIMARY KEY,
             seen_at BIGINT NOT NULL
           );
-          -- Schema v2 (B2 review r2): the persisted 409-pending mark.
+          -- Schema v2: the persisted 409-pending mark.
           -- Fresh tables already carry the column; this migrates v1
           -- databases in place (existing rows backfill to FALSE).
           ALTER TABLE installations
           ADD COLUMN IF NOT EXISTS pending BOOLEAN NOT NULL DEFAULT FALSE;
-          -- Schema v3 (FA1): the installation proxy secret for slot-claim
+          -- Schema v3: the installation proxy secret for slot-claim
           -- signing. Existing rows backfill to NULL (unknown until the
           -- next install/resync handoff).
           ALTER TABLE installations
           ADD COLUMN IF NOT EXISTS proxy_secret_enc TEXT;
-          -- Schema v4 (S4): the embed secret + app id that verify
+          -- Schema v4: the embed secret + app id that verify
           -- dashboard session tokens (NULL until the next handoff).
           ALTER TABLE installations
           ADD COLUMN IF NOT EXISTS embed_secret_enc TEXT;

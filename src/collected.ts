@@ -2,7 +2,7 @@ import type { QueekClient } from "./client.js";
 import type { components } from "./merchant-schema.js";
 
 /**
- * Installation-bound app writes (S3a): the setup notice, merchant alerts,
+ * Installation-bound app writes: the setup notice, merchant alerts,
  * collected definitions and record submits. Every helper takes a
  * `QueekClient` built from the installation's own key — the backend
  * resolves the installation from that key, never from the body — and

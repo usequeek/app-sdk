@@ -6,7 +6,7 @@ import type { InstallationStore } from "./store.js";
 import { resolveAppApiBase } from "./tokens.js";
 
 /**
- * Optional scopes (plan item 6, Shopify `scopes.query / request / revoke`
+ * Optional scopes (Shopify `scopes.query / request / revoke`
  * parity — symbol names cited only).
  *
  * - `queryScopes`: the cached effective grant split against the app's own
@@ -19,8 +19,8 @@ import { resolveAppApiBase } from "./tokens.js";
  *   consent — it hands the app a link shaped like the bridge
  *   `open`/`navigate` targets (dashboard-relative path, or an absolute URL
  *   under a given dashboard origin) for the app to open via `sendOpen` or
- *   redirect to. The consent screen itself ships with the dashboard (plan
- *   item 8), which honours this link shape.
+ *   redirect to. Opening it requires a dashboard that supports the consent
+ *   screen, which honours this link shape.
  * - `revokeScopes`: `POST
  *   /api/v1/apps/installations/{installation}/scopes/revoke` with the app
  *   JWT (same credential as mint/resync — never auth:sanctum, never the
@@ -300,7 +300,7 @@ export function createInstallationScopesClient(
    * The dashboard deep link that opens the merchant's consent screen in
    * the dashboard. Pure (no store, no network): the app opens it via
    * `sendOpen` or a redirect and the merchant consents in the dashboard
-   * (shipped with dashboard item 8). Shaped like the bridge `open`
+   * (requires a dashboard that supports the consent screen). Shaped like the bridge `open`
    * targets — dashboard-relative, or absolute under the dashboard origin
    * when one is configured.
    */
