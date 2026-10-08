@@ -11,6 +11,8 @@
       "!**/dist",
       "!**/openapi",
       "!**/merchant-schema.ts",
+      "!**/check-public-text.mjs",
+      "!**/check-public-text.test.mjs",
       "!**/pnpm-lock.yaml",
       "!**/package-lock.json"
     ]

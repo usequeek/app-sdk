@@ -46,7 +46,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "typecheck:tests": "tsc --noEmit -p tsconfig.tests.json",
     "lint": "biome check .",
-    "test": "vitest run",
+    "test": "node scripts/check-public-text.mjs && node --test scripts/check-public-text.test.mjs && vitest run",
     "verify-package": "node scripts/verify-package.mjs",
     "gen:merchant": "node scripts/gen-merchant-types.mjs",
     "check:merchant-snapshot": "node scripts/check-merchant-snapshot.mjs",

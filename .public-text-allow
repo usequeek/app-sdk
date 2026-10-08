@@ -1,0 +1,3 @@
+# Intentional exceptions to scripts/check-public-text.mjs.
+# Format: path | rule-id | reason
+tests/app-auth.test.ts | private-key | Asserts the logger redacts PEM private-key blocks; the string is the marker the test searches for, not a key.
