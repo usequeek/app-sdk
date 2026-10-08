@@ -1,21 +1,20 @@
 import { createPrivateKey, createSign } from "node:crypto";
 
 /**
- * The app credential: ONE asymmetric RS256 key per app.
- * Queek holds the PUBLIC keys (kid-capped); the app
- * holds the PRIVATE key in `APP_PRIVATE_KEY` and signs short-lived app
- * JWTs that mint per-installation tokens (`acquireToken()`).
+ * The app credential: ONE asymmetric RS256 key per app. Queek holds the
+ * PUBLIC keys (kid-capped); the app holds the PRIVATE key in
+ * `APP_PRIVATE_KEY` and signs short-lived app JWTs that mint
+ * per-installation tokens (`acquireToken()`).
  *
- * Wire contract: every call under `/api/v1/apps`
- * carries `Authorization: Bearer <app JWT>` (RS256, header `kid`, claims
- * `iss` = app slug, `iat`, `exp`, `exp − iat` ≤ 600 s). `node:crypto` only
- * — no new dependency. The JWT and the private key are NEVER logged (the
+ * Every call under `/api/v1/apps` carries `Authorization: Bearer <app JWT>`
+ * (RS256, header `kid`, claims `iss` = app slug, `iat`, `exp`,
+ * `exp − iat` ≤ 600 s). `node:crypto` only — no new dependency. The JWT and the private key are NEVER logged (the
  * logger redacts `Bearer …` values; signers below never emit them).
  */
 
 // ---------------------------------------------------------------------------
-// Wire-contract error codes. Each code the SDK reacts to lives in EXACTLY
-// one constant here, so a backend rename is a one-line change.
+// Error codes on the wire. Each code the SDK reacts to lives in EXACTLY
+// one constant here, so a rename on Queek's side is a one-line change.
 // ---------------------------------------------------------------------------
 
 /** 401 on an app-credential call: bad/expired JWT or unknown kid. Fatal for the app. */
@@ -80,8 +79,8 @@ export function isResyncCooldown(code: string | undefined): boolean {
 /**
  * Merchant-API token-refusal codes: a token in one of these states
  * is dead — drop it, re-mint once, retry once. `api_key_revoked` covers the
- * uninstalled store, the removed kid, and the replaced K-slot; the re-mint
- * then answers 404 `app_installation_gone` (purge) or 401 `invalid_client`
+ * uninstalled store, the removed kid, and a token replaced by a newer one;
+ * the re-mint then answers 404 `app_installation_gone` (purge) or 401 `invalid_client`
  * (halt) where applicable. Every OTHER merchant 403 (plan, mode)
  * propagates to the caller without a mint.
  */

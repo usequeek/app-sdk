@@ -1,14 +1,14 @@
 /**
- * Framed-page bridge client, v1 (U2): the browser-safe half of the
- * dashboard bridge. Carries NO secret and performs NO verification — it only
- * shapes and addresses messages. The dashboard (queek-merchant) enforces
- * origin+source binding and mints tokens; the app backend verifies them via
- * `./server` (`verifySessionToken`).
+ * Framed-page bridge client, v1: the browser-safe half of the dashboard
+ * bridge. Carries NO secret and performs NO verification — it only shapes
+ * and addresses messages. The dashboard enforces origin+source binding and
+ * mints tokens; the app's server verifies them via `./server`
+ * (`verifySessionToken`).
  *
- * Byte-compatible with today's protocol (`ready`/`token`/`resize`/
- * `resize-ack`/`ack`, sources `queek-app`/`queek-merchant`, exact-origin
- * postMessage): v1 only ADDS optional fields and new message types, and both
- * directions ignore unknown types.
+ * Compatible with the v0 protocol (`ready`/`token`/`resize`/`resize-ack`/
+ * `ack`, sources `queek-app`/`queek-merchant`, exact-origin postMessage):
+ * v1 only ADDS optional fields and new message types, and both directions
+ * ignore unknown types.
  *
  * DOM-free by design (structural minimal types): the app passes its own
  * window/parent in, so this module needs no DOM lib and stays import-safe
@@ -612,7 +612,7 @@ export function sendResize(
   sendBridgeMessage(dashboardOrigin, target, { source: APP_SOURCE, type: "resize", height });
 }
 
-/** Delivery confirmation with no state — accepted and ignored by decision. */
+/** Delivery confirmation carrying no state (accepted, no further effect). */
 export function sendAck(dashboardOrigin: string, target?: EmbedPostTarget): void {
   sendBridgeMessage(dashboardOrigin, target, { source: APP_SOURCE, type: "ack" });
 }
@@ -664,7 +664,7 @@ export function sendSaveBar(
   sendBridgeMessage(dashboardOrigin, target, { source: APP_SOURCE, type: "save-bar", state });
 }
 
-/** Report an in-app move so the dashboard can mirror it in its URL (U2b). */
+/** Report an in-app move so the dashboard can mirror it in its URL. */
 export function sendNavigated(
   dashboardOrigin: string,
   target: EmbedPostTarget | undefined,

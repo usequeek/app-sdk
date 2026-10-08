@@ -1,6 +1,6 @@
 /**
- * Plain-browser entry for `@usequeek/app-sdk` (Booking fix): the embedded-app
- * bridge plus `installAuthFetch`, with ZERO Node-only modules.
+ * Plain-browser entry for `@usequeek/app-sdk`: the embedded-app bridge plus
+ * `installAuthFetch`, with ZERO Node-only modules.
  *
  * Import from `@usequeek/app-sdk/browser` in any browser bundle (Vite,
  * Rollup, esbuild, …). Importing the same helpers from the MAIN entry pulls

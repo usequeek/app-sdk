@@ -6,8 +6,7 @@ import type { InstallationStore } from "./store.js";
 import { resolveAppApiBase } from "./tokens.js";
 
 /**
- * Optional scopes (Shopify `scopes.query / request / revoke`
- * parity — symbol names cited only).
+ * Optional scopes: query, request and revoke.
  *
  * - `queryScopes`: the cached effective grant split against the app's own
  *   declared-optional list. Store-read only, never a fetch: the app-credential
@@ -23,21 +22,20 @@ import { resolveAppApiBase } from "./tokens.js";
  *   screen, which honours this link shape.
  * - `revokeScopes`: `POST
  *   /api/v1/apps/installations/{installation}/scopes/revoke` with the app
- *   JWT (same credential as mint/resync — never auth:sanctum, never the
- *   installation token). Body `{scopes[]}` (1–50, backend
- *   `RevokeAppScopesRequest`); an `Idempotency-Key` rides the write for
+ *   JWT (same credential as mint/resync — not the installation token).
+ *   Body `{scopes[]}` (1–50); an `Idempotency-Key` rides the write for
  *   discipline (generated when the caller does not supply one — the client
  *   write discipline), though the route is naturally idempotent: revoking
  *   a never-granted optional scope is 200 with no change. Required scopes
  *   refuse 422 `app_scope_required` (surfaced as `AppScopeRequiredError`).
  *   On 200 the cached grant is refreshed from the response and the cached
  *   token dropped only when the grant moved (same compare-and-clear as the
- *   scopes_update handler — the backend rewrites live token rows in place,
- *   so the drop is backstop, not mechanism).
+ *   scopes_update handler — Queek rewrites live token rows in place, so
+ *   the drop is a backstop, not the mechanism).
  *
  * Types here are hand-written: the revoke endpoint and the scopes_update
- * handoff live on the app-credential surface, which the frozen
- * `openapi/merchant.json` does not cover (types are generated app-side by
+ * handoff live on the app-credential surface, which the bundled
+ * `openapi/merchant.json` snapshot does not cover (types are generated app-side by
  * `queek app codegen`; the merchant spec file is never hand-edited).
  */
 
@@ -54,8 +52,8 @@ export function isAppScopeRequired(status: number, code: string | undefined): bo
 
 /**
  * A required-scope refusal, typed so callers switch on the class (or
- * `code`), never on `message`. Carries the offending scopes when the
- * backend named them.
+ * `code`), never on `message`. Carries the offending scopes when Queek
+ * named them.
  */
 export class AppScopeRequiredError extends QueekApiError {
   readonly scopes: string[];
@@ -89,14 +87,14 @@ export class InvalidScopesError extends Error {
   }
 }
 
-/** Backend `RevokeAppScopesRequest` bounds, mirrored client-side. */
+/** Bounds of the revoke request (1–50 scopes), mirrored client-side. */
 export const MAX_SCOPE_LIST = 50;
 export const MAX_SCOPE_LENGTH = 120;
 
 /**
  * Validate + normalise a scope list (trim, drop empties, dedupe keeping
- * first order). Mirrors the backend contract (`required array min:1
- * max:50`, string items) so a malformed call fails before any fetch.
+ * first order). Mirrors the revoke endpoint's rules (a required array of
+ * 1–50 string items) so a malformed call fails before any fetch.
  */
 export function normaliseScopeList(scopes: unknown): string[] {
   if (!Array.isArray(scopes)) {
@@ -171,8 +169,7 @@ export interface ScopeRequestLinkOptions {
  * under `dashboardOrigin` (refused exactly like `sendOpen` refuses a bad
  * target).
  *
- * Link shape (the SDK↔dashboard contract the consent screen honours —
- * the only query route the dashboard `AppsPage` serves):
+ * Link shape (the contract the dashboard's consent screen honours):
  * `/apps?app={slug}&view=scopes&scopes={a},{b}` (each scope
  * URL-encoded, comma-separated). The link carries the slug + the scope
  * list only: the dashboard resolves the installation from the signed-in
@@ -228,14 +225,14 @@ export interface InstallationScopesClientOptions {
   store: InstallationStore;
   /**
    * A fresh app JWT per call — e.g. `() => provider.signJwt()`. The revoke
-   * endpoint takes the same app credential as mint/resync (never
-   * auth:sanctum, never the installation token).
+   * endpoint takes the same app credential as mint/resync (not the
+   * installation token).
    */
   signJwt: () => string;
   fetchImpl?: typeof fetch;
   /** Sent as User-Agent. Defaults to `queek-app/1.0`. */
   userAgent?: string;
-  /** Extra allowed `apiBase` hosts (test/local backends). */
+  /** Extra allowed `apiBase` hosts (test/local API hosts). */
   allowedApiHosts?: string[];
   /** The app's dashboard slug (addresses the scope-request consent screen); per-call override wins. */
   appSlug?: string;
@@ -250,11 +247,10 @@ export interface InstallationScopesClientOptions {
 }
 
 /**
- * The per-installation scopes session (Shopify `scopes.query / request /
- * revoke` parity — symbol names cited only). A sibling of the installation
- * client, not a method on it: the installation client's exact type is a
- * committed contract (the generics compat guard), so the scopes surface
- * lives here, wired to the same store + token provider.
+ * The per-installation scopes session. A sibling of the installation
+ * client, not a method on it: the installation client's exact type is part
+ * of the public API (and is guarded by a generics type test), so the
+ * scopes surface lives here, wired to the same store + token provider.
  *
  * - `queryScopes` reads the cached grant (no network).
  * - `requestScopes` builds the dashboard deep link the merchant approves
@@ -317,14 +313,13 @@ export function createInstallationScopesClient(
   }
 
   /**
-   * App-initiated revoke of optional scopes (backend
-   * `AppInstallationController::revokeScopes`): the app JWT signs the call
+   * App-initiated revoke of optional scopes: the app JWT signs the call
    * (same credential as mint/resync), an `Idempotency-Key` rides the write
    * for discipline only (the route is naturally idempotent), and on 200
    * the cached grant is refreshed from the response with the cached token
    * dropped only when the grant moved (same compare-and-clear as the
-   * scopes_update handler — backstop, since the backend rewrites live
-   * token rows in place). A required scope refuses 422
+   * scopes_update handler — a backstop, since Queek rewrites live token
+   * rows in place). A required scope refuses 422
    * `app_scope_required` as `AppScopeRequiredError`; a gone installation
    * purges the local row and rethrows; anything else propagates untouched.
    * A 401 never halts here — the mint path owns that mapping and halts on

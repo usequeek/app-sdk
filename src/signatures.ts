@@ -1,8 +1,9 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 
 /**
- * Standard Webhooks verification, byte-for-byte compatible with Queek's
- * `App\Services\Webhooks\WebhookSigner` (queek_backend).
+ * Standard Webhooks verification, byte-for-byte compatible with the way
+ * Queek signs deliveries
+ * (https://github.com/standard-webhooks/standard-webhooks/blob/main/spec/standard-webhooks.md).
  *
  * Signed content: `{id}.{timestamp}.{body}` where `body` is the RAW request
  * bytes. Re-serialising JSON before verifying breaks the MAC — verify first,
@@ -10,7 +11,7 @@ import { createHmac, timingSafeEqual } from "node:crypto";
  *
  * The MAC key is the DECODED bytes of the `whsec_<base64>` secret, not the
  * printable string. A secret without the prefix (or with undecodable base64)
- * falls back to the raw string, exactly like the backend's `keyFor()`.
+ * falls back to the raw string, exactly like Queek's signer.
  *
  * Header names: `webhook-id`, `webhook-timestamp`, `webhook-signature`.
  * The signature header may carry several space-delimited `v1,<base64>`
@@ -51,8 +52,8 @@ export function secretKeyBytes(secret: string): Buffer {
   const encoded = secret.startsWith(SECRET_PREFIX) ? secret.slice(SECRET_PREFIX.length) : secret;
   try {
     const decoded = Buffer.from(encoded, "base64");
-    // Round-trip guard: the backend uses `base64_decode($encoded, true) ?: $secret`,
-    // i.e. undecodable input falls back to the raw secret string.
+    // Round-trip guard: Queek's signer falls back to the raw secret string
+    // when the input is not strictly valid base64.
     if (decoded.length > 0 && decoded.toString("base64").replace(/=+$/, "") === encoded.replace(/=+$/, "")) {
       return decoded;
     }
@@ -62,7 +63,7 @@ export function secretKeyBytes(secret: string): Buffer {
   }
 }
 
-/** One `v1,<base64>` signature for one secret — mirrors `WebhookSigner::sign()`. */
+/** One `v1,<base64>` signature for one secret, in the format Queek sends. */
 export function signQueekPayload(
   eventId: string,
   timestamp: number | string,

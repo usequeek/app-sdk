@@ -4,12 +4,11 @@ import type { paths } from "./merchant-schema.js";
 /**
  * Typed fetch client over Queek's public Merchant API.
  *
- * - Base URL comes from the install handoff (`api_base`). The backend sends
- *   the BARE store host (`AppInstallService::installPayload()` passes
- *   `rtrim(config('app.url'))` verbatim, e.g. `https://api.usequeek.com`);
- *   the client appends `/api/v1/merchant` when it is absent, so a bare host
- *   and a full merchant base both work. Never hardcoded otherwise, so test
- *   stores ride their own host.
+ * - Base URL comes from the install handoff (`api_base`). Queek sends the
+ *   BARE store host (e.g. `https://api.usequeek.com`); the client appends
+ *   `/api/v1/merchant` when it is absent, so a bare host and a full
+ *   merchant base both work. Never hardcoded otherwise, so test stores ride
+ *   their own host.
  * - `apiBase` is validated at construction — https only, no credentials,
  *   host on the allowlist — and throws BEFORE any fetch, so a
  *   signed-but-stale or attacker-influenced handoff can never point
@@ -109,7 +108,7 @@ function parseHostList(raw: string, varName: string): string[] {
 }
 
 /**
- * Extra allowed `apiBase` hosts for test/local backends, from
+ * Extra allowed `apiBase` hosts for test and local setups, from
  * `QUEEK_API_HOSTS` (comma-separated bare hostnames). Parsed strictly: any
  * entry that is not a bare hostname throws — nothing is silently skipped.
  */
@@ -120,7 +119,7 @@ export function apiHostsFromEnv(env: NodeJS.ProcessEnv = process.env): string[] 
 }
 
 /**
- * DEV-ONLY extra allowed hosts (e.g. an HTTPS tunnel to a local backend),
+ * DEV-ONLY extra allowed hosts (e.g. an HTTPS tunnel to a local Queek API),
  * from `QUEEK_DEV_API_HOSTS`. REFUSED when NODE_ENV=production: a dev
  * tunnel host must never be allowlisted in production, even by accident.
  * Throws at client construction, before any fetch.
@@ -186,7 +185,7 @@ export interface QueekClientOptions {
   fetchImpl?: typeof fetch;
   /** Sent as User-Agent. Defaults to `queek-app/1.0`. */
   userAgent?: string;
-  /** Extra allowed `apiBase` hosts (test/local backends). Production default always applies. */
+  /** Extra allowed `apiBase` hosts (test/local API hosts). Production default always applies. */
   allowedApiHosts?: string[];
 }
 

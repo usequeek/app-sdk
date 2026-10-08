@@ -1,18 +1,17 @@
 import { decodeJwt, decodeProtectedHeader, jwtVerify } from "jose";
 
 /**
- * Dashboard session tokens: short-lived HS256 JWTs the backend mints per
- * installation for the framed merchant page. The app backend verifies them
- * with the per-installation `embsec_…` secret before trusting any call
- * that carries one.
+ * Dashboard session tokens: short-lived HS256 JWTs Queek mints per
+ * installation for the framed merchant page. The app's server verifies
+ * them with the per-installation `embsec_…` secret before trusting any
+ * call that carries one.
  *
- * ONE token type, exactly Shopify's `id_token` shape: the dashboard puts
- * the same token in the first-load URL param (`queek_token`, stripped on
- * arrival) and answers bridge `ready` requests with it, so the app's
- * exchange endpoint verifies first-load and refresh tokens with this one
- * verifier. No purpose split: extra claims the mint may carry are ignored,
- * never gated — identity binding (installation, audience, issuer, expiry)
- * is the whole check.
+ * ONE token type: the dashboard puts the same token in the first-load URL
+ * param (`queek_token`, stripped on arrival) and answers bridge `ready`
+ * requests with it, so the app's exchange endpoint verifies first-load and
+ * refresh tokens with this one verifier. No purpose split: extra claims the
+ * mint may carry are ignored, never gated — identity binding
+ * (installation, audience, issuer, expiry) is the whole check.
  *
  * Server-only: the secret must never enter a browser bundle, so this module
  * ships behind the `./server` export, not the main entry. Style mirrors
@@ -25,7 +24,7 @@ export const EMBED_SECRET_PREFIX = "embsec_";
 /** The only JWS algorithm the dashboard mints (HS256 over the embsec_ secret). */
 export const SESSION_TOKEN_ALG = "HS256";
 
-/** Backend skew the verifier tolerates (matches the mint side). */
+/** Clock skew the verifier tolerates, in seconds (matches the mint side). */
 export const SESSION_CLOCK_TOLERANCE_SECONDS = 20;
 
 export type SessionTokenFailure =
@@ -64,15 +63,15 @@ export interface VerifySessionTokenOptions {
   audience: string;
   /**
    * Expected issuer: the handoff `api_base` VERBATIM
-   * (`installation.apiBase` — it equals the bare `app.url` the backend
-   * signs as `iss`). Never a prefix or a suffix of it.
+   * (`installation.apiBase` — it equals the bare `app.url` Queek signs as
+   * `iss`). Never a prefix or a suffix of it.
    */
   issuer: string;
   /**
-   * The installation row the token must belong to (the app backend's own
+   * The installation row the token must belong to (the app server's own
    * record). Every field is compared — a token minted for another
    * installation fails closed even when its signature and audience check
-   * out, mirroring the backend `verify()`.
+   * out.
    */
   expected: SessionTokenBinding;
   clockToleranceSeconds?: number;
@@ -206,8 +205,7 @@ function readSessionClaims(payload: Record<string, unknown>): SessionTokenClaims
 }
 
 function classifyJoseError(error: unknown): SessionTokenFailure {
-  // Exact jose v6 pins (verified against jose@6.2.12 — codes, names, and
-  // the `claim` field probed, not guessed): claim failures carry code
+  // Exact jose v6 error shapes (jose@6.2.12): claim failures carry code
   // ERR_JWT_CLAIM_VALIDATION_FAILED and name the claim; expiry also
   // surfaces as JWTExpired / ERR_JWT_EXPIRED; algorithm refusal is
   // JOSEAlgNotAllowed / ERR_JOSE_ALG_NOT_ALLOWED (unreachable in practice —

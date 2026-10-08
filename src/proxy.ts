@@ -4,11 +4,11 @@ import { type InstallationRecord, type InstallationStore, normalisePid } from ".
 
 /**
  * Storefront app-proxy query verification, byte-for-byte compatible with
- * Queek's `App\Services\Apps\AppProxyService` (queek_backend).
+ * the way Queek signs proxy reads.
  *
  * Queek signs a READ fetch to the app's proxy handler with the installation's
- * `proxy_secret` (`signQuery`): the app verifies server-side before answering
- * the shopper. Canonical signature (Shopify-style, per-install secret):
+ * `proxy_secret`: the app verifies server-side before answering the
+ * shopper. Canonical signature (per-installation secret):
  *
  *   sig = hex HMAC-SHA256 over
  *     path + "\n" + shop + "\n" + ts + "\n" + sorted(k=v&...) (sig excluded),
@@ -17,9 +17,9 @@ import { type InstallationRecord, type InstallationStore, normalisePid } from ".
  * byte-wise. The HMAC key is the FULL `whsec_…` string — no base64 decode
  * step (the single most common integration bug cannot happen here).
  *
- * `path` is the QUEEK-side canonical path (`/apps/<subpath>/<rest>`, what
- * the backend signs in `fetch()`), NOT the app's local route: pass it
- * explicitly per route (see `handleProxyRequest`).
+ * `path` is the QUEEK-side canonical path (`/apps/<subpath>/<rest>`, the
+ * path Queek signs), NOT the app's local route: pass it explicitly per
+ * route (see `handleProxyRequest`).
  *
  * Layering mirrors the install/webhook handlers: layer 1
  * `verifyProxyDelivery` takes plain data (path + query) and returns a plain
@@ -35,7 +35,7 @@ export const PROXY_SHOP_PARAM = "shop";
 export const PROXY_CUSTOMER_PARAM = "logged_in_customer_id";
 export const PROXY_KID_PARAM = "kid";
 
-/** Backend `apps.proxy_signature_skew_seconds` default; the floor (60s) below applies regardless. */
+/** Default allowed clock skew in seconds; the floor (60s) below applies regardless. */
 export const PROXY_MAX_SKEW_SECONDS = 300;
 
 /** Query params as any framework holds them (duplicates collapse to the first value). */
@@ -50,14 +50,14 @@ export type ProxyFailure =
   | "unknown_installation"
   | "replayed";
 
-/** PHP `rawurlencode`: everything except `[A-Za-z0-9-_.~]` is `%XX` (upper-case hex). */
+/** RFC 3986 percent-encoding (PHP's `rawurlencode`): everything except `[A-Za-z0-9-_.~]` is `%XX` (upper-case hex). */
 function proxyEncode(value: string): string {
   return encodeURIComponent(value).replace(/[!'()*]/g, (ch) => {
     return `%${ch.charCodeAt(0).toString(16).toUpperCase().padStart(2, "0")}`;
   });
 }
 
-/** PHP `strval` for scalar query values: null/undefined become `""`, everything else stringifies. */
+/** Scalar query values as strings (PHP `strval` semantics): null/undefined become `""`, everything else stringifies. */
 function proxyString(value: string | string[] | null | undefined): string | undefined {
   if (value === undefined) return undefined;
   if (value === null) return "";
@@ -75,8 +75,8 @@ function normalizeQuery(query: ProxyQuery): Record<string, string> {
 }
 
 /**
- * The canonical string the MAC covers — mirrors `AppProxyService::signature()`
- * exactly (sig excluded, keys byte-sorted, rawurlencoded pairs).
+ * The canonical string the MAC covers, exactly as Queek builds it (sig
+ * excluded, keys byte-sorted, rawurlencoded pairs).
  */
 export function buildProxyCanonicalString(path: string, params: Record<string, string>): string {
   const sorted = { ...params };
@@ -87,7 +87,7 @@ export function buildProxyCanonicalString(path: string, params: Record<string, s
 }
 
 /**
- * One hex signature for one secret — mirrors `AppProxyService::signature()`.
+ * One hex signature for one secret, computed as Queek computes it.
  * Exported so tests (and dev harnesses) can recompute a signature
  * independently of the verifier; production traffic is signed by Queek.
  */
@@ -98,7 +98,7 @@ export function signProxyQuery(path: string, params: Record<string, string>, sec
 export interface ProxyVerifyOptions {
   /** Unix seconds to judge freshness against (defaults to now). Exposed for tests. */
   nowSeconds?: number;
-  /** Allowed clock skew in seconds (defaults to PROXY_MAX_SKEW_SECONDS; floored at 60 like the backend). */
+  /** Allowed clock skew in seconds (defaults to PROXY_MAX_SKEW_SECONDS; floored at 60). */
   maxSkewSeconds?: number;
 }
 
@@ -125,11 +125,10 @@ function proxyMacMatches(path: string, params: Record<string, string>, sig: stri
 }
 
 /**
- * Pure verification over explicitly passed secrets — mirrors
- * `AppProxyService::verifyQuery()` (structure → skew → secret presence →
- * MAC over every active secret). No replay enforcement here: single-use
- * `jti` needs storage, so the store-backed `verifyProxyDelivery` claims it
- * (the framework-free translation of the backend's atomic `Cache::add`).
+ * Pure verification over explicitly passed secrets (structure → skew →
+ * secret presence → MAC over every active secret). No replay enforcement
+ * here: single-use `jti` needs storage, so the store-backed
+ * `verifyProxyDelivery` claims it atomically.
  */
 export function verifyProxyQueryDetailed(
   path: string,
@@ -170,8 +169,7 @@ export interface ProxyStoreOptions extends ProxyVerifyOptions {
   store: InstallationStore;
   /**
    * Skip the single-use `jti` claim (NOT recommended; exposed for tests and
-   * for apps that enforce replay themselves). Defaults to enforcing, like
-   * the backend.
+   * for apps that enforce replay themselves). Defaults to enforcing.
    */
   enforceReplay?: boolean;
 }
@@ -242,7 +240,7 @@ export async function verifyProxyDelivery(
 
 export interface ProxyRequestOptions extends ProxyStoreOptions {
   /**
-   * The Queek-side canonical path the backend signed
+   * The Queek-side canonical path Queek signed
    * (`/apps/<subpath>/<rest>`, e.g. `/apps/booking/availability`) — the
    * app's local route is NOT it. Pass one per route.
    */
@@ -257,9 +255,9 @@ export type ProxyResponder = (verified: {
 
 /**
  * Layer 2: the Web-standard wrapper, built ONLY on layer 1 — reads the query
- * off the request URL, calls the core, builds the `Response`. Phase 1 is
- * read-only by binding rule (the backend only ever sends GET), so only
- * `GET` is served; anything else answers 405.
+ * off the request URL, calls the core, builds the `Response`. Proxy reads
+ * are read-only (Queek only ever sends GET), so only `GET` is served;
+ * anything else answers 405.
  */
 export async function handleProxyRequest(
   request: Request,

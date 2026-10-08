@@ -9,14 +9,10 @@
  * standard onto this core; `@usequeek/app-sdk/hono` adapts Hono onto
  * layer 2.
  *
- * The raw-body rule (Stripe's model:
- * `stripe.webhooks.constructEvent(rawBody, sigHeader, secret)` —
- * https://docs.stripe.com/webhooks: "Stripe requires the raw body of the
- * request to perform signature verification… Any manipulation to the raw
- * body of the request causes the verification to fail"): `rawBody` must be
- * the exact bytes Queek signed. Never pass a parsed-then-restringified
- * body — JSON re-serialization changes bytes (spacing, key order) and the
- * signature will not verify.
+ * The raw-body rule: `rawBody` must be the exact bytes Queek signed (the
+ * Standard Webhooks signature covers `{id}.{timestamp}.{body}`). Never pass
+ * a parsed-then-restringified body — JSON re-serialization changes bytes
+ * (spacing, key order) and the signature will not verify.
  */
 
 /** Headers as any framework holds them: a `Headers` instance, or a plain object (Express-style: lowercased keys, array values allowed). */

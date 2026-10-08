@@ -54,17 +54,17 @@ import { defaultClearCachedTokenIfMatches, type InstallationStore } from "./stor
  *   mint path below applies those rules.)
  * - Concurrent callers in one process share ONE in-flight mint per
  *   installation (single-flight). Across containers two mints are harmless
- *   by design: Queek keeps coexisting tokens valid (K=2 slots) and the
+ *   by design: Queek keeps coexisting tokens valid (two token slots) and the
  *   last write wins the shared cache row; a residual race self-heals via
  *   re-mint on 401.
- * - Error handling exactly per the wire contract: 401 `invalid_client`
+ * - Error handling by status and code: 401 `invalid_client`
  *   halts minting app-wide (loud log, no retry loop); 403 kill-switch
  *   drops ALL cached tokens and halts; 404 `app_installation_gone` purges
  *   the installation; 409 `app_installation_pending` retries later with
  *   backoff — NEVER purges, NEVER halts (the persisted pending mark keeps
  *   the row through restarts and resync's purge-absent step); 429 honors
- *   `Retry-After` +
- *   jitter with bounded retries; 5xx/network bounded exponential backoff.
+ *   `Retry-After` + jitter with bounded retries; 5xx/network bounded
+ *   exponential backoff.
  */
 
 /** Path of the app-credential API below the store host. */
@@ -93,7 +93,7 @@ export interface TokenProviderOptions {
   fetchImpl?: typeof fetch;
   /** Sent as User-Agent on app-API calls. Defaults to `queek-app/1.0`. */
   userAgent?: string;
-  /** Extra allowed `apiBase` hosts (test/local backends). */
+  /** Extra allowed `apiBase` hosts (test/local API hosts). */
   allowedApiHosts?: string[];
   /** Loud halt/drop logs go here. Defaults to a `queek-app-tokens` logger (stderr on warn+). */
   logger?: Logger;
@@ -436,7 +436,7 @@ export interface InstallationClientOptions {
   fetchImpl?: typeof fetch;
   /** Sent as User-Agent. Defaults to `queek-app/1.0`. */
   userAgent?: string;
-  /** Extra allowed `apiBase` hosts (test/local backends). */
+  /** Extra allowed `apiBase` hosts (test/local API hosts). */
   allowedApiHosts?: string[];
 }
 

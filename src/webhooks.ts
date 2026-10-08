@@ -9,9 +9,8 @@ import {
 import type { InstallationRecord, InstallationStore } from "./store.js";
 
 /**
- * Framework-agnostic receiver for Queek topic deliveries
- * (`DeliverWebhookJob` in queek_backend, one signed POST per installation
- * endpoint) in three thin layers: layer 1
+ * Framework-agnostic receiver for Queek topic deliveries (one signed POST
+ * per installation endpoint) in three thin layers: layer 1
  * `handleWebhookDelivery(input, options)` takes plain data (untouched body
  * bytes + headers) and returns a plain `{ status, body }` result — zero
  * request/response types, so whatever request object each framework

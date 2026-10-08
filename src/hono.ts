@@ -40,11 +40,11 @@ export function createWebhookHandler(options: WebhookHandlerOptions): Hono {
 }
 
 /**
- * Mount the signed app-proxy reader (`GET`, phase 1 is read-only by binding
- * rule) — a thin wrapper built ONLY on the layer-2 Web-standard handler
+ * Mount the signed app-proxy reader (`GET` only, proxy reads are
+ * read-only) — a thin wrapper built ONLY on the layer-2 Web-standard handler
  * (`handleProxyRequest` in the root entry). Mount it where the proxy lives
  * (`app.route("/proxy", createProxyHandler(...))`); `options.path` stays
- * the Queek-side canonical path (`/apps/<subpath>/<rest>`) the backend
+ * the Queek-side canonical path (`/apps/<subpath>/<rest>`) Queek
  * signed, and `onVerified` owns the shopper-facing body.
  */
 export function createProxyHandler(options: ProxyRequestOptions & { onVerified: ProxyResponder }): Hono {

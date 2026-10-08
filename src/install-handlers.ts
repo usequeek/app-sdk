@@ -33,8 +33,7 @@ import { normaliseNullablePid, normalisePid } from "./store.js";
 
 /**
  * Framework-agnostic handlers for Queek's signed server-to-server handoff
- * (`AppInstallService::deliver()` in queek_backend) in three thin layers:
- * layer 1 `handleInstallDelivery(input, options)` takes plain data
+ * in three thin layers: layer 1 `handleInstallDelivery(input, options)` takes plain data
  * (untouched body bytes + headers, plus method/path for routing) and
  * returns a plain `{ status, body }` result — zero request/response types,
  * so whatever request object each framework supports works; layer 2
@@ -43,12 +42,12 @@ import { normaliseNullablePid, normalisePid } from "./store.js";
  *
  * Every handoff — install, uninstall, settings, resync — carries the
  * Standard Webhooks headers signed with the APP signing secret (`whsec_…`,
- * minted when the app is registered on the Queek Developer page). The app answers 2xx only after the
- * installation is durably stored; anything else makes Queek revoke the
- * just-minted key and mark the install failed (retry = a fresh install).
+ * minted when the app is registered on the Queek Developer page). The app
+ * answers 2xx only after the installation is durably stored; anything else
+ * makes Queek revoke the just-minted key and mark the install failed
+ * (retry = a fresh install).
  *
- * The resync handoff (`type: app/resync`, backend
- * `AppInstallService::resyncPayload()`) redelivers the install-shaped data
+ * The resync handoff (`type: app/resync`) redelivers the install-shaped data
  * — rotated `webhook_secret`, non-secret settings, and recovery copies of
  * `proxy_secret` / `embed_secret` / `app_id` — to the app's `settings_url`,
  * falling back to `install_url`. Both `install` and `settings` accept it
@@ -106,8 +105,8 @@ export function buildInstallationRecord(
 function installationRecordFromInstall(data: InstallData, nowIso: string): InstallationRecord {
   return {
     installationId: data.installation.id,
-    // The installation p_id arrives as a string on the wire (the backend
-    // casts). `normalisePid` stays as tolerance: a JSON integer would reach
+    // The installation p_id arrives as a string on the wire.
+    // `normalisePid` stays as tolerance: a JSON integer would reach
     // here as a JS number, which `node:sqlite` would store as `"1021.0"`
     // in the TEXT column — never equal to the proxy `kid` — so non-string
     // forms still normalise to integer strings.
@@ -325,14 +324,14 @@ function isScopesUpdatePayload(data: unknown): data is ScopesUpdateData {
 
 /**
  * Default grant-change apply: find the row by the handoff `p_id` (the
- * scopes_update payload carries no UUID — the backend `p_id` rule) and
+ * scopes_update payload carries no UUID) and
  * refresh its cached grant, dropping the cached token when the grant
  * moved. Unknown `p_id` answers 404 (released, like the settings path).
  */
 async function applyScopesUpdate(store: InstallationStore, data: ScopesUpdateData): Promise<DeliveryResult> {
-  // The installation p_id arrives as a string on the wire (the backend
-  // casts) — normalise before comparing anyway, exactly like the install
-  // mapping does, so a non-conforming integer form still matches.
+  // The installation p_id arrives as a string on the wire — normalise
+  // before comparing anyway, exactly like the install mapping does, so a
+  // non-conforming integer form still matches.
   const pid = normalisePid(data.installation.p_id);
   const rows = await store.listInstallations();
   const existing = rows.find((row) => row.installationPid === pid) ?? null;
@@ -392,8 +391,8 @@ async function installDelivery(
 
   const envelope = parseEnvelope(rawBody);
   if (!envelope) return { status: 400, body: { ok: false, error: "invalid_envelope" } };
-  // The grant-change handoff (`type: app/scopes_update`, backend
-  // `scopesUpdatePayload()`) is delivered to the settings URL first,
+  // The grant-change handoff (`type: app/scopes_update`) is delivered to
+  // the settings URL first,
   // falling back to the install URL — both routes accept it with the same
   // verification, claim, and callback-failure rules as every handoff.
   if (envelope.type === SCOPES_UPDATE_EVENT) {
@@ -401,8 +400,8 @@ async function installDelivery(
   }
   // The platform resync handoff redelivers the install-shaped data under
   // `type: app/resync` (same signed channel, same verification): it lands
-  // here as well as on `settings` (the backend aims at `settings_url`
-  // first, falling back to `install_url`).
+  // here as well as on `settings` (Queek aims at `settings_url` first,
+  // falling back to `install_url`).
   if (envelope.type !== INSTALL_EVENT && envelope.type !== RESYNC_EVENT) {
     return { status: 400, body: { ok: false, error: "unexpected event type" } };
   }

@@ -4,13 +4,12 @@ import type { components } from "./merchant-schema.js";
 /**
  * Installation-bound app writes: the setup notice, merchant alerts,
  * collected definitions and record submits. Every helper takes a
- * `QueekClient` built from the installation's own key — the backend
- * resolves the installation from that key, never from the body — and
- * returns the decoded `data` payload of the success envelope.
+ * `QueekClient` built from the installation's own key — Queek resolves
+ * the installation from that key, never from the body — and returns the
+ * decoded `data` payload of the success envelope.
  *
- * Contracts: config/vendor_api_keys.php (Apps group + Forms proof path)
- * at queek_backend@c1fa1c31; request shapes below are the generated
- * `components` schemas from the same backend's merchant export.
+ * Request shapes below are the generated `components` schemas of the
+ * Merchant API spec (https://api.usequeek.com/docs/merchant.json).
  */
 
 type Schemas = components["schemas"];
@@ -110,9 +109,9 @@ export interface CollectedDefinitionUpdate {
 
 /**
  * A collected definition as the Merchant API returns it: the generated
- * MetaobjectDefinitionResource (typed since bf7329af) with the create
- * endpoint's field vocabulary for `fields` (the generated `unknown[]`
- * carries no field shape).
+ * MetaobjectDefinitionResource with the create endpoint's field
+ * vocabulary for `fields` (the generated `unknown[]` carries no field
+ * shape).
  */
 export type CollectedDefinition = Omit<Schemas["MetaobjectDefinitionResource"], "fields"> & {
   fields: CollectedField[];
@@ -161,10 +160,10 @@ export const collectedDefinitions = {
 /**
  * POST records — one record under the installation's own type.
  *
- * `values` is a `{field_key: value}` object (spec-correct since
- * bf7329af: object + additionalProperties; the writer validates pairs). A
- * fresh Idempotency-Key is generated per call unless the caller passes
- * one — no two submits ever share a key.
+ * `values` is a `{field_key: value}` object (an object with
+ * additionalProperties in the spec; Queek validates the pairs). A fresh
+ * Idempotency-Key is generated per call unless the caller passes one — no
+ * two submits ever share a key.
  */
 export async function createRecord(
   client: QueekClient,

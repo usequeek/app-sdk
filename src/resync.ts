@@ -46,14 +46,14 @@ import { type AppTokenProvider, resolveAppApiBase } from "./tokens.js";
  */
 
 export interface ResyncOptions {
-  /** The app's Queek backend hosting `/api/v1/apps` (normally any installation's `api_base`). */
+  /** The Queek API host serving `/api/v1/apps` (normally any installation's `api_base`). */
   apiBase: string;
   tokens: AppTokenProvider;
   store: InstallationStore;
   fetchImpl?: typeof fetch;
   /** Sent as User-Agent. Defaults to `queek-app/1.0`. */
   userAgent?: string;
-  /** Extra allowed `apiBase` hosts (test/local backends). */
+  /** Extra allowed `apiBase` hosts (test/local API hosts). */
   allowedApiHosts?: string[];
   logger?: Logger;
   sleep?: (ms: number) => Promise<void>;

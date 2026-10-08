@@ -1,8 +1,8 @@
 import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
 
 /**
- * AES-256-GCM envelope encryption for secrets at rest (installation api_key
- * and webhook_secret). One random 96-bit IV per value; the stored string is
+ * AES-256-GCM envelope encryption for secrets at rest (installation tokens,
+ * webhook/proxy/embed secrets and settings). One random 96-bit IV per value; the stored string is
  * `v1.<base64 iv>.<base64 ciphertext+tag>`.
  *
  * The 32-byte data key comes from the environment (`APP_ENCRYPTION_KEY`, base64

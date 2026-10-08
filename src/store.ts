@@ -3,28 +3,26 @@ import { Pool } from "pg";
 import { decryptSecret, encryptSecret, parseStoreKey } from "./crypto.js";
 
 /**
- * The app database holds INSTALLATIONS ONLY (decision
- * 2026-09-23-queek-apps-separate-ts-hono-codebase-public-surface-only).
- * Business data lives in Queek (product metafields,
- * orders.integrator_metadata) — never here.
+ * The app database holds INSTALLATIONS ONLY. Business data lives in Queek
+ * (for example in product metafields) — never here.
  *
- * No store-callable credential crosses the install handoff
- * any more, so there is no `api_key` column. The app mints short-lived
+ * No store-callable credential crosses the install handoff, so there is no
+ * `api_key` column. The app mints short-lived
  * installation tokens with its asymmetric app key and caches ONE token per
  * installation here (`token_enc` + `token_expires_at` + `token_kid`);
  * `webhook_secret` AND the whole `settings` blob stay encrypted at rest
  * (AES-256-GCM via node:crypto, key from `APP_ENCRYPTION_KEY`): manifests
- * may declare `secret` settings (API keys, webhook secrets) and the backend
+ * may declare `secret` settings (API keys, webhook secrets) and Queek
  * encrypts those too, so the SDK must not be weaker. NOTHING secret is ever
  * logged: only ids and the store p_id may appear in logs.
  */
 
 export interface InstallationRecord {
-  /** Queek installation id (string form of the backend UUID). */
+  /** Queek installation id (string form of the UUID). */
   installationId: string;
   /** Queek installation p_id (short public id, safe to log). */
   installationPid: string;
-  /** Vendor id (backend UUID, string form). */
+  /** Vendor id (UUID, string form). */
   vendorId: string;
   /** Store p_id (safe to log). */
   storePid: string | null;
@@ -58,9 +56,9 @@ export interface InstallationRecord {
   webhookSecret: string | null;
   /**
    * Plaintext per-installation proxy secret — memory only, persisted as
-   * `proxy_secret_enc`, null when the app has no proxy. Signs
-   * slot-claims (booking app); never logged (the logger redacts
-   * secret-named keys).
+   * `proxy_secret_enc`, null when the app has no proxy. Signs claims such
+   * as booking slot-claims; never logged (the logger redacts secret-named
+   * keys).
    */
   proxySecret: string | null;
   /**
@@ -201,17 +199,15 @@ const INSTALLATIONS_TABLE_SQLITE = `
  * built-in `node:sqlite` (`DatabaseSync` — synchronous, file-backed, WAL
  * mode).
  *
- * Why not better-sqlite3: its prebuilt binary segfaults on the project's
- * Node 22.12 runtime (observed, not theorised), and building from source
- * would force a C++ toolchain into every environment — dev Macs, CI, and
- * the slim alpine app images. `node:sqlite` is dependency-free with an
- * identical synchronous shape.
+ * Why not better-sqlite3: its prebuilt binary segfaults on Node 22.12, and
+ * building from source would force a C++ toolchain into every environment
+ * — dev Macs, CI, and slim alpine images. `node:sqlite` is
+ * dependency-free with an identical synchronous shape.
  *
- * `node:sqlite` needs no flag since Node 22.13.0 (pinned runtime 22.23.3;
- * an ExperimentalWarning on stderr remains — Stability 1.1). Devs on an
- * older 22 minor set `NODE_OPTIONS=--experimental-sqlite` in their shell.
- * Revisit when the apps run on a Node line where it is fully stable — the
- * swap is contained here, behind `InstallationStore`.
+ * `node:sqlite` needs no flag since Node 22.13.0 (an ExperimentalWarning on
+ * stderr remains — Stability 1.1). Devs on an older 22 minor set
+ * `NODE_OPTIONS=--experimental-sqlite` in their shell. The swap to another
+ * driver is contained here, behind `InstallationStore`.
  *
  * Legacy upgrade: databases created by SDK 0.1.x carry a legacy
  * `api_key_enc` column (the handoff no longer delivers that key, so its
@@ -454,8 +450,7 @@ export class SqliteInstallationStore implements InstallationStore {
 
 /**
  * Canonical integer-string form of a Queek `p_id`: the handoff contract
- * types p_ids as strings and the backend casts on the wire, but the
- * tolerance stays — a JSON integer would reach here as a JS number, and
+ * types p_ids as strings, but the tolerance stays — a JSON integer would reach here as a JS number, and
  * `node:sqlite` binds that number into a TEXT column as `"1021.0"`, which
  * never equals the proxy `kid` (`"1021"`). Non-numeric pids pass through
  * untouched.

@@ -1,26 +1,26 @@
 /**
  * Typed payloads for Queek's server-to-server install handoff.
  *
- * Source of truth: queek_backend `App\Services\Apps\AppInstallService`
- * (`installPayload()`, `uninstallPayload()`, `settingsPayload()`,
- * `handoffBody()`). The signed body envelope is:
+ * The signed body envelope is:
  *
  *   { id, type, api_version: "v1", created_at, data }
  *
  * `type` is `app/installed` | `app/uninstalled` | `app/settings_updated`
- * | `app/resync` | `app/scopes_update`. The handoff POST carries the Standard Webhooks headers
- * (`webhook-id`, `webhook-timestamp`, `webhook-signature`) signed with the
- * APP's signing secret (`whsec_…`, minted when the app is registered on the Queek Developer page), NOT the
+ * | `app/resync` | `app/scopes_update`. The handoff POST carries the
+ * Standard Webhooks headers (`webhook-id`, `webhook-timestamp`,
+ * `webhook-signature`) signed with the APP's signing secret (`whsec_…`,
+ * minted when the app is registered on the Queek Developer page), NOT the
  * per-installation webhook secret. The per-installation `webhook_secret`
  * arrives INSIDE the install payload (`data.webhook_secret`) — once — so
  * the app can verify the topic events it is about to receive.
  *
- * `app/resync` is the installation resync handoff (backend
- * `AppInstallService::resyncPayload()`, delivered to the app's
- * `settings_url` falling back to `install_url`): the install-shaped data
+ * `app/resync` is the installation resync handoff (delivered to the app's
+ * `settings_url`, falling back to `install_url`): the install-shaped data
  * plus the resync-only `secret_rotated` flag, over the same signed channel
  * with the same verification rules. Both the `/install` and `/settings`
  * handlers accept it.
+ *
+ * See https://docs.usequeek.com/docs/apps/sdk
  */
 
 export const INSTALL_EVENT = "app/installed";
@@ -47,44 +47,43 @@ export interface InstallData {
   /** The Merchant API base for this store (e.g. https://api.usequeek.com/api/v1/merchant). */
   api_base: string;
   /**
-   * No store-callable credential crosses the handoff any more: the app mints short-lived installation tokens with its
-   * asymmetric app key (`acquireToken()`) and caches them encrypted in its
-   * own database. The same envelope redelivers `webhook_secret` + the
-   * non-secret settings snapshot on resync.
+   * No store-callable credential crosses the handoff: the app mints
+   * short-lived installation tokens with its asymmetric app key
+   * (`acquireToken()`) and caches them encrypted in its own database. The
+   * same envelope redelivers `webhook_secret` + the non-secret settings
+   * snapshot on resync.
    */
   scopes: string[];
   settings: Record<string, unknown>;
   /** The installation endpoint's `whsec_…` secret, handed over ONCE per rotation. */
   webhook_secret: string | null;
   /**
-   * The installation's `whsec_…` proxy secret (backend `proxy_secret`),
-   * handed over ONCE per install/resync over the signed channel. The
-   * booking app signs slot-claims with it; core verifies the HMAC
-   * against the same installation secret. Null for apps without a
-   * proxy — the key's absence is the signal. Source of truth:
-   * queek_backend `App\Services\Apps\AppInstallService::installPayload()`.
+   * The installation's `whsec_…` proxy secret, handed over ONCE per
+   * install/resync over the signed channel. Queek signs storefront proxy
+   * reads with it (see `proxy.ts`), and an app can sign claims back to
+   * Queek with it (for example slot-claims); Queek verifies the HMAC
+   * against the same installation secret. Null for apps without a proxy —
+   * the key's absence is the signal.
    */
   proxy_secret: string | null;
   /**
-   * The installation's `embsec_…` embed secret (backend `embed_secret`),
-   * handed over on install/resync: the HS256 key of the dashboard session
-   * tokens its embedded merchant page receives (verify with
-   * `@usequeek/app-sdk/server` `verifySessionToken`). Null for apps
-   * without a merchant page.
+   * The installation's `embsec_…` embed secret, handed over on
+   * install/resync: the HS256 key of the dashboard session tokens its
+   * embedded merchant page receives (verify with `@usequeek/app-sdk/server`
+   * `verifySessionToken`). Null for apps without a merchant page.
    */
   embed_secret?: string | null;
   /**
    * The app's own id, exactly as the session token signs it (`app_id`
-   * claim) — the verifier binds it. Source of truth: queek_backend
-   * `AppInstallService::installPayload()` / `resyncPayload()`.
+   * claim) — the verifier binds it.
    */
   app_id?: string | null;
   webhook_url: string | null;
   webhook_topics: string[];
   /**
-   * Resync-only (backend `resyncPayload()`): whether the delivery rotated
-   * the endpoint secret (`webhook_secret` holds the new secret when true,
-   * null when the installation has no webhook endpoint). Absent on install.
+   * Resync-only: whether the delivery rotated the endpoint secret
+   * (`webhook_secret` holds the new secret when true, null when the
+   * installation has no webhook endpoint). Absent on install.
    */
   secret_rotated?: boolean | null;
 }
@@ -119,21 +118,20 @@ export type SettingsEnvelope = HandoffEnvelope<typeof SETTINGS_EVENT, SettingsDa
 export type ResyncEnvelope = HandoffEnvelope<typeof RESYNC_EVENT, InstallData>;
 
 /**
- * The installation `p_id` the backend addresses a handoff to. The
- * scopes_update handoff carries ONLY the `p_id` (never the UUID — the
- * backend `p_id` rule), so `id` is optional here: present on
- * install-shaped payloads, absent on `app/scopes_update`.
+ * The installation `p_id` Queek addresses a handoff to. The
+ * scopes_update handoff carries ONLY the `p_id` (never the UUID), so `id`
+ * is optional here: present on install-shaped payloads, absent on
+ * `app/scopes_update`.
  */
 export interface HandoffPidRef {
-  /** String on the wire (the backend casts); the SDK normalises via `normalisePid`, so a JSON integer still matches. */
+  /** A string on the wire; the SDK normalises via `normalisePid`, so a JSON integer still matches. */
   p_id: string | number;
   id?: string;
 }
 
 /**
- * The grant-change handoff (backend
- * `AppInstallService::scopesUpdatePayload()`, queued per grant change over
- * the same signed channel): the installation `p_id` + the EFFECTIVE grant
+ * The grant-change handoff (sent per grant change over the same signed
+ * channel): the installation `p_id` + the EFFECTIVE grant
  * (grant ∩ tracked manifest — what the installation's tokens now carry,
  * byte for byte). Carries no settings and no secrets: the app refreshes
  * its cached grant from `scopes` and drops its cached token when the

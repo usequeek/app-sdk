@@ -1,6 +1,5 @@
 /**
- * Same-origin session carriage for embedded apps (U-validation "Auth
- * carriage"): `installAuthFetch()` reads the dashboard token from the
+ * Same-origin session carriage for embedded apps: `installAuthFetch()` reads the dashboard token from the
  * first-load URL (`?queek_token=`, stripped immediately), exchanges it
  * ONCE for the app's own session, and attaches
  * `Authorization: Bearer <session>` to every same-origin fetch. A 401
@@ -27,8 +26,7 @@ import { type EmbedEventTarget, type EmbedPostTarget, listenToDashboard, sendRea
  * frame src contract (the ONLY token that may ride a URL, namespaced so it
  * cannot collide with an app's own `token` param). The token is the same
  * type the bridge `ready→token` flow returns on refresh — first load and
- * refresh differ only in transport (URL param vs postMessage), exactly
- * Shopify's `id_token`.
+ * refresh differ only in transport (URL param vs postMessage).
  */
 export const LAUNCH_TOKEN_PARAM = "queek_token";
 

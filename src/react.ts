@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Optional React bindings for `@usequeek/app-sdk` (U2).
+ * Optional React bindings for `@usequeek/app-sdk`.
  *
  * Import from `@usequeek/app-sdk/react` (requires the optional `react`
  * peer) — a thin layer built ONLY on the framework-free core (`frame.js` /
