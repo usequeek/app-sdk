@@ -9,6 +9,134 @@
  */
 
 export interface paths {
+    "/addon-groups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List add-on groups
+         * @description Requires scope `merchant-options-read`.
+         *
+         *     Lists this store’s add-on groups with cursor pagination (`limit` + `starting_after`, `has_more`/`next_cursor`; at most 25 per page). Each group carries at most 20 items with `items_count`/`items_truncated` beside them — read the group itself for the full member list before patching it. Only the store’s own groups ever list: a shared group is attach-only by ref and never appears here.
+         */
+        get: operations["addons.list"];
+        put?: never;
+        /**
+         * Create an add-on group
+         * @description Requires scope `merchant-options-create`.
+         *
+         *     Creates an add-on group with 1–200 item definitions (whole-number prices); answers the created group with a 201. min/max/required/multiple_selection must cohere and max is at least 1.
+         */
+        post: operations["addons.create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/addon-groups/{group}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Retrieve an add-on group
+         * @description Requires scope `merchant-options-detail`.
+         *
+         *     Retrieves one add-on group with every member item — the read-before-PATCH source of member ids. {group} is this store’s p_id or UUID; a foreign, shared or missing id is 404.
+         */
+        get: operations["addons.retrieve"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete an add-on group
+         * @description Requires scope `merchant-options-delete`.
+         *
+         *     Deletes an add-on group; answers its ids with `deleted: true`. Item rows survive.
+         */
+        delete: operations["addons.delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Update an add-on group
+         * @description Requires scope `merchant-options-update`.
+         *
+         *     Patches an add-on group’s scalars and member items: id entries keep members, definition entries create them, omitted members detach (shared members pass through) and an empty items array echoes. Only carried scalars are re-validated, merged over the stored values.
+         */
+        patch: operations["addons.update"];
+        trace?: never;
+    };
+    "/products/{product}/addons": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Attach add-on groups to a product
+         * @description Requires scope `merchant-options-update`.
+         *
+         *     Hangs up to 200 of this store’s (or shared) add-on groups on a product without detaching what is there; a product that sells through variants is refused with 422. Answers the product’s ids plus its add-ons. A shared group’s p_id arrives outside the API (shared groups never list or retrieve) — hang it by ref.
+         */
+        post: operations["addons.attach"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/products/{product}/addons/{group}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Detach an add-on group from a product
+         * @description Requires scope `merchant-options-update`.
+         *
+         *     Unhangs one add-on group from a product; a group that is not on the product is 404. Answers the product’s ids plus its remaining add-ons.
+         */
+        delete: operations["addons.detach"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/analytics/traffic": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Retrieve traffic analytics
+         * @description Requires scope `merchant-analytics-traffic-read`.
+         *
+         *     Reads up to 30 days of anonymous storefront traffic for this store: daily views and visits, bot request count, and measurement metadata. Visits are not unique visitors because shared mobile networks can group shoppers. Bot requests count requests and are not views. Figures can lag live traffic by up to about ten minutes (daily totals refresh every five minutes and responses are cached for up to five); only the installed app's own key with this grant can use this route.
+         */
+        get: operations["analytics.retrieve_traffic"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/app/setup": {
         parameters: {
             query?: never;
@@ -132,7 +260,13 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /**
+         * List own collected records
+         * @description Requires scope `merchant-collected-records-read`.
+         *
+         *     Lists the calling installation's collected records newest submitted first, filterable by definition p_id, status and contact search.
+         */
+        get: operations["app.records_list"];
         put?: never;
         /**
          * Submit a collected record
@@ -147,6 +281,34 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/records/{record}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read own collected record
+         * @description Requires scope `merchant-collected-records-read`.
+         *
+         *     Returns one record under a collected definition owned by the calling installation.
+         */
+        get: operations["app.records_show"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update own collected record
+         * @description Requires scope `merchant-collected-records-update`.
+         *
+         *     Replaces supplied values in full and/or triages a record under a collected definition owned by the calling installation.
+         */
+        patch: operations["app.records_update"];
+        trace?: never;
+    };
     "/collections": {
         parameters: {
             query?: never;
@@ -158,7 +320,7 @@ export interface paths {
          * List collections
          * @description Requires scope `merchant-collections-read`.
          *
-         *     Lists the store’s collections.
+         *     Lists the store’s collections. `publication` scopes the list to one of the calling installation’s channel publications (p_id or key; human keys use p_id): the walk returns published collections as roots with published descendants in `children`; a published child of an unpublished parent is a root — re-list to reconcile removals. The product ∩ contract (`collection_category_id` with `GET products?publication=`) covers MANUAL collections only — a smart collection’s rule-computed membership is not listable through the Merchant API.
          */
         get: operations["collections.list"];
         put?: never;
@@ -250,8 +412,48 @@ export interface paths {
          */
         get: operations["posts.list"];
         put?: never;
-        post?: never;
+        /**
+         * Create post
+         * @description Requires scope `merchant-posts-create`.
+         *
+         *     Creates a markdown-body blog post (title required; draft unless published).
+         */
+        post: operations["posts.create"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/posts/{post}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get post
+         * @description Requires scope `merchant-posts-detail`.
+         *
+         *     Gets one blog post by UUID or slug. {post} is a UUID or slug of this store.
+         */
+        get: operations["posts.get"];
+        /**
+         * Update post
+         * @description Requires scope `merchant-posts-update`.
+         *
+         *     Updates a markdown-body blog post by UUID or slug (publish/unpublish via status). {post} is a UUID or slug of this store.
+         */
+        put: operations["posts.update"];
+        post?: never;
+        /**
+         * Delete post
+         * @description Requires scope `merchant-posts-delete`.
+         *
+         *     Deletes a blog post by UUID or slug. {post} is a UUID or slug of this store.
+         */
+        delete: operations["posts.delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -296,7 +498,7 @@ export interface paths {
          * List customers
          * @description Requires scope `merchant-customers-read`.
          *
-         *     Lists the store’s customers with cursor pagination (`limit` up to 100 + `starting_after`, `has_more`/`next_cursor`) — the same object customers/* webhooks send. Contact fields are masked without the contact scope.
+         *     Lists customers with cursor pagination (`limit` up to 100 + `starting_after`, `has_more`/`next_cursor`); profile fields match customers/* webhooks and email_marketing_consent and sms_marketing_consent are present only with merchant-customers-contact-read. Use audience=campaign to include non-buyers; that mode requires the contact scope. not_opted_out means only that the person has not used Queek’s email unsubscribe; it is not permission to send. An import that stores info.marketing_opt_in=false excludes that contact from campaign reachability.
          */
         get: operations["customers.list"];
         put?: never;
@@ -340,9 +542,75 @@ export interface paths {
          * Retrieve a customer
          * @description Requires scope `merchant-customers-detail`.
          *
-         *     Retrieves one customer — the same object customers/* webhooks send. {customer} is the customer’s id (p_id) or uid of this store. Contact fields are masked without the contact scope.
+         *     Retrieves one customer — the profile fields match customers/* webhooks; email_marketing_consent and sms_marketing_consent are present only with merchant-customers-contact-read. {customer} is this store’s p_id, uid, or user id. Contact fields are masked without the contact scope.
          */
         get: operations["customers.retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/customers/{customer}/email-marketing-consent": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Update customer email marketing consent
+         * @description Requires scope `merchant-customers-consent-update`.
+         *
+         *     Records Queek email unsubscribe or app-reported opt-in evidence. Clearing a Queek unsubscribe re-enables the vendor’s own campaign email. To clear it, send state=not_opted_out with source, opt_in_level and consent_updated_at strictly later than the stored unsubscribe and no later than the allowed clock skew; the customer must have a non-empty email. Otherwise the response is 422 with an email or consent_updated_at field error. state=unsubscribed needs no evidence fields. The 200 response contains only id and email_marketing_consent.
+         */
+        post: operations["customers.update_email_marketing_consent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/customers/{customer}/sms-marketing-consent": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Update customer SMS marketing consent
+         * @description Requires scope `merchant-customers-sms-consent-update`.
+         *
+         *     Records explicit app-reported SMS marketing consent for this customer. state=subscribed requires source, opt_in_level, consent_updated_at, and a valid phone number; state=unsubscribed needs no evidence fields or phone. Future unsubscribe timestamps are treated as the current time. The stored consent time never moves backward; an unsubscribe older than the existing time keeps the existing time. If an earlier subscribe time is still future-dated, the response may retain that time to preserve consent ordering. The 200 response contains only id and sms_marketing_consent. This operation does not send SMS.
+         */
+        post: operations["customers.update_sms_marketing_consent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/customers/{customer}/wishlist-items": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List customer wishlist items
+         * @description Requires scope `merchant-customers-detail`.
+         *
+         *     Lists this store customer’s saved products with cursor pagination at the price the storefront customer saw. The merchant and apps holding merchant-customers-detail can read these saved items.
+         */
+        get: operations["customers.list_wishlist_items"];
         put?: never;
         post?: never;
         delete?: never;
@@ -445,6 +713,34 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/files": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List app uploaded images
+         * @description Requires scope `merchant-media-read`.
+         *
+         *     Lists original images uploaded by this app installation, newest first, with cursor pagination (`limit` + `starting_after`). Each image has the same `id`, `url` and `variants` shape as product images. Only this installation’s uploads are visible.
+         */
+        get: operations["files.list"];
+        put?: never;
+        /**
+         * Upload an app image
+         * @description Requires scope `merchant-media-create`.
+         *
+         *     Uploads one JPEG, PNG or WebP image as multipart/form-data using the `file` field. The image is added to the store media library and belongs to this app installation. Reuse its `id` with `media_id` on products/{product}/images. A same-byte retry without an Idempotency-Key returns the existing image.
+         */
+        post: operations["files.create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/products/{product}/images": {
         parameters: {
             query?: never;
@@ -517,6 +813,50 @@ export interface paths {
         get: operations["inventory.overview"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/inventory/levels": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List inventory levels
+         * @description Requires scope `merchant-inventory-read`.
+         *
+         *     Lists on-hand product and variant stock levels, ordered by product p_id. Filters product by p_id or slug and barcode by exact product OR variant barcode; when both are supplied they are ANDed. Unresolved product references return 404. Includes inactive variants and published or unpublished products; omits soft-deleted products. Each product lists all of its variants (no per-product cap); use a small `limit` for products with many variants. No per-location levels.
+         */
+        get: operations["inventory.levels"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/inventory/levels/adjustments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Adjust an inventory level
+         * @description Requires scope `merchant-inventory-update`.
+         *
+         *     Sets a tracked product or variant on-hand quantity with expected_stock compare-and-set, or applies a tracked delta, and writes an adjustment audit row with a configured reason code. Body product/variant references outside this store return 404. A stale expected_stock returns 409 with current_stock; refresh the level before retrying. Idempotency-Key is optional. One item per call; no per-location stock, bulk adjustments, purchase orders or forecasts, or check against open-order reservations.
+         */
+        post: operations["inventory.adjust_level"];
         delete?: never;
         options?: never;
         head?: never;
@@ -668,7 +1008,7 @@ export interface paths {
          * List orders
          * @description Requires scope `merchant-orders-read`.
          *
-         *     Lists the store’s orders — the same object orders/* webhooks send. Same filtering and search as the dashboard table with cursor pagination (`limit` + `starting_after`, `has_more`/`next_cursor`).
+         *     Lists the store’s orders using the same base object as orders/* webhooks; recorded payment transactions and Queek wallet-refund rows are present only with merchant-orders-read (webhooks include them only for active installations granted that scope). Order status, shipment, import, rider-assignment and patch responses do not include those finance arrays. Same filtering and search as the dashboard table with cursor pagination (`limit` + `starting_after`, `has_more`/`next_cursor`). Optional `updated_after` walks order rows changed after a timestamp, oldest change first; start each poll five minutes before the previous poll start, deduplicate ids, keep filters fixed and walk sequentially. With `updated_after`, `sort_by`, `sort_order`, `page` and `per_page` return 422; a cursor is bound to the same timestamp and filters. Item/property, shipment, metafield or customer-profile changes and deleted orders may be missed; long-running changes may appear late. The filter time is not returned and may differ from `updated_at`; this is not a snapshot or deletion feed. Provider-side, vendor-collected, offline and manual-review refunds without a recorded Queek refund row are omitted.
          */
         get: operations["orders.list"];
         put?: never;
@@ -690,7 +1030,7 @@ export interface paths {
          * Retrieve an order
          * @description Requires scope `merchant-orders-read`.
          *
-         *     Retrieves one order — the same object orders/* webhooks send, with line items, customer, shipping address and shipment tracking. {order} is a p_id or UUID of this store.
+         *     Retrieves one order using the same base object as orders/* webhooks, with line items, customer, shipping address and shipment tracking. Recorded payment transactions and Queek wallet-refund rows are present only with merchant-orders-read (webhooks include them only for active installations granted that scope); status, shipment, import, rider-assignment and patch responses do not include those finance arrays. Provider-side, vendor-collected, offline and manual-review refunds without a recorded Queek refund row are omitted. {order} is a p_id or UUID of this store.
          */
         get: operations["orders.retrieve"];
         put?: never;
@@ -720,7 +1060,7 @@ export interface paths {
          * Import an order from a sales channel
          * @description Requires scope `merchant-orders-import`.
          *
-         *     Records an order the outside platform (Chowdeck, Glovo) already charged for: each item names its `product` (p_id, UUID or slug of this store) and, for a variant, its `variant` (p_id or UUID of a variant belonging to that product) — the old single `ref` is refused; totals are stored as charged with no commission, and a re-sent webhook returns the same order instead of a second one. The customer (name + phone) becomes the order’s `shipping_address` recipient, readable only with merchant-customers-contact-read like every contact — never `metadata`. Answers the order object orders/* webhooks send.
+         *     Records an order already charged by an outside platform: each item names its `product` (p_id, UUID or slug of this store) and, for a variant, its `variant` (p_id or UUID of a variant belonging to that product) — the old single `ref` is refused; totals are stored as charged with no commission, and a re-sent order returns the same record. The authenticated app installation supplies source attribution; apps other than the established Chowdeck and Glovo integrations omit `channel`, which is rejected if supplied. Chowdeck and Glovo keep their existing `channel` request contract. The customer (name + phone) becomes the order’s `shipping_address` recipient, readable only with merchant-customers-contact-read like every contact — never `metadata`. Answers the order object orders/* webhooks send. Generic app installations derive source from the authenticated installation and omit `channel`; supplying it is a 422. An installed app with slug `chowdeck` or `glovo` must send its matching legacy `channel`; mismatches are 422. Human-key legacy imports still require `channel` and may choose either slug. Those slugs are not reserved.
          */
         post: operations["orders.import"];
         delete?: never;
@@ -742,7 +1082,7 @@ export interface paths {
          * Update an order status
          * @description Requires scope `merchant-orders-status-update`.
          *
-         *     Moves an order to a new status and answers the updated order. `approve_payment` is accepted only while the order awaits payment confirmation — `payment_status` `awaiting_confirmation`, order status `pending_payment`, a payment method other than `online`/`wallet`, and not yet accepted. Anything else is refused (404) with the reason (`Order payment is already approved`, `Manual approval is not allowed for this payment method`, `Order payment is not pending approval`). `accept` and `rejected` need a paid, not-yet-accepted order; every later action needs a paid and accepted order.
+         *     Moves an order to a new status and answers the updated order. `approve_payment` requires `payment_status` `awaiting_confirmation`, a payment method other than `online`/`wallet`, and a payment that is not already paid; cancelled or rejected orders cannot be updated. It marks the order paid but does not verify provider receipt or call a provider. `accept` and `rejected` need a paid, not-yet-accepted order; every later action needs a paid and accepted order.
          */
         post: operations["orders.update_status"];
         delete?: never;
@@ -795,6 +1135,50 @@ export interface paths {
         patch: operations["orders.update_shipment"];
         trace?: never;
     };
+    "/payouts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List seller settlement batches
+         * @description Requires scope `merchant-payout-batches-read`.
+         *
+         *     Lists released daily seller settlement batches with cursor pagination. Each payout id is its YYYY-MM-DD settlement date. Only order settlement credits are included; bank withdrawals and rider settlements are not exposed.
+         */
+        get: operations["payouts.list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/payouts/{payout}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Retrieve a seller settlement batch
+         * @description Requires scope `merchant-payout-batches-read`.
+         *
+         *     Retrieves one released daily seller settlement batch and up to 100 of its order entries. `orders_has_more` is true when additional entries were omitted. The payout id is its YYYY-MM-DD settlement date. Batch timestamps and each entry’s `posted_at` are ISO-8601. Bank withdrawals, individual bank-withdrawal payout ids and rider settlements are not exposed.
+         */
+        get: operations["payouts.retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/products": {
         parameters: {
             query?: never;
@@ -806,7 +1190,7 @@ export interface paths {
          * List products
          * @description Requires scope `merchant-items-read`.
          *
-         *     Lists the store’s products — the same object products/* webhooks send, with variants, images, the canonical URL and the storefront price. Same filtering as the dashboard table with cursor pagination (`limit` + `starting_after`, `has_more`/`next_cursor`); sorts limited to public fields.
+         *     Lists the store’s products — the same object products/* webhooks send, with variants, images, the canonical URL and the storefront price. Same filtering as the dashboard table with cursor pagination (`limit` + `starting_after`, `has_more`/`next_cursor`); sorts limited to public fields. Optional `updated_after` walks product rows changed after a timestamp, oldest change first; start each poll five minutes before the previous poll start, deduplicate ids, keep filters fixed and walk sequentially. With `updated_after`, `sort_by`, `sort_order`, `page` and `per_page` return 422; a cursor is bound to the same timestamp and filters. Variant, image, metafield, stock, region, price, discount, bulk publish, unpublish, archive status or inventory-tracking changes and deleted products may be missed; long-running changes may appear late. The filter time is not returned and may differ from `updated_at`; this is not a snapshot or deletion feed. `publication` scopes the list to one of the calling installation channel publications (p_id or key; human keys use p_id): with `updated_after` it returns additions and content changes, while a removed product surfaces only in the full reconcile walk, never as a delta.
          */
         get: operations["products.list"];
         put?: never;
@@ -817,6 +1201,28 @@ export interface paths {
          *     Creates a product with variants, images, categories and metafields; answers the created product — the same object GET products/{product} and products/* webhooks send.
          */
         post: operations["products.create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/storefront/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Search storefront products
+         * @description Requires scope `merchant-items-read`.
+         *
+         *     Searches this store’s shopper-visible products by keyword, availability or metafields. Results use storefront prices and cursor pagination. Keyword matching is case-sensitive; percent and underscore are wildcards.
+         */
+        get: operations["products.search"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -873,6 +1279,100 @@ export interface paths {
          *     Publishes or unpublishes a list of products in one call.
          */
         post: operations["products.publish"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/publications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List own publications
+         * @description Requires scope `merchant-publications-read`.
+         *
+         *     Lists the calling installation’s sales-channel publications in p_id order, each with its p_id, key, name, kind and status. A human key lists every publication on the store.
+         */
+        get: operations["publications.list"];
+        put?: never;
+        /**
+         * Register a publication
+         * @description Requires scope `merchant-publications-create`.
+         *
+         *     Registers a sales channel on the calling installation (installation-only). At most 10 active publications per installation; a duplicate key is refused with a 422.
+         */
+        post: operations["publications.create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/publications/{publication}/resources": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Publish or unpublish resources
+         * @description Requires scope `merchant-publications-update`.
+         *
+         *     Incrementally publishes or unpublishes product and collection refs on one of the calling installation’s publications (at most 50 refs per call in total; unresolvable refs are reported, never silently dropped). A newly listed product’s `updated_at` advances, so it appears in `GET products?publication=…&updated_after=…`; removals are found by reconciling the full GET products?publication= list.
+         */
+        patch: operations["publications.update_resources"];
+        trace?: never;
+    };
+    "/reviews": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List reviews imported by this app
+         * @description Requires scope `merchant-reviews-read`.
+         *
+         *     Lists only this installed app’s imported reviews for this store, newest ingested first with cursor pagination. Approved imports remain unverified and are hidden from verified-only storefront blocks, store-wide summaries and testimonials unless the merchant opts in with verified_only=0. Customer product review lists, per-product summaries and latest-approved reviews include approved imports. Native reviews and rating aggregates are not readable through this API. Imports are capped at 30 requests/minute and 2,000/day per installation, and 5,000 pending rows per app/store; 409 conflicts may be retried after 1 second.
+         */
+        get: operations["reviews.list_imported"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/reviews/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Import product reviews
+         * @description Requires scope `merchant-reviews-import`.
+         *
+         *     Imports up to 100 reviews per request into pending moderation. Product references accept this store’s p_id, UUID or slug. The app identity and source are derived from the installation; re-import is idempotent by source_review_id. Approved imports contribute to product ratings but are not verified purchases. Limits: 30 requests/minute and 2,000/day per installation, plus 5,000 pending rows per app/store. Product resolution/mismatch, pending-cap 422 and 409 conflict attempts count toward quota; malformed payloads rejected by request validation do not. A 409 identity race includes Retry-After: 1; 429 responses include Retry-After seconds until the minute or daily window resets.
+         */
+        post: operations["reviews.import"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1040,7 +1540,7 @@ export interface paths {
          * List translatable resources
          * @description Requires scope `merchant-translations-read`.
          *
-         *     Lists one resource type’s translatable content — the current source value, digest and kind per key — with cursor pagination (`limit` + `starting_after`, `has_more`/`next_cursor`). `theme_string` is the store’s own singleton: the page carries every asserted theme key with `has_more` false.
+         *     Lists one resource type’s translatable content — the current source value, digest and kind per key — with cursor pagination (`limit` + `starting_after`, `has_more`/`next_cursor`). `theme_string` is the store’s own singleton: the page carries every theme key of the active theme with `has_more` false — English comes from the theme registry sync (`themes.en_default`), with the deprecated owner-asserted `theme_strings_en` config row as fallback.
          */
         get: operations["translatable_resources.list"];
         put?: never;
@@ -1062,7 +1562,7 @@ export interface paths {
          * Retrieve translatable content
          * @description Requires scope `merchant-translations-read`.
          *
-         *     Retrieves one resource’s translatable content with its stored translations, each flagged outdated when the source changed since. {id} is a p_id or UUID of this store. For `theme_string`, {id} is the store’s own p_id, slug or UUID and keys are `<theme-slug>.<dotted-key>` against the store’s asserted English defaults (e.g. `roast.cart.title`).
+         *     Retrieves one resource’s translatable content with its stored translations, each flagged outdated when the source changed since. {id} is a p_id or UUID of this store. For `theme_string`, {id} is the store’s own p_id, slug or UUID and keys are `<theme-slug>.<dotted-key>` against the store’s English defaults (e.g. `roast.cart.title`) — served from the active theme’s registry-synced `en_default`, with the deprecated owner-asserted `theme_strings_en` config row as fallback.
          */
         get: operations["translatable_resources.retrieve"];
         put?: never;
@@ -1085,7 +1585,7 @@ export interface paths {
          * Register translations
          * @description Requires scope `merchant-translations-write`.
          *
-         *     Registers up to 100 translations on one resource against the current source digests — all or nothing. A stale digest, unknown locale or unknown key answers a per-item `translation_*` code and writes nothing. {id} is a p_id or UUID of this store. Translator flow for `theme_string`: assert the English defaults first (dashboard configs update `theme_strings_en`), echo each key’s current digest, then write at most 100 keys per call — N sequential calls carry a full dictionary.
+         *     Registers up to 100 translations on one resource against the current source digests — all or nothing. A stale digest, unknown locale or unknown key answers a per-item `translation_*` code and writes nothing. {id} is a p_id or UUID of this store. Translator flow for `theme_string`: English defaults arrive via the theme registry sync (no English write path here — the owner-asserted `theme_strings_en` config row is a deprecated fallback only), echo each key’s current digest, then write at most 100 keys per call — N sequential calls carry a full dictionary.
          */
         put: operations["translations.update"];
         post?: never;
@@ -1158,10 +1658,433 @@ export interface paths {
         trace?: never;
     };
 }
-export type webhooks = Record<string, never>;
+export interface webhooks {
+    "orders/create": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * orders/create
+         * @description An order was placed, on any channel.
+         *
+         *     Delivered to every active endpoint of the store subscribed to this topic. Endpoint subscriptions live outside this API (dashboard); verify the signature, dedupe on the event `id`, acknowledge with a 2xx inside 5s, and do the work asynchronously.
+         */
+        post: operations["webhook.orders.create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "orders/paid": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * orders/paid
+         * @description An order moved to paid.
+         *
+         *     Delivered to every active endpoint of the store subscribed to this topic. Endpoint subscriptions live outside this API (dashboard); verify the signature, dedupe on the event `id`, acknowledge with a 2xx inside 5s, and do the work asynchronously.
+         */
+        post: operations["webhook.orders.paid"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "orders/updated": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * orders/updated
+         * @description An order changed — status, fulfilment stage or any merchant action.
+         *
+         *     Delivered to every active endpoint of the store subscribed to this topic. Endpoint subscriptions live outside this API (dashboard); verify the signature, dedupe on the event `id`, acknowledge with a 2xx inside 5s, and do the work asynchronously.
+         */
+        post: operations["webhook.orders.updated"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "orders/fulfilled": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * orders/fulfilled
+         * @description An order was completed or delivered.
+         *
+         *     Delivered to every active endpoint of the store subscribed to this topic. Endpoint subscriptions live outside this API (dashboard); verify the signature, dedupe on the event `id`, acknowledge with a 2xx inside 5s, and do the work asynchronously.
+         */
+        post: operations["webhook.orders.fulfilled"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "orders/cancelled": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * orders/cancelled
+         * @description An order was cancelled or rejected.
+         *
+         *     Delivered to every active endpoint of the store subscribed to this topic. Endpoint subscriptions live outside this API (dashboard); verify the signature, dedupe on the event `id`, acknowledge with a 2xx inside 5s, and do the work asynchronously.
+         */
+        post: operations["webhook.orders.cancelled"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "products/create": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * products/create
+         * @description A product was created in the store.
+         *
+         *     Delivered to every active endpoint of the store subscribed to this topic. Endpoint subscriptions live outside this API (dashboard); verify the signature, dedupe on the event `id`, acknowledge with a 2xx inside 5s, and do the work asynchronously.
+         */
+        post: operations["webhook.products.create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "products/update": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * products/update
+         * @description A product changed — visible content, price or availability.
+         *
+         *     Delivered to every active endpoint of the store subscribed to this topic. Endpoint subscriptions live outside this API (dashboard); verify the signature, dedupe on the event `id`, acknowledge with a 2xx inside 5s, and do the work asynchronously.
+         */
+        post: operations["webhook.products.update"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "products/delete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * products/delete
+         * @description A product was deleted, soft-delete included.
+         *
+         *     Delivered to every active endpoint of the store subscribed to this topic. Endpoint subscriptions live outside this API (dashboard); verify the signature, dedupe on the event `id`, acknowledge with a 2xx inside 5s, and do the work asynchronously.
+         */
+        post: operations["webhook.products.delete"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "customers/create": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * customers/create
+         * @description A customer record was created for the store.
+         *
+         *     Delivered to every active endpoint of the store subscribed to this topic. Endpoint subscriptions live outside this API (dashboard); verify the signature, dedupe on the event `id`, acknowledge with a 2xx inside 5s, and do the work asynchronously.
+         */
+        post: operations["webhook.customers.create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "customers/update": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * customers/update
+         * @description A customer profile field changed.
+         *
+         *     Delivered to every active endpoint of the store subscribed to this topic. Endpoint subscriptions live outside this API (dashboard); verify the signature, dedupe on the event `id`, acknowledge with a 2xx inside 5s, and do the work asynchronously.
+         */
+        post: operations["webhook.customers.update"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "customers_email_marketing_consent/update": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * customers_email_marketing_consent/update
+         * @description A customer email marketing preference changed.
+         *
+         *     Delivered to every active endpoint of the store subscribed to this topic. Endpoint subscriptions live outside this API (dashboard); verify the signature, dedupe on the event `id`, acknowledge with a 2xx inside 5s, and do the work asynchronously.
+         */
+        post: operations["webhook.customers_email_marketing_consent.update"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "customers_marketing_consent/update": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * customers_marketing_consent/update
+         * @description A customer's SMS marketing consent changed.
+         *
+         *     Delivered to every active endpoint of the store subscribed to this topic. Endpoint subscriptions live outside this API (dashboard); verify the signature, dedupe on the event `id`, acknowledge with a 2xx inside 5s, and do the work asynchronously.
+         */
+        post: operations["webhook.customers_marketing_consent.update"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "inventory_levels/update": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * inventory_levels/update
+         * @description A product or variant stock level changed, with the reason.
+         *
+         *     Delivered to every active endpoint of the store subscribed to this topic. Endpoint subscriptions live outside this API (dashboard); verify the signature, dedupe on the event `id`, acknowledge with a 2xx inside 5s, and do the work asynchronously.
+         */
+        post: operations["webhook.inventory_levels.update"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "locales/create": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * locales/create
+         * @description A locale was added to the store.
+         *
+         *     Delivered to every active endpoint of the store subscribed to this topic. Endpoint subscriptions live outside this API (dashboard); verify the signature, dedupe on the event `id`, acknowledge with a 2xx inside 5s, and do the work asynchronously.
+         */
+        post: operations["webhook.locales.create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "locales/update": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * locales/update
+         * @description A locale was published or unpublished on the store.
+         *
+         *     Delivered to every active endpoint of the store subscribed to this topic. Endpoint subscriptions live outside this API (dashboard); verify the signature, dedupe on the event `id`, acknowledge with a 2xx inside 5s, and do the work asynchronously.
+         */
+        post: operations["webhook.locales.update"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "locales/destroy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * locales/destroy
+         * @description A locale was removed from the store, with its translations.
+         *
+         *     Delivered to every active endpoint of the store subscribed to this topic. Endpoint subscriptions live outside this API (dashboard); verify the signature, dedupe on the event `id`, acknowledge with a 2xx inside 5s, and do the work asynchronously.
+         */
+        post: operations["webhook.locales.destroy"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "translations/update": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * translations/update
+         * @description Translations were registered on one resource, for the locales and keys in the payload.
+         *
+         *     Delivered to every active endpoint of the store subscribed to this topic. Endpoint subscriptions live outside this API (dashboard); verify the signature, dedupe on the event `id`, acknowledge with a 2xx inside 5s, and do the work asynchronously.
+         */
+        post: operations["webhook.translations.update"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "translations/delete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * translations/delete
+         * @description Translations were removed from one resource, for the locales and keys in the payload.
+         *
+         *     Delivered to every active endpoint of the store subscribed to this topic. Endpoint subscriptions live outside this API (dashboard); verify the signature, dedupe on the event `id`, acknowledge with a 2xx inside 5s, and do the work asynchronously.
+         */
+        post: operations["webhook.translations.delete"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+}
 export interface components {
     schemas: {
-        /** AdjustStockRequest */
+        /** AddonGroupResource */
+        AddonGroupResource: {
+            id: number;
+            uid: string;
+            title: string;
+            type: string;
+            required: boolean;
+            min: number;
+            max: number;
+            multiple_selection: boolean;
+            is_pack_group: string;
+            is_global: boolean;
+            items: components["schemas"]["AddonItemResource"][];
+            items_count: string;
+            items_truncated: boolean;
+        };
+        /** AddonItemResource */
+        AddonItemResource: {
+            id: number;
+            uid: string;
+            name: string;
+            price: string;
+            in_stock: boolean;
+            is_pack: boolean;
+            is_global: boolean;
+        };
+        /** Adjust stock input */
         AdjustStockRequest: {
             product_ids: string[];
             /** Format: uuid */
@@ -1170,6 +2093,26 @@ export interface components {
             /** @enum {string} */
             type: "restock" | "adjustment" | "damage";
             reason: string;
+        };
+        /** Collection */
+        "App.Http.Resources.Api.CollectionResource": {
+            id: number;
+            uid: string;
+            name: string;
+            slug: string;
+            description: string;
+            image: string;
+            logo: string;
+            featured: boolean;
+            position: number | null;
+            collection_mode: string | null;
+            parent_uid: string | null;
+            products_count: number | null;
+            children: unknown[];
+            /** Format: date-time */
+            created_at: string | null;
+            /** Format: date-time */
+            updated_at: string | null;
         };
         /** OrderItem */
         "App.Http.Resources.Customer.OrderItemResource": {
@@ -1195,6 +2138,7 @@ export interface components {
             is_backorder: boolean;
             backorder_ready_date: string | null;
             discounted_amount?: number | null;
+            /** Format: date-time */
             created_at: string;
             addons: unknown;
             /**
@@ -1295,7 +2239,9 @@ export interface components {
              *     are omitted from reference values (MetafieldPresenter).
              */
             metafields: string;
+            /** Format: date-time */
             created_at: string | null;
+            /** Format: date-time */
             updated_at: string | null;
             shop: unknown[];
             barcode: string;
@@ -1372,9 +2318,13 @@ export interface components {
             cancelled: boolean;
             cancellation_reason: string | null | Record<string, never>;
             items_count: string;
+            /** Format: date-time */
             started_at: string | null;
+            /** Format: date-time */
             completed_at: string | null;
+            /** Format: date-time */
             created_at: string;
+            /** Format: date-time */
             updated_at: string;
             status_label: string;
             status_img: string;
@@ -1508,13 +2458,38 @@ export interface components {
             cancelled: boolean;
             cancellation_reason: string | null | Record<string, never>;
             items_count: string;
+            /** Format: date-time */
             started_at: string | null;
+            /** Format: date-time */
             completed_at: string | null;
+            /** Format: date-time */
             created_at: string;
+            /** Format: date-time */
             updated_at: string;
         };
+        /** App collected record update input */
+        AppCollectedRecordUpdateRequest: {
+            /** @description Record values keyed by field key. Each value’s shape follows the field type on the definition. */
+            values?: {
+                [key: string]: unknown;
+            };
+            status?: components["schemas"]["CollectedRecordStatus"];
+        };
+        /** AppMediaResource */
+        AppMediaResource: {
+            id: number;
+            url: string;
+            thumbnail_url: string;
+            variants: string;
+            mime_type: string;
+            size: number;
+            width: number | null;
+            height: number | null;
+            /** Format: date-time */
+            created_at: string;
+        };
         /**
-         * AppRequirementStoreRequest
+         * App requirement store input
          * @description The requirements sheet for the calling installation (PUT app/requirements):
          *     the app replaces its own {product → required line-property prefix} map in
          *     one call.
@@ -1540,7 +2515,7 @@ export interface components {
                 prefix: string;
             }[];
         };
-        /** AssignOrderRiderRequest */
+        /** Assign order rider input */
         AssignOrderRiderRequest: {
             /** Format: uuid */
             rider_id: string;
@@ -1561,7 +2536,7 @@ export interface components {
             position: number;
             posts_count?: number;
         };
-        /** BulkCreateVendorCollectionsRequest */
+        /** Bulk create vendor collections input */
         BulkCreateVendorCollectionsRequest: {
             /** Format: uuid */
             vendor_id: string;
@@ -1570,10 +2545,12 @@ export interface components {
                 description?: string | null;
                 /** @enum {string|null} */
                 collection_mode?: "manual" | "smart" | null;
-                collection_rules?: string[] | null;
+                collection_rules?: {
+                    conditions?: string[] | null;
+                } | null;
             }[];
         };
-        /** BulkUpdatePublishRequest */
+        /** Bulk update publish input */
         BulkUpdatePublishRequest: {
             ids: string[];
             published: boolean;
@@ -1591,7 +2568,9 @@ export interface components {
             subtotal: number | null;
             product: components["schemas"]["App.Http.Resources.Customer.ProductResource"];
             vendor: components["schemas"]["VendorItemResource"];
+            /** Format: date-time */
             created_at: string;
+            /** Format: date-time */
             updated_at: string;
         } | {
             /**
@@ -1604,17 +2583,28 @@ export interface components {
             id: string;
             vendor_id: string;
             vendor: components["schemas"]["VendorItemResource"];
-            cart_items: {
-                [key: string]: unknown;
-            };
+            cart_items: unknown[];
             total_price: number | null;
             source: string;
             promo_codes: string | string[];
             is_valid: string;
             validation_errors: string | string[];
+            /** Format: date-time */
             last_validated_at: string | null;
+            /** Format: date-time */
             created_at: string | null;
+            /** Format: date-time */
             updated_at: string | null;
+            discounts: {
+                [key: string]: {
+                    amount_applied: number | null;
+                } & {
+                    [key: string]: unknown;
+                };
+            };
+            subtotal: number | null;
+            discount_total: number | null;
+            total_after_discounts: number | null;
         };
         /** ClientAuthUserResource */
         ClientAuthUserResource: {
@@ -1641,7 +2631,7 @@ export interface components {
             profile_complete: string;
         };
         /**
-         * CollectedDefinitionRequest
+         * Collected definition input
          * @description Manage the calling installation's form types (GET + POST
          *     collected-definitions, PATCH collected-definitions/{definition}).
          *
@@ -1688,13 +2678,22 @@ export interface components {
             type?: string | null;
             status: string | "new";
             source: string | null;
+            /** Format: date-time */
             submitted_at: string;
-            values: string | string[];
+            values: string;
+            /** Format: date-time */
             created_at: string;
+            /** Format: date-time */
             updated_at: string;
         };
         /**
-         * CollectedRecordSubmitRequest
+         * CollectedRecordStatus
+         * @description Triage state of a collected record in the merchant's inbox. Values are merchant-set only (status is the one mutable column); rows are never edited, only triaged and eventually purged or deleted.
+         * @enum {string}
+         */
+        CollectedRecordStatus: "new" | "read" | "archived" | "spam";
+        /**
+         * Collected record submit input
          * @description Submit one record under one of the calling installation's collected types
          *     (POST records).
          *
@@ -1729,8 +2728,46 @@ export interface components {
             featured: boolean;
             parent_id: string | null;
             mode: string | null;
+            /** @enum {string} */
+            type: "smart" | "manual";
+            ranking: {
+                sort: string;
+                limit: unknown;
+            } | null;
+            sort: string;
+            rules_count: number;
             products_count: number;
             children: string[];
+        };
+        /** CouponResource */
+        CouponResource: {
+            id: string;
+            code: string;
+            title: string;
+            description: string;
+            discount_type: string;
+            discount_value: string;
+            applies_to: string;
+            target_product_ids: unknown[];
+            target_category_ids: unknown[];
+            minimum_order_amount: string;
+            capped_amount: string | null;
+            capped_amount_per_user: string | null;
+            usage_limit: number | null;
+            usage_limit_per_user: number | null;
+            used_count: number;
+            is_active: boolean;
+            is_valid: boolean;
+            is_expired: boolean;
+            image_url: string;
+            /** Format: date-time */
+            starts_at: string | null;
+            /** Format: date-time */
+            expires_at: string | null;
+            /** Format: date-time */
+            created_at: string | null;
+            /** Format: date-time */
+            updated_at: string | null;
         };
         /** CustomerAddressResource */
         CustomerAddressResource: {
@@ -1755,12 +2792,100 @@ export interface components {
             email: string | null;
             phone: string | null;
             avatar: string;
+            /** Format: date-time */
             created_at: string | null;
+            /** Format: date-time */
             updated_at: string | null;
         };
+        /** CustomerWishlistItemResource */
+        CustomerWishlistItemResource: {
+            /** Format: date-time */
+            created_at: string | null;
+            product: unknown[];
+            variant: {
+                id: string;
+                p_id: number;
+                title: string;
+                option_values: string;
+            } | null;
+        };
+        /** DiscountResource */
+        DiscountResource: {
+            id: string;
+            reference: string;
+            title: string;
+            description: string;
+            type: string;
+            value: string;
+            product_ids: unknown[];
+            category_ids: unknown[];
+            minimum_order_amount: string;
+            minimum_quantity: number;
+            capped_amount: string | null;
+            capped_amount_per_user: string | null;
+            max_usage_total: number | null;
+            max_usage_per_user: number | null;
+            usage_count: number;
+            auto_apply: boolean;
+            /** @enum {string} */
+            status: "active" | "inactive";
+            is_active: boolean;
+            is_published: boolean;
+            image_url: string;
+            valid_from: string | null;
+            valid_until: string | null;
+            /** Format: date-time */
+            published_at: string | null;
+            /** Format: date-time */
+            created_at: string | null;
+            /** Format: date-time */
+            updated_at: string | null;
+        };
+        /** FollowerResource */
+        FollowerResource: {
+            id: string;
+            customer_id: number | null;
+            name: string | null;
+            email: string | null;
+            phone: string | null;
+            avatar: string | null;
+            shared_contact: boolean;
+            is_customer: boolean;
+            /** Format: date-time */
+            followed_at: string | null;
+        };
+        /** Import product reviews input */
+        ImportProductReviewsRequest: {
+            app_id?: string;
+            source_app_id?: string;
+            source?: string;
+            reviews: {
+                source_review_id: string;
+                product: string;
+                rating: number;
+                title: string | null;
+                description: string | null;
+                author_display_name: string | null;
+                /** Format: date-time */
+                submitted_at: string;
+                /** Format: date-time */
+                edited_at: string | null;
+                media: string[] | null;
+                user_id?: string;
+                order_id?: string;
+                vendor_id?: string;
+                source_app_id?: string;
+                source?: string;
+                status?: string;
+                is_verified_purchase?: string;
+                /** Format: date-time */
+                created_at?: string;
+            }[];
+        };
         /**
-         * ImportThirdPartyOrderRequest
-         * @description Import an order a sales channel (Chowdeck, Glovo) already charged for.
+         * Import third party order input
+         * @description Import an order an outside sales channel already charged for. Generic app
+         *     source attribution comes from the authenticated installation.
          *
          *     The payload is the platform's receipt, recorded as charged. Item unit
          *     prices, delivery fee, discount and total are amounts in naira with at most
@@ -1777,9 +2902,18 @@ export interface components {
          *     `shipping_address` recipient; no customer record is created.
          */
         ImportThirdPartyOrderRequest: {
-            /** @enum {string} */
-            channel: "chowdeck" | "glovo";
+            /**
+             * @description Optional for generic app installations, which derive source from the authenticated app and must omit this field. An installed Chowdeck or Glovo app must send its matching legacy slug. A generic app supplying this field, or a legacy app sending the other slug, receives 422. Human-key legacy imports still require this field and may send either slug.
+             * @enum {string}
+             */
+            channel?: "chowdeck" | "glovo";
             external_ref: string;
+            /**
+             * @description Optional attribution to one of the calling installation's active
+             *     publications (p_id or key). Omitted means no attribution. A
+             *     caller without an installation may not send it (422).
+             */
+            publication?: string | null;
             /** Format: date-time */
             placed_at: string;
             customer: {
@@ -1797,9 +2931,9 @@ export interface components {
                 variant?: string | null;
                 quantity: number;
                 /**
-                 * @description Naira, at most 2 decimals — the Merchant API's one money rule
-                 *     (MerchantShippingZoneRequest's rates): a kobo figure is off by
-                 *     100x and runs past these caps instead of posing as naira.
+                 * @description Naira, at most 2 decimals — the Merchant API's one money rule,
+                 *     as for shipping-zone rates: a kobo figure is off by 100x and
+                 *     runs past these caps instead of posing as naira.
                  */
                 unit_price: number;
             }[];
@@ -1833,8 +2967,141 @@ export interface components {
             low_stock: number;
             negative_stock: number;
         };
+        /** MerchantAddonGroup */
+        MerchantAddonGroup: components["schemas"]["AddonGroupResource"];
         /**
-         * MerchantShippingZoneRequest
+         * Addon group input
+         * @description The single add-on group rows (retrieve/create/update/delete). {group} is
+         *     this store's p_id or UUID, resolved in authorize() — after the scope gate,
+         *     before any rule — so a foreign, global or missing id is the standard 404
+         *     and never learns what the body would have failed. No route `where`: a
+         *     non-numeric ref resolves to nothing (never a Postgres cast 500).
+         */
+        MerchantAddonGroupRequest: {
+            title: string;
+            required?: boolean;
+            min?: number | null;
+            /** @description Maximum choices a customer may pick; 0 is refused with a 422 (use at least 1). */
+            max?: number | null;
+            multiple_selection?: boolean;
+            /**
+             * @description No min: an empty array echoes (never detaches); omission
+             *     detaches only the addressable members the entries name.
+             */
+            items: {
+                id?: string;
+                name: string;
+                price?: number;
+                is_pack?: boolean;
+            }[];
+        };
+        /** App file upload input */
+        MerchantAppFileUploadRequest: {
+            /**
+             * Format: binary
+             * @description Maximum file size: 10240 kilobytes.
+             */
+            file: string;
+        };
+        /** MerchantCollectedRecord */
+        MerchantCollectedRecord: components["schemas"]["CollectedRecordResource"];
+        /** MerchantCollection */
+        MerchantCollection: components["schemas"]["App.Http.Resources.Api.CollectionResource"];
+        /** MerchantCoupon */
+        MerchantCoupon: components["schemas"]["CouponResource"];
+        /** MerchantCustomer */
+        MerchantCustomer: components["schemas"]["CustomerResource"];
+        /** MerchantDiscount */
+        MerchantDiscount: components["schemas"]["DiscountResource"];
+        /** MerchantFollower */
+        MerchantFollower: components["schemas"]["FollowerResource"];
+        /** MerchantImportedProductReviewResource */
+        MerchantImportedProductReviewResource: {
+            source_review_id: string;
+            source: string | null;
+            author_display_name: string;
+            product_p_id: string | null;
+            rating: number;
+            title: string;
+            description: string;
+            media: string | string[];
+            status: string;
+            is_verified_purchase: boolean;
+            /** Format: date-time */
+            submitted_at: string;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            edited_at: string;
+        };
+        /** MerchantImportedReview */
+        MerchantImportedReview: components["schemas"]["MerchantImportedProductReviewResource"];
+        /** MerchantInventoryAdjustment */
+        MerchantInventoryAdjustment: components["schemas"]["MerchantInventoryAdjustmentResource"];
+        /** MerchantInventoryAdjustmentResource */
+        MerchantInventoryAdjustmentResource: {
+            result: string;
+            level: {
+                product_p_id: number;
+                variant_p_id: number | null;
+                mode: string;
+                before: string;
+                change: string;
+                after: string;
+                reason_code: string;
+            };
+            adjustment: unknown[] | null;
+        };
+        /** Inventory level adjustment input */
+        MerchantInventoryLevelAdjustmentRequest: {
+            product: string;
+            variant?: number | null;
+            /** @enum {string} */
+            mode: "set" | "delta";
+            quantity: number;
+            expected_stock?: number;
+            /** @enum {string} */
+            reason_code: "correction" | "count" | "damage" | "received" | "return" | "theft" | "other";
+            note?: string | null;
+        };
+        /** MerchantInventoryLevels */
+        MerchantInventoryLevels: components["schemas"]["MerchantInventoryLevelsResource"];
+        /** MerchantInventoryLevelsResource */
+        MerchantInventoryLevelsResource: {
+            p_id: number;
+            slug: string;
+            barcode: string;
+            stock: number;
+            effective_tracking: string;
+            variants: string;
+        };
+        /** MerchantMedia */
+        MerchantMedia: components["schemas"]["AppMediaResource"];
+        /** MerchantOrder */
+        MerchantOrder: components["schemas"]["OrderResource"];
+        /** MerchantPost */
+        MerchantPost: components["schemas"]["PostResource"];
+        /** MerchantProduct */
+        MerchantProduct: components["schemas"]["ProductResource"];
+        /**
+         * Product addon attach input
+         * @description Attach (POST) and detach (DELETE) add-on groups on one product. {product}
+         *     is this store's p_id, UUID or slug; the detach {group} must already hang on
+         *     the product — anything else is the standard 404. Attach refs resolve to
+         *     this store's groups or shared (global) ones; unresolvable refs and a
+         *     variant product fail the body with 422, never a 500.
+         */
+        MerchantProductAddonAttachRequest: {
+            groups: string[];
+        };
+        /** MerchantProductImage */
+        MerchantProductImage: components["schemas"]["ProductImageResource"];
+        /** MerchantPublication */
+        MerchantPublication: components["schemas"]["PublicationResource"];
+        /** MerchantShippingZone */
+        MerchantShippingZone: components["schemas"]["ShippingZoneResource"];
+        /**
+         * Shipping zone input
          * @description POST shipping-zones / PUT shipping-zones/{zone} on the merchant API.
          *
          *     Zone rules match the dashboard's, except the rates: this API speaks money as
@@ -1859,8 +3126,74 @@ export interface components {
             active?: boolean | null;
             sort_order?: number | null;
         };
+        /** MerchantStockAdjustment */
+        MerchantStockAdjustment: components["schemas"]["StockAdjustmentResource"];
         /**
-         * MetafieldDefinitionRequest
+         * Store post input
+         * @description POST posts on the merchant API: a markdown-body blog-post create.
+         *
+         *     The key authorizes the store; no vendor_id input is read. `slug` is
+         *     normalised to a URL-safe slug only when it arrives as a string.
+         */
+        MerchantStorePostRequest: {
+            title: string;
+            slug?: string | null;
+            body?: string | null;
+            excerpt?: string | null;
+            cover_image_url?: string | null;
+            /** @enum {string|null} */
+            status?: "draft" | "published" | null;
+            /** Format: date-time */
+            published_at?: string | null;
+            tags?: string[] | null;
+            seo: {
+                title?: string | null;
+                description?: string | null;
+                /** Format: uri */
+                og_image?: string | null;
+                /** Format: uri */
+                canonical_url?: string | null;
+                keywords?: string[] | null;
+                noindex?: boolean | null;
+            };
+        };
+        /** MerchantTeamMember */
+        MerchantTeamMember: components["schemas"]["TeamDirectoryResource"];
+        /**
+         * Update post input
+         * @description PUT posts/{post} on the merchant API: a partial markdown-body update.
+         *
+         *     Absent stays untouched; explicit-null clears ONLY excerpt,
+         *     cover_image_url, tags, and seo; null/blank slug keeps the existing slug.
+         *     `slug` is normalised to a URL-safe slug only when it arrives as a string, and
+         *     the scoped unique ignores the resolved row.
+         */
+        MerchantUpdatePostRequest: {
+            title?: string;
+            slug?: string | null;
+            body?: string | null;
+            excerpt?: string | null;
+            cover_image_url?: string | null;
+            /** @enum {string} */
+            status?: "draft" | "published";
+            /** Format: date-time */
+            published_at?: string | null;
+            tags?: string[] | null;
+            seo: {
+                title?: string | null;
+                description?: string | null;
+                /** Format: uri */
+                og_image?: string | null;
+                /** Format: uri */
+                canonical_url?: string | null;
+                keywords?: string[] | null;
+                noindex?: boolean | null;
+            };
+        };
+        /** MerchantWishlistItem */
+        MerchantWishlistItem: components["schemas"]["CustomerWishlistItemResource"];
+        /**
+         * Metafield definition input
          * @description Create/update a metafield definition on the REST developer surface.
          *
          *     `namespace`, `key`, `owner_type` and `type` are immutable after creation: a
@@ -1906,7 +3239,9 @@ export interface components {
             name: string;
             description: string;
             validations: string;
+            /** Format: date-time */
             created_at: string;
+            /** Format: date-time */
             updated_at: string;
         };
         /**
@@ -1916,7 +3251,7 @@ export interface components {
          */
         MetaobjectDataClass: "content" | "collected";
         /**
-         * MetaobjectDefinitionRequest
+         * Metaobject definition input
          * @description Create/update a metaobject definition on the REST developer surface.
          *
          *     `type` is immutable after creation: entries carry it, and reference values
@@ -1983,11 +3318,13 @@ export interface components {
              *     responses never carry it.
              */
             records_count?: number | null;
+            /** Format: date-time */
             created_at: string;
+            /** Format: date-time */
             updated_at: string;
         };
         /**
-         * MetaobjectRequest
+         * Metaobject input
          * @description Create/update a metaobject entry on the REST developer surface.
          *
          *     Shape is checked first (`type` exists, `handle` is slug-shaped, `status` is
@@ -2054,21 +3391,28 @@ export interface components {
             cancel_reason: string | null;
             /**
              * @description `channel` is the messaging channel the order came through — never
-             *     the sales channel. An importing app recognises its own orders one
-             *     key further down.
+             *     the sales channel. The installed app source and caller reference
+             *     are exposed in the two keys below.
              */
             channel: string;
             platform: string | null;
             /**
              * @description Import recognition: the sales channel that imported the order
-             *     (chowdeck, glovo — null for every other order) and the outside
-             *     platform's own reference (null unless imported). Together with
+             *     (an app slug or legacy channel — null unless imported) and the
+             *     outside platform's own reference (null unless imported). Together with
              *     `platform` (third_party) an app matches orders events to its
              *     own records with no link table. Additive: both keys are null
              *     for every order that is not an import.
              */
-            custom_channel: string | null;
+            custom_channel: string;
             external_ref: string;
+            /**
+             * @description Order attribution: the publication p_id the order was
+             *     imported through (null unless attributed). Readable by any
+             *     caller with order read scope — it discloses nothing new
+             *     beside custom_channel.
+             */
+            publication: string | null;
             delivery_method: string;
             /**
              * @description Vendor chain with the same unloaded-relation safety net as the
@@ -2099,8 +3443,11 @@ export interface components {
                 tracking_number: string | null;
                 tracking_url: string | null;
                 zone_name: string | null;
+                /** Format: date-time */
                 shipped_at: string | null;
+                /** Format: date-time */
                 estimated_delivery_at: string | null;
+                /** Format: date-time */
                 delivered_at: string | null;
             } | null;
             line_items: {
@@ -2130,15 +3477,46 @@ export interface components {
              */
             metafields: string;
             metadata: string;
+            /** Format: date-time */
             created_at: string | null;
+            /** Format: date-time */
             updated_at: string | null;
+            /** Format: date-time */
             fulfilled_at: string | null;
+        } & {
+            [key: string]: unknown;
         };
-        /** PinCollectionProductRequest */
+        /** Pin collection product input */
         PinCollectionProductRequest: {
             /** Format: uuid */
             product_id: string;
             pinned?: boolean | null;
+        };
+        /** PostResource */
+        PostResource: {
+            id: string;
+            parent_id: string | null;
+            blog_category_ids: string | string[];
+            type: string;
+            template: string;
+            slug: string;
+            title: string;
+            content: string;
+            excerpt: string;
+            cover_image_url: string;
+            status: string;
+            tags: string | string[];
+            seo: string | string[];
+            position: number;
+            is_home: boolean;
+            chrome: string;
+            show_page_title: boolean;
+            /** Format: date-time */
+            published_at: string | null;
+            /** Format: date-time */
+            created_at: string | null;
+            /** Format: date-time */
+            updated_at: string | null;
         };
         /** ProductImageResource */
         ProductImageResource: {
@@ -2157,7 +3535,9 @@ export interface components {
             question: string;
             answer: string;
             status: string;
+            /** Format: date-time */
             created_at: string;
+            /** Format: date-time */
             answered_at: string;
             user?: {
                 id: string;
@@ -2171,7 +3551,7 @@ export interface components {
                 thumbnail: string;
             } | null;
         };
-        /** ProductRequest */
+        /** Product input */
         ProductRequest: {
             metafields?: {
                 namespace?: string;
@@ -2214,6 +3594,12 @@ export interface components {
             weight?: number | null;
             unit?: string | null;
             categories: string[];
+            /**
+             * @description A node with no categories input resolves to the category write;
+             *     categories win when both are sent.
+             */
+            taxonomy_node_id?: string | null;
+            taxonomy_slug?: string | null;
             taxonomy_category_id?: string;
             collection_category_ids?: string[];
             variations?: string[] | null;
@@ -2222,6 +3608,7 @@ export interface components {
                 /** Format: uuid */
                 id?: string | null;
                 sku?: string | null;
+                barcode?: string | null;
                 title?: string;
                 option_values?: string[];
                 price?: number;
@@ -2251,8 +3638,7 @@ export interface components {
             price: number;
             /**
              * @description Product-level identity/pricing for products WITHOUT variants.
-             *     Prohibited the moment
-             *     variants are in play — variants carry their own
+             *     Prohibited the moment variants are in play — variants carry their own
              *     sku/compare_at_price and the product-level pair is ignored
              *     there, never merged.
              */
@@ -2319,6 +3705,20 @@ export interface components {
             thumbnail_image: string;
             primary_image_url: string | null;
             variants: components["schemas"]["ProductVariantResource"][];
+            /**
+             * @description Product-level options derived from the ACTIVE variants (no
+             *     options table — ordered by first appearance over the
+             *     position-sorted set). In-memory over the variants already
+             *     loaded above: zero extra queries.
+             */
+            options: unknown[];
+            /**
+             * @description Priced choice-list add-ons hung on the product (variation rows,
+             *     never the legacy products.addons column): ONLY the loaded
+             *     `variations` relation, first 20 groups with 20 items each, so
+             *     webhook payloads stay bounded. Unloaded → [], never a query.
+             */
+            addons: components["schemas"]["AddonGroupResource"][];
             images: components["schemas"]["ProductImageResource"][];
             /**
              * @description The receiver's own fields coming back to them: typed metafields
@@ -2327,8 +3727,11 @@ export interface components {
              */
             metafields: string;
             metadata: string;
+            /** Format: date-time */
             created_at: string | null;
+            /** Format: date-time */
             updated_at: string | null;
+            /** Format: date-time */
             deleted_at: string | null;
         };
         /** ProductReviewResource */
@@ -2339,17 +3742,21 @@ export interface components {
             description: string;
             media: string | string[];
             vendor_response: string;
+            /** Format: date-time */
             vendor_response_at: string;
             status: string;
             is_verified_purchase: boolean;
+            /** Format: date-time */
             created_at: string;
+            /** Format: date-time */
             updated_at: string;
+            /** Format: date-time */
             edited_at: string;
-            user?: {
-                id: string;
-                name: string;
-                avatar: string;
-            };
+            /** Format: date-time */
+            submitted_at: string;
+            source: string | null;
+            author_display_name: string;
+            user?: string;
             product?: {
                 id: string;
                 slug: string;
@@ -2362,6 +3769,7 @@ export interface components {
             id: number;
             uid: string;
             sku: string;
+            barcode: string;
             title: string;
             option_values: string;
             price: string;
@@ -2381,7 +3789,9 @@ export interface components {
             backorder_ready_date: string | null;
             weight: number | null;
             position: number;
+            /** Format: date-time */
             created_at: string | null;
+            /** Format: date-time */
             updated_at: string | null;
         };
         /** PromotionResource */
@@ -2399,14 +3809,25 @@ export interface components {
             status: "expired";
             is_live: boolean;
         };
-        /** @description The one error shape the merchant API answers with: `error{code,message,field?,errors?,doc_url,request_id}`. Switch on `error.code`, never on the message. */
+        /** PublicationResource */
+        PublicationResource: {
+            id: number;
+            key: string;
+            name: string;
+            kind: string;
+            status: string;
+            /** Format: date-time */
+            created_at: string | null;
+        };
+        /** @description The error envelope every error body answers. Switch on `error.code`, never on the message. The additive legacy-compatibility top-level keys some surfaces emit beside it (`error_code`, `message`, and — on non-reissued surfaces only — `request_id`, `doc_url`) are documented separately under `QueekLegacyErrorKeys`, which no operation references. */
         QueekError: {
+            /** @description The canonical error. Switch on `error.code`, never on the message. */
             error: {
                 /**
                  * @description Stable identifier a client switches on. A new failure mode gets a new code; an existing code never changes meaning.
                  * @enum {string}
                  */
-                code: "ai_unavailable_in_test_mode" | "api_key_expired" | "api_key_mode_mismatch" | "api_key_revoked" | "app_embed_not_ready" | "app_grant_insufficient" | "app_handoff_failed" | "app_installation_gone" | "app_installation_pending" | "app_ip_not_allowed" | "app_proxy_failed" | "app_proxy_gone" | "app_token_revoked" | "bad_request" | "channel_gateway_unreachable" | "client_key_required" | "conflict" | "custom_domain_provisioning_failed" | "custom_gateway_forbidden" | "custom_gateway_kyc_required" | "custom_gateway_not_configured" | "custom_gateway_not_verified" | "custom_gateway_plan_required" | "custom_gateway_store_ineligible" | "custom_gateway_verification_failed" | "forbidden" | "gone" | "idempotency_key_in_progress" | "idempotency_key_reuse" | "insufficient_scope" | "invalid_client" | "invalid_client_key" | "metafield_definition_missing" | "metafield_filter_unsupported_type" | "metafield_namespace_reserved" | "metafield_value_invalid" | "metaobject_definition_missing" | "metaobject_field_invalid" | "metaobject_reference_invalid" | "metaobject_type_reserved" | "method_not_allowed" | "not_found" | "origin_not_allowed" | "origin_required" | "payload_too_large" | "payment_amount_mismatch" | "plan_inactive" | "private_key_required" | "requires_slot" | "resync_cooldown" | "route_not_available" | "server_error" | "service_unavailable" | "subscription_feature_locked" | "too_many_requests" | "translation_digest_stale" | "translation_locale_is_primary" | "translation_max_published_locales" | "translation_unknown_key" | "translation_unknown_locale" | "unauthenticated" | "unknown_product_ref" | "unknown_service" | "unknown_variant_ref" | "unsupported_media_type" | "validation_failed" | "vendor_access_denied" | "vendor_mail_sender_forbidden" | "vendor_mail_sender_not_configured" | "vendor_mail_sender_plan_required" | "vendor_mail_sender_verification_failed";
+                code: "ai_unavailable_in_test_mode" | "api_key_expired" | "api_key_mode_mismatch" | "api_key_revoked" | "app_embed_not_ready" | "app_grant_insufficient" | "app_handoff_failed" | "app_installation_gone" | "app_installation_pending" | "app_ip_not_allowed" | "app_proxy_failed" | "app_proxy_gone" | "app_token_revoked" | "bad_request" | "channel_gateway_unreachable" | "client_key_required" | "conflict" | "custom_domain_provisioning_failed" | "custom_gateway_forbidden" | "custom_gateway_kyc_required" | "custom_gateway_not_configured" | "custom_gateway_not_verified" | "custom_gateway_plan_required" | "custom_gateway_store_ineligible" | "custom_gateway_verification_failed" | "forbidden" | "gone" | "idempotency_key_in_progress" | "idempotency_key_reuse" | "insufficient_scope" | "invalid_client" | "invalid_client_key" | "metafield_definition_missing" | "metafield_filter_unsupported_type" | "metafield_namespace_reserved" | "metafield_value_invalid" | "metaobject_definition_missing" | "metaobject_field_invalid" | "metaobject_reference_invalid" | "metaobject_type_reserved" | "method_not_allowed" | "not_found" | "origin_not_allowed" | "origin_required" | "payload_too_large" | "payment_amount_mismatch" | "plan_inactive" | "private_key_required" | "requires_slot" | "resync_cooldown" | "route_not_available" | "server_error" | "service_unavailable" | "subscription_feature_locked" | "too_many_requests" | "translation_digest_stale" | "translation_locale_is_primary" | "translation_max_published_locales" | "translation_unknown_key" | "translation_unknown_locale" | "unauthenticated" | "unknown_product_ref" | "unknown_service" | "unknown_variant_ref" | "unsupported_media_type" | "validation_failed" | "vendor_access_denied" | "vendor_mail_sender_forbidden" | "vendor_mail_sender_key_unavailable" | "vendor_mail_sender_not_configured" | "vendor_mail_sender_plan_required" | "vendor_mail_sender_verification_failed";
                 /** @description Human-readable explanation. Not stable — never switch on it. */
                 message: string;
                 /** @description First offending field, on validation failures only. */
@@ -2417,8 +3838,8 @@ export interface components {
                 };
                 /** @description Deep link to this code in the error reference: https://docs.usequeek.com/docs/versioning-and-errors#<code>. */
                 doc_url: string;
-                /** @description The X-Request-Id of this request. Quote it in support. */
-                request_id?: string | null;
+                /** @description The X-Request-Id of this request. Always a string. Quote it in support. */
+                request_id?: string;
             };
         };
         /** QueekMerchantStore */
@@ -2471,6 +3892,35 @@ export interface components {
         /** QueekStoreVendor */
         QueekStoreVendor: components["schemas"]["VendorResource"];
         /**
+         * QueekWebhookCustomerEmailMarketingConsentEvent
+         * @description The signed body of a webhook delivery. Signed as `{webhook-id}.{webhook-timestamp}.{raw body}` with HMAC-SHA256 over the base64-decoded secret, value `v1,<base64>`; verify before trusting it.
+         */
+        QueekWebhookCustomerEmailMarketingConsentEvent: {
+            /** @description Event id, identical to the `webhook-id` header. Dedupe on it — a retry reuses it. */
+            id: string;
+            topic: components["schemas"]["QueekWebhookTopic"];
+            /** @description Payload contract version. Additive within a major. */
+            api_version: string;
+            /**
+             * Format: date-time
+             * @description ISO-8601 timestamp of the event.
+             */
+            created_at: string;
+            data: components["schemas"]["QueekWebhookCustomerEmailMarketingConsentPayload"];
+        };
+        /** QueekWebhookCustomerEmailMarketingConsentPayload */
+        QueekWebhookCustomerEmailMarketingConsentPayload: {
+            id: number;
+            email_marketing_consent: {
+                /** @enum {string} */
+                state: "not_opted_out" | "unsubscribed";
+                /** @enum {string|null} */
+                opt_in_level: "SINGLE_OPT_IN" | "CONFIRMED_OPT_IN" | null;
+                /** Format: date-time */
+                consent_updated_at: string | null;
+            };
+        };
+        /**
          * QueekWebhookCustomerEvent
          * @description The signed body of a webhook delivery. Signed as `{webhook-id}.{webhook-timestamp}.{raw body}` with HMAC-SHA256 over the base64-decoded secret, value `v1,<base64>`; verify before trusting it.
          */
@@ -2480,12 +3930,44 @@ export interface components {
             topic: components["schemas"]["QueekWebhookTopic"];
             /** @description Payload contract version. Additive within a major. */
             api_version: string;
-            /** @description ISO-8601 timestamp of the event. */
+            /**
+             * Format: date-time
+             * @description ISO-8601 timestamp of the event.
+             */
             created_at: string;
             data: components["schemas"]["QueekWebhookCustomerPayload"];
         };
         /** QueekWebhookCustomerPayload */
         QueekWebhookCustomerPayload: components["schemas"]["CustomerResource"];
+        /**
+         * QueekWebhookCustomerSmsMarketingConsentEvent
+         * @description The signed body of a webhook delivery. Signed as `{webhook-id}.{webhook-timestamp}.{raw body}` with HMAC-SHA256 over the base64-decoded secret, value `v1,<base64>`; verify before trusting it.
+         */
+        QueekWebhookCustomerSmsMarketingConsentEvent: {
+            /** @description Event id, identical to the `webhook-id` header. Dedupe on it — a retry reuses it. */
+            id: string;
+            topic: components["schemas"]["QueekWebhookTopic"];
+            /** @description Payload contract version. Additive within a major. */
+            api_version: string;
+            /**
+             * Format: date-time
+             * @description ISO-8601 timestamp of the event.
+             */
+            created_at: string;
+            data: components["schemas"]["QueekWebhookCustomerSmsMarketingConsentPayload"];
+        };
+        /** QueekWebhookCustomerSmsMarketingConsentPayload */
+        QueekWebhookCustomerSmsMarketingConsentPayload: {
+            id: number;
+            sms_marketing_consent: {
+                /** @enum {string} */
+                state: "subscribed" | "unsubscribed" | "not_subscribed";
+                /** @enum {string|null} */
+                opt_in_level: "SINGLE_OPT_IN" | "CONFIRMED_OPT_IN" | null;
+                /** Format: date-time */
+                consent_updated_at: string | null;
+            };
+        };
         /**
          * QueekWebhookEvent
          * @description The signed body of a webhook delivery. Signed as `{webhook-id}.{webhook-timestamp}.{raw body}` with HMAC-SHA256 over the base64-decoded secret, value `v1,<base64>`; verify before trusting it.
@@ -2496,7 +3978,10 @@ export interface components {
             topic: components["schemas"]["QueekWebhookTopic"];
             /** @description Payload contract version. Additive within a major. */
             api_version: string;
-            /** @description ISO-8601 timestamp of the event. */
+            /**
+             * Format: date-time
+             * @description ISO-8601 timestamp of the event.
+             */
             created_at: string;
             data: components["schemas"]["OrderResource"];
         };
@@ -2510,7 +3995,10 @@ export interface components {
             topic: components["schemas"]["QueekWebhookTopic"];
             /** @description Payload contract version. Additive within a major. */
             api_version: string;
-            /** @description ISO-8601 timestamp of the event. */
+            /**
+             * Format: date-time
+             * @description ISO-8601 timestamp of the event.
+             */
             created_at: string;
             data: components["schemas"]["QueekWebhookInventoryLevelPayload"];
         };
@@ -2526,7 +4014,10 @@ export interface components {
             topic: components["schemas"]["QueekWebhookTopic"];
             /** @description Payload contract version. Additive within a major. */
             api_version: string;
-            /** @description ISO-8601 timestamp of the event. */
+            /**
+             * Format: date-time
+             * @description ISO-8601 timestamp of the event.
+             */
             created_at: string;
             data: components["schemas"]["QueekWebhookProductPayload"];
         };
@@ -2544,6 +4035,8 @@ export interface components {
          *     `products/delete` — A product was deleted, soft-delete included.
          *     `customers/create` — A customer record was created for the store.
          *     `customers/update` — A customer profile field changed.
+         *     `customers_email_marketing_consent/update` — A customer email marketing preference changed.
+         *     `customers_marketing_consent/update` — A customer's SMS marketing consent changed.
          *     `inventory_levels/update` — A product or variant stock level changed, with the reason.
          *     `locales/create` — A locale was added to the store.
          *     `locales/update` — A locale was published or unpublished on the store.
@@ -2552,9 +4045,19 @@ export interface components {
          *     `translations/delete` — Translations were removed from one resource, for the locales and keys in the payload.
          * @enum {string}
          */
-        QueekWebhookTopic: "orders/create" | "orders/paid" | "orders/updated" | "orders/fulfilled" | "orders/cancelled" | "products/create" | "products/update" | "products/delete" | "customers/create" | "customers/update" | "inventory_levels/update" | "locales/create" | "locales/update" | "locales/destroy" | "translations/update" | "translations/delete";
+        QueekWebhookTopic: "orders/create" | "orders/paid" | "orders/updated" | "orders/fulfilled" | "orders/cancelled" | "products/create" | "products/update" | "products/delete" | "customers/create" | "customers/update" | "customers_email_marketing_consent/update" | "customers_marketing_consent/update" | "inventory_levels/update" | "locales/create" | "locales/update" | "locales/destroy" | "translations/update" | "translations/delete";
         /**
-         * RegisterTranslationsRequest
+         * Register publication input
+         * @description Registers a publication (a sales channel) for the calling app. Only an app
+         *     connection can register one; the key is a slug unique to the app and may not
+         *     be digits only.
+         */
+        RegisterPublicationRequest: {
+            name: string;
+            key: string;
+        };
+        /**
+         * Register translations input
          * @description PUT translations/{type}/{id} — register a batch of translations against the
          *     current source digests. The body shape is validated first (at most 100
          *     items); then each item's locale, key and digest is checked against the live
@@ -2566,12 +4069,12 @@ export interface components {
             translations: {
                 locale: string;
                 key: string;
-                /** @description Largest v1 source field is ProductRequest's description (50000). */
+                /** @description Largest v1 source field is a product description (50000). */
                 value: string;
                 digest: string;
             }[];
         };
-        /** ReorderCollectionProductsRequest */
+        /** Reorder collection products input */
         ReorderCollectionProductsRequest: {
             product_ids: string[];
         };
@@ -2583,15 +4086,18 @@ export interface components {
             description: string;
             media: string | string[];
             vendor_response: string;
+            /** Format: date-time */
             vendor_response_at: string;
             is_verified_purchase: boolean;
+            /** Format: date-time */
             created_at: string;
+            /** Format: date-time */
             edited_at: string;
-            user?: {
-                id: string;
-                name: string;
-                avatar: string;
-            };
+            /** Format: date-time */
+            submitted_at: string;
+            source: string | null;
+            author_display_name: string;
+            user?: string;
             product?: {
                 id: string;
                 slug: string;
@@ -2600,7 +4106,7 @@ export interface components {
             };
         };
         /**
-         * SendAppAlertRequest
+         * Send app alert input
          * @description Send an in-app notice to the installing merchant from the calling
          *     installation (POST app/alerts). The installation comes from the calling key
          *     — the body carries no target, so one installation can never alert on another
@@ -2619,7 +4125,62 @@ export interface components {
             dedupe_key?: string | null;
             meta?: string[] | null;
         };
-        /** StoreCouponRequest */
+        /** ShippingZoneResource */
+        ShippingZoneResource: {
+            id: string;
+            name: string;
+            zone_type: string;
+            countries: unknown[];
+            state_ids: unknown[];
+            area_ids: unknown[];
+            /**
+             * @description Vendor chain, never the silent platform default: loaded relation first,
+             *     then the cache-backed lookup (zero DB queries on a warm cache).
+             */
+            currency: string;
+            base_rate: string;
+            per_kg_rate: string | null;
+            min_weight_kg: string | null;
+            max_weight_kg: string | null;
+            min_days: number;
+            max_days: number;
+            active: boolean;
+            position: number;
+            /** Format: date-time */
+            created_at: string | null;
+            /** Format: date-time */
+            updated_at: string | null;
+        };
+        /** StockAdjustmentResource */
+        StockAdjustmentResource: {
+            id: string;
+            type: string;
+            quantity_before: number;
+            quantity_change: number;
+            quantity_after: number;
+            reason: string;
+            reason_code: string | null;
+            scope: string;
+            product: {
+                id: number;
+                uid: string;
+                title: string;
+                slug: string;
+            } | null;
+            variant: {
+                uid: string;
+                title: string;
+                option_values: string;
+            } | null;
+            order: {
+                id: number;
+                uid: string;
+            } | null;
+            shortfall: string;
+            /** Format: date-time */
+            created_at: string | null;
+        };
+        /** Store coupon input */
         StoreCouponRequest: {
             title: string;
             description?: string | null;
@@ -2639,7 +4200,7 @@ export interface components {
             /** Format: date-time */
             expires_at?: string | null;
         };
-        /** StoreDiscountRequest */
+        /** Store discount input */
         StoreDiscountRequest: {
             title: string;
             description?: string | null;
@@ -2730,12 +4291,15 @@ export interface components {
             show_page_title: boolean;
             status: string;
             position: number;
+            /** Format: date-time */
             published_at: string | null;
+            /** Format: date-time */
             created_at: string | null;
+            /** Format: date-time */
             updated_at: string | null;
         };
         /**
-         * StoreProductImageRequest
+         * Store product image input
          * @description Attach one image: a `media_id` from the store's own files, or a PUBLIC `url`
          *     that the server downloads into the store's files (SSRF-guarded, never
          *     hot-linked). `primary: true` makes it the main image; otherwise it joins the
@@ -2748,13 +4312,14 @@ export interface components {
             primary?: boolean;
         };
         /**
-         * StoreProductVariantRequest
+         * Store product variant input
          * @description One variant of a shop product. `title` is not accepted: it is derived from the
          *     option values ("Large / Red") by the variant service, as on every other writer.
          */
         StoreProductVariantRequest: {
             option_values: string[];
             sku?: string | null;
+            barcode?: string | null;
             price: number;
             compare_at_price?: number | null;
             stock?: number;
@@ -2867,13 +4432,19 @@ export interface components {
                 /** @description Every origin the storefront answers on (`https://host`), the canonical one first: each verified custom domain, then the Queek subdomain. */
                 domains: string;
             };
-            /** @description When the store was created (ISO-8601). */
+            /**
+             * Format: date-time
+             * @description When the store was created (ISO-8601).
+             */
             created_at: string | null;
-            /** @description When the store was last updated (ISO-8601). */
+            /**
+             * Format: date-time
+             * @description When the store was last updated (ISO-8601).
+             */
             updated_at: string | null;
         };
         /**
-         * StoreVendorLocaleRequest
+         * Store vendor locale input
          * @description POST locales {locale} — enable a catalogue locale on the store. The code
          *     must be a supported catalogue code; anything else is a 422, never a guess.
          */
@@ -2895,8 +4466,15 @@ export interface components {
             products_count: number;
             children: string[];
         };
+        /** TeamDirectoryResource */
+        TeamDirectoryResource: {
+            id: number;
+            name: string | null;
+            role_names: string;
+            is_active: boolean;
+        };
         /**
-         * UpdateAppSetupNoticeRequest
+         * Update app setup notice input
          * @description Store the calling installation's merchant-visible setup values (PUT
          *     app/setup). Call it once the installation's key is active.
          *
@@ -2907,7 +4485,7 @@ export interface components {
          */
         UpdateAppSetupNoticeRequest: {
             /**
-             * @description needs_action is the absence state the backend derives when no
+             * @description needs_action is the state reported when no
              *     notice is stored — an app may only declare incomplete/complete.
              * @enum {string}
              */
@@ -2921,8 +4499,29 @@ export interface components {
                 instructions?: string | null;
             }[];
         };
+        /** Update customer email marketing consent input */
+        UpdateCustomerEmailMarketingConsentRequest: {
+            /** @enum {string} */
+            state: "unsubscribed" | "not_opted_out";
+            source?: string;
+            /** Format: date-time */
+            consent_updated_at?: string;
+            /** @enum {string} */
+            opt_in_level?: "SINGLE_OPT_IN" | "CONFIRMED_OPT_IN";
+        };
+        /** Update customer sms marketing consent input */
+        UpdateCustomerSmsMarketingConsentRequest: {
+            /** @enum {string} */
+            state: "subscribed" | "unsubscribed";
+            /** @enum {string|null} */
+            source?: "checkout" | "account" | "import" | "provider_sync" | "other" | null;
+            /** Format: date-time */
+            consent_updated_at?: string | null;
+            /** @enum {string} */
+            opt_in_level?: "SINGLE_OPT_IN" | "CONFIRMED_OPT_IN";
+        };
         /**
-         * UpdateProductImageRequest
+         * Update product image input
          * @description Make an image already on the product its primary image. To clear the primary
          *     image, DELETE it instead.
          */
@@ -2931,12 +4530,13 @@ export interface components {
             primary: "yes" | "on" | "1" | 1 | "true" | true;
         };
         /**
-         * UpdateProductVariantRequest
+         * Update product variant input
          * @description Same fields as a new variant, every one optional: only what is sent changes.
          */
         UpdateProductVariantRequest: {
             option_values?: string[];
             sku?: string | null;
+            barcode?: string | null;
             price?: number;
             compare_at_price?: number | null;
             stock?: number;
@@ -2951,7 +4551,24 @@ export interface components {
             weight?: number | null;
             position?: number;
         };
-        /** UpdateShipmentRequest */
+        /**
+         * Update publication resources input
+         * @description Publishes or unpublishes products and collections on one of your
+         *     publications: up to 50 references per call in total, each a product or
+         *     collection p_id, UUID or slug from this store. Every reference gets its own
+         *     result; a publication you cannot access answers 404 and an archived one 410.
+         */
+        UpdatePublicationResourcesRequest: {
+            publish?: {
+                products?: string[] | null;
+                collections?: string[] | null;
+            };
+            unpublish?: {
+                products?: string[] | null;
+                collections?: string[] | null;
+            };
+        };
+        /** Update shipment input */
         UpdateShipmentRequest: {
             carrier_name?: string | null;
             tracking_number?: string | null;
@@ -2972,14 +4589,14 @@ export interface components {
             notes?: string | null;
         };
         /**
-         * UpdateVendorLocaleRequest
+         * Update vendor locale input
          * @description PATCH locales/{locale} — publish or unpublish an enabled locale by sending
          *     `published`. An unknown code, or a code the store never added, answers 404.
          */
         UpdateVendorLocaleRequest: {
             published: boolean;
         };
-        /** UpdateVendorOrderStatusRequest */
+        /** Update vendor order status input */
         UpdateVendorOrderStatusRequest: {
             /** @enum {string} */
             status: "approve_payment" | "accept" | "rejected" | "mark_received" | "ready_for_pickup" | "picked_up" | "ready_to_serve" | "served" | "complete";
@@ -3082,7 +4699,7 @@ export interface components {
             min_order_price: number | null;
         };
         /**
-         * VendorOrderExtensionRequest
+         * Vendor order extension input
          * @description PATCH orders/{order} — the developer-extension fields of an order, and
          *     nothing else.
          *
@@ -3325,7 +4942,7 @@ export interface components {
              */
             is_test?: boolean;
             /**
-             * @description S-E: the core storefront renders a password page for dev
+             * @description The storefront renders a password page for dev
              *     stores. One flag per fact: dev_store says WHAT it is,
              *     password_required gates the token; this response itself
              *     stays public — gated reads 401. indexable:false tells the
@@ -3358,6 +4975,68 @@ export interface components {
             account_number: string | null;
             account_name: string | null;
             account_provider: string | null;
+        };
+        /** @description Additive legacy-compatibility top-level keys the runtime still emits on error bodies — never a replacement for `error.*`, which is the contract. `error_code` and `message` ride top-level on helper-produced refusals; `request_id` and `doc_url` ride top-level ONLY on non-reissued controller-helper bodies (storefront, client, developer and dashboard surfaces) — merchant routes reissue refusals, so there they live inside `error` and the `X-Request-Id` header. Handler-produced bodies keep their own top-level keys with `error` stapled beside them. Not referenced by any operation response: new integrations switch on `error.code`. */
+        QueekLegacyErrorKeys: {
+            /** @description Top-level mirror of `error.code` on helper-produced refusals (shared controller error helpers, client-auth handler branches). */
+            error_code?: string;
+            /** @description Top-level mirror of `error.message` on the same helper-produced refusals as `error_code`. */
+            message?: string;
+            /** @description Top-level mirror of `error.request_id` ONLY on non-reissued controller-helper bodies. Always a string when present. */
+            request_id?: string;
+            /** @description Top-level mirror of `error.doc_url`, same per-producer scope as top-level `request_id`: non-reissued controller-helper bodies only. */
+            doc_url?: string;
+        };
+        /** @description One vendor metaobject entry with timestamps. `fields` carries the values keyed by field key. */
+        MerchantMetaobject: {
+            p_id: number;
+            type: string;
+            handle: string;
+            display_name: string;
+            status: string;
+            /** @description Entry values keyed by field key. */
+            fields: {
+                [key: string]: unknown;
+            };
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+        };
+        /** @description The updated publication beside the per-ref outcomes of one PATCH call. */
+        MerchantPublicationResources: {
+            publication: components["schemas"]["MerchantPublication"];
+            /** @description One entry per ref sent: `result` is published, unpublished, unchanged, not_found or refused; `code` carries the refusal reason. */
+            results: {
+                /** @description The ref exactly as sent. */
+                ref: string;
+                /** @description product or collection. */
+                type: string;
+                /** @description published, unpublished, unchanged, not_found or refused. */
+                result: string;
+                /** @description The refusal reason, e.g. collection_not_owned. */
+                code?: string | null;
+            }[];
+        };
+        /** @description One released daily seller settlement batch. Only order settlement credits are included. */
+        MerchantPayoutBatch: {
+            /** @description The batch id — its YYYY-MM-DD settlement date. */
+            id: string;
+            /**
+             * Format: date
+             * @description The settled day (YYYY-MM-DD).
+             */
+            settlement_date: string;
+            /** @description Major-unit decimal string in `currency`. */
+            total_amount: string;
+            /** @description ISO currency code. */
+            currency: string;
+            /** @description Settled orders in the batch. */
+            order_count: number;
+            /** Format: date-time */
+            first_posted_at: string;
+            /** Format: date-time */
+            last_posted_at: string;
         };
     };
     responses: {
@@ -3421,6 +5100,1415 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    "addons.list": {
+        parameters: {
+            query?: {
+                /** @example 2 */
+                limit?: number | null;
+                starting_after?: string | null;
+            };
+            header: {
+                /**
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @example {{merchantKey}}
+                 */
+                "X-Client-Key": string;
+                /** @description Your own correlation id (8–128 chars, `^[A-Za-z0-9_.:-]+$`). Echoed back on the response and on every log line of the request; one is generated when you omit it. */
+                "X-Request-Id"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "data": [
+                     *         {
+                     *           "id": 9101,
+                     *           "uid": "019a1d52-3c8e-7f41-b0d2-6a3e9c1f4b77",
+                     *           "title": "Extra Toppings",
+                     *           "type": "multi",
+                     *           "required": true,
+                     *           "min": 1,
+                     *           "max": 3,
+                     *           "multiple_selection": true,
+                     *           "is_pack_group": false,
+                     *           "is_global": false,
+                     *           "items": [
+                     *             {
+                     *               "id": 44101,
+                     *               "uid": "019a1d52-3c8e-7f41-b0d2-6a3e9c1f4c01",
+                     *               "name": "Grilled Chicken",
+                     *               "price": "1500.00",
+                     *               "in_stock": true,
+                     *               "is_pack": false,
+                     *               "is_global": false
+                     *             },
+                     *             {
+                     *               "id": 44102,
+                     *               "uid": "019a1d52-3c8e-7f41-b0d2-6a3e9c1f4c02",
+                     *               "name": "Fried Plantain",
+                     *               "price": "800.00",
+                     *               "in_stock": true,
+                     *               "is_pack": false,
+                     *               "is_global": false
+                     *             }
+                     *           ],
+                     *           "items_count": 2,
+                     *           "items_truncated": false
+                     *         }
+                     *       ],
+                     *       "has_more": true,
+                     *       "next_cursor": "eyJpZCI6OTEwMiwiX3BvaW50c1RvTmV4dEl0ZW1zIjp0cnVlfQ"
+                     *     }
+                     */
+                    "application/json": {
+                        data: components["schemas"]["MerchantAddonGroup"][];
+                        has_more: boolean;
+                        next_cursor?: string | null;
+                    };
+                };
+            };
+            /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "invalid_client_key",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Forbidden — the key cannot call this operation. Switch on `error.code`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "insufficient_scope",
+                     *         "message": "This API key does not carry the 'merchant-options-read' scope it was called with.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Validation failed — `error.errors` carries per-field detail. Switch on `error.code`. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "validation_failed",
+                     *         "message": "The limit field must be at least 1.",
+                     *         "field": "limit",
+                     *         "errors": {
+                     *           "limit": [
+                     *             "The limit field must be at least 1."
+                     *           ]
+                     *         },
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Too many requests — slow down and retry. Switch on `error.code`. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "too_many_requests",
+                     *         "message": "Too Many Attempts.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+        };
+    };
+    "addons.create": {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @example {{merchantKey}}
+                 */
+                "X-Client-Key": string;
+                /** @description Your own correlation id (8–128 chars, `^[A-Za-z0-9_.:-]+$`). Echoed back on the response and on every log line of the request; one is generated when you omit it. */
+                "X-Request-Id"?: string;
+                /** @description Retry-safe write key. The same key with the same body replays the stored response for 24h with `Idempotent-Replayed: true`; with a different body it is `409 idempotency_key_reuse`; while the first call is still running it is `409 idempotency_key_in_progress`. */
+                "Idempotency-Key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "title": "Extra Toppings",
+                 *       "required": true,
+                 *       "min": 1,
+                 *       "max": 3,
+                 *       "multiple_selection": true,
+                 *       "items": [
+                 *         {
+                 *           "name": "Grilled Chicken",
+                 *           "price": 1500
+                 *         },
+                 *         {
+                 *           "name": "Fried Plantain",
+                 *           "price": 800
+                 *         }
+                 *       ]
+                 *     }
+                 */
+                "application/json": components["schemas"]["MerchantAddonGroupRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "status": "success",
+                     *       "message": "Add-on group created",
+                     *       "data": {
+                     *         "id": 9101,
+                     *         "uid": "019a1d52-3c8e-7f41-b0d2-6a3e9c1f4b77",
+                     *         "title": "Extra Toppings",
+                     *         "type": "multi",
+                     *         "required": true,
+                     *         "min": 1,
+                     *         "max": 3,
+                     *         "multiple_selection": true,
+                     *         "is_pack_group": false,
+                     *         "is_global": false,
+                     *         "items": [
+                     *           {
+                     *             "id": 44101,
+                     *             "uid": "019a1d52-3c8e-7f41-b0d2-6a3e9c1f4c01",
+                     *             "name": "Grilled Chicken",
+                     *             "price": "1500.00",
+                     *             "in_stock": true,
+                     *             "is_pack": false,
+                     *             "is_global": false
+                     *           },
+                     *           {
+                     *             "id": 44102,
+                     *             "uid": "019a1d52-3c8e-7f41-b0d2-6a3e9c1f4c02",
+                     *             "name": "Fried Plantain",
+                     *             "price": "800.00",
+                     *             "in_stock": true,
+                     *             "is_pack": false,
+                     *             "is_global": false
+                     *           }
+                     *         ],
+                     *         "items_count": 2,
+                     *         "items_truncated": false
+                     *       }
+                     *     }
+                     */
+                    "application/json": {
+                        /** @constant */
+                        status: "success";
+                        message: string;
+                        data: components["schemas"]["MerchantAddonGroup"];
+                    };
+                };
+            };
+            /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "invalid_client_key",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Forbidden — the key cannot call this operation. Switch on `error.code`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "insufficient_scope",
+                     *         "message": "This API key does not carry the 'merchant-options-create' scope it was called with.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Idempotency conflict — `idempotency_key_reuse` or `idempotency_key_in_progress`. Switch on `error.code`. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "idempotency_key_reuse",
+                     *         "message": "This Idempotency-Key was already used for a different request body. Use a new key for a new request.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#idempotency_key_reuse",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Validation failed — `error.errors` carries per-field detail. Switch on `error.code`. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "validation_failed",
+                     *         "message": "The title field is required.",
+                     *         "field": "title",
+                     *         "errors": {
+                     *           "title": [
+                     *             "The title field is required."
+                     *           ]
+                     *         },
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Too many requests — slow down and retry. Switch on `error.code`. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "too_many_requests",
+                     *         "message": "Too Many Attempts.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+        };
+    };
+    "addons.retrieve": {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @example {{merchantKey}}
+                 */
+                "X-Client-Key": string;
+                /** @description Your own correlation id (8–128 chars, `^[A-Za-z0-9_.:-]+$`). Echoed back on the response and on every log line of the request; one is generated when you omit it. */
+                "X-Request-Id"?: string;
+            };
+            path: {
+                /** @example 9101 */
+                group: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "status": "success",
+                     *       "message": "Add-on group",
+                     *       "data": {
+                     *         "id": 9101,
+                     *         "uid": "019a1d52-3c8e-7f41-b0d2-6a3e9c1f4b77",
+                     *         "title": "Extra Toppings",
+                     *         "type": "multi",
+                     *         "required": true,
+                     *         "min": 1,
+                     *         "max": 3,
+                     *         "multiple_selection": true,
+                     *         "is_pack_group": false,
+                     *         "is_global": false,
+                     *         "items": [
+                     *           {
+                     *             "id": 44101,
+                     *             "uid": "019a1d52-3c8e-7f41-b0d2-6a3e9c1f4c01",
+                     *             "name": "Grilled Chicken",
+                     *             "price": "1500.00",
+                     *             "in_stock": true,
+                     *             "is_pack": false,
+                     *             "is_global": false
+                     *           },
+                     *           {
+                     *             "id": 44102,
+                     *             "uid": "019a1d52-3c8e-7f41-b0d2-6a3e9c1f4c02",
+                     *             "name": "Fried Plantain",
+                     *             "price": "800.00",
+                     *             "in_stock": true,
+                     *             "is_pack": false,
+                     *             "is_global": false
+                     *           }
+                     *         ],
+                     *         "items_count": 2,
+                     *         "items_truncated": false
+                     *       }
+                     *     }
+                     */
+                    "application/json": {
+                        /** @constant */
+                        status: "success";
+                        message: string;
+                        data: components["schemas"]["MerchantAddonGroup"];
+                    };
+                };
+            };
+            /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "invalid_client_key",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Forbidden — the key cannot call this operation. Switch on `error.code`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "insufficient_scope",
+                     *         "message": "This API key does not carry the 'merchant-options-detail' scope it was called with.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Not found — the addressed record does not exist at this store. Switch on `error.code`. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "not_found",
+                     *         "message": "Addon group not found.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#not_found",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Too many requests — slow down and retry. Switch on `error.code`. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "too_many_requests",
+                     *         "message": "Too Many Attempts.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+        };
+    };
+    "addons.delete": {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @example {{merchantKey}}
+                 */
+                "X-Client-Key": string;
+                /** @description Your own correlation id (8–128 chars, `^[A-Za-z0-9_.:-]+$`). Echoed back on the response and on every log line of the request; one is generated when you omit it. */
+                "X-Request-Id"?: string;
+                /** @description Retry-safe write key. The same key with the same body replays the stored response for 24h with `Idempotent-Replayed: true`; with a different body it is `409 idempotency_key_reuse`; while the first call is still running it is `409 idempotency_key_in_progress`. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                /** @example 9101 */
+                group: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "status": "success",
+                     *       "message": "Add-on group deleted",
+                     *       "data": {
+                     *         "id": 9101,
+                     *         "uid": "019a1d52-3c8e-7f41-b0d2-6a3e9c1f4b77",
+                     *         "deleted": true
+                     *       }
+                     *     }
+                     */
+                    "application/json": {
+                        /** @constant */
+                        status: "success";
+                        message: string;
+                        data: {
+                            /** @description The deleted group p_id. */
+                            id: number;
+                            /**
+                             * Format: uuid
+                             * @description The deleted group UUID.
+                             */
+                            uid: string;
+                            /** @description Always true when this shape answers. */
+                            deleted: boolean;
+                        };
+                    };
+                };
+            };
+            /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "invalid_client_key",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Forbidden — the key cannot call this operation. Switch on `error.code`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "insufficient_scope",
+                     *         "message": "This API key does not carry the 'merchant-options-delete' scope it was called with.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Not found — the addressed record does not exist at this store. Switch on `error.code`. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "not_found",
+                     *         "message": "Addon group not found.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#not_found",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Idempotency conflict — `idempotency_key_reuse` or `idempotency_key_in_progress`. Switch on `error.code`. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "idempotency_key_reuse",
+                     *         "message": "This Idempotency-Key was already used for a different request body. Use a new key for a new request.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#idempotency_key_reuse",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Too many requests — slow down and retry. Switch on `error.code`. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "too_many_requests",
+                     *         "message": "Too Many Attempts.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+        };
+    };
+    "addons.update": {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @example {{merchantKey}}
+                 */
+                "X-Client-Key": string;
+                /** @description Your own correlation id (8–128 chars, `^[A-Za-z0-9_.:-]+$`). Echoed back on the response and on every log line of the request; one is generated when you omit it. */
+                "X-Request-Id"?: string;
+                /** @description Retry-safe write key. The same key with the same body replays the stored response for 24h with `Idempotent-Replayed: true`; with a different body it is `409 idempotency_key_reuse`; while the first call is still running it is `409 idempotency_key_in_progress`. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                /** @example 9101 */
+                group: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "title": "Extra Toppings and Sides",
+                 *       "items": [
+                 *         {
+                 *           "id": 44101
+                 *         },
+                 *         {
+                 *           "name": "Puff Puff",
+                 *           "price": 500
+                 *         }
+                 *       ]
+                 *     }
+                 */
+                "application/json": components["schemas"]["MerchantAddonGroupRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "status": "success",
+                     *       "message": "Add-on group updated",
+                     *       "data": {
+                     *         "id": 9101,
+                     *         "uid": "019a1d52-3c8e-7f41-b0d2-6a3e9c1f4b77",
+                     *         "title": "Extra Toppings and Sides",
+                     *         "type": "multi",
+                     *         "required": true,
+                     *         "min": 1,
+                     *         "max": 3,
+                     *         "multiple_selection": true,
+                     *         "is_pack_group": false,
+                     *         "is_global": false,
+                     *         "items": [
+                     *           {
+                     *             "id": 44101,
+                     *             "uid": "019a1d52-3c8e-7f41-b0d2-6a3e9c1f4c01",
+                     *             "name": "Grilled Chicken",
+                     *             "price": "1500.00",
+                     *             "in_stock": true,
+                     *             "is_pack": false,
+                     *             "is_global": false
+                     *           },
+                     *           {
+                     *             "id": 44102,
+                     *             "uid": "019a1d52-3c8e-7f41-b0d2-6a3e9c1f4c02",
+                     *             "name": "Fried Plantain",
+                     *             "price": "800.00",
+                     *             "in_stock": true,
+                     *             "is_pack": false,
+                     *             "is_global": false
+                     *           }
+                     *         ],
+                     *         "items_count": 2,
+                     *         "items_truncated": false
+                     *       }
+                     *     }
+                     */
+                    "application/json": {
+                        /** @constant */
+                        status: "success";
+                        message: string;
+                        data: components["schemas"]["MerchantAddonGroup"];
+                    };
+                };
+            };
+            /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "invalid_client_key",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Forbidden — the key cannot call this operation. Switch on `error.code`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "insufficient_scope",
+                     *         "message": "This API key does not carry the 'merchant-options-update' scope it was called with.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Not found — the addressed record does not exist at this store. Switch on `error.code`. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "not_found",
+                     *         "message": "Addon group not found.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#not_found",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Idempotency conflict — `idempotency_key_reuse` or `idempotency_key_in_progress`. Switch on `error.code`. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "idempotency_key_reuse",
+                     *         "message": "This Idempotency-Key was already used for a different request body. Use a new key for a new request.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#idempotency_key_reuse",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Validation failed — `error.errors` carries per-field detail. Switch on `error.code`. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "validation_failed",
+                     *         "message": "The max field must be an integer.",
+                     *         "field": "max",
+                     *         "errors": {
+                     *           "max": [
+                     *             "The max field must be an integer."
+                     *           ]
+                     *         },
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Too many requests — slow down and retry. Switch on `error.code`. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "too_many_requests",
+                     *         "message": "Too Many Attempts.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+        };
+    };
+    "addons.attach": {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @example {{merchantKey}}
+                 */
+                "X-Client-Key": string;
+                /** @description Your own correlation id (8–128 chars, `^[A-Za-z0-9_.:-]+$`). Echoed back on the response and on every log line of the request; one is generated when you omit it. */
+                "X-Request-Id"?: string;
+                /** @description Retry-safe write key. The same key with the same body replays the stored response for 24h with `Idempotent-Replayed: true`; with a different body it is `409 idempotency_key_reuse`; while the first call is still running it is `409 idempotency_key_in_progress`. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                /** @example 20417 */
+                product: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "groups": [
+                 *         9101
+                 *       ]
+                 *     }
+                 */
+                "application/json": components["schemas"]["MerchantProductAddonAttachRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "status": "success",
+                     *       "message": "Add-ons attached",
+                     *       "data": {
+                     *         "id": 20417,
+                     *         "uid": "019a1d52-3c8e-7f41-b0d2-6a3e9c1f4b21",
+                     *         "addons": [
+                     *           {
+                     *             "id": 9102,
+                     *             "uid": "019a1d52-3c8e-7f41-b0d2-6a3e9c1f4b88",
+                     *             "title": "Festival Gift Wrap",
+                     *             "type": "single",
+                     *             "required": false,
+                     *             "min": 0,
+                     *             "max": 1,
+                     *             "multiple_selection": false,
+                     *             "is_pack_group": false,
+                     *             "is_global": true,
+                     *             "items": [
+                     *               {
+                     *                 "id": 44201,
+                     *                 "uid": "019a1d52-3c8e-7f41-b0d2-6a3e9c1f4c11",
+                     *                 "name": "Gift Box",
+                     *                 "price": "2500.00",
+                     *                 "in_stock": true,
+                     *                 "is_pack": false,
+                     *                 "is_global": false
+                     *               }
+                     *             ],
+                     *             "items_count": 1,
+                     *             "items_truncated": false
+                     *           }
+                     *         ]
+                     *       }
+                     *     }
+                     */
+                    "application/json": {
+                        /** @constant */
+                        status: "success";
+                        message: string;
+                        data: {
+                            /** @description The product p_id. */
+                            id: number;
+                            /**
+                             * Format: uuid
+                             * @description The product UUID.
+                             */
+                            uid: string;
+                            addons: components["schemas"]["MerchantAddonGroup"][];
+                        };
+                    };
+                };
+            };
+            /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "invalid_client_key",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Forbidden — the key cannot call this operation. Switch on `error.code`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "insufficient_scope",
+                     *         "message": "This API key does not carry the 'merchant-options-update' scope it was called with.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Not found — the addressed record does not exist at this store. Switch on `error.code`. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "not_found",
+                     *         "message": "Product not found.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#not_found",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Idempotency conflict — `idempotency_key_reuse` or `idempotency_key_in_progress`. Switch on `error.code`. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "idempotency_key_reuse",
+                     *         "message": "This Idempotency-Key was already used for a different request body. Use a new key for a new request.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#idempotency_key_reuse",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Validation failed — `error.errors` carries per-field detail. Switch on `error.code`. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "validation_failed",
+                     *         "message": "The groups field is required.",
+                     *         "field": "groups",
+                     *         "errors": {
+                     *           "groups": [
+                     *             "The groups field is required."
+                     *           ]
+                     *         },
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Too many requests — slow down and retry. Switch on `error.code`. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "too_many_requests",
+                     *         "message": "Too Many Attempts.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+        };
+    };
+    "addons.detach": {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @example {{merchantKey}}
+                 */
+                "X-Client-Key": string;
+                /** @description Your own correlation id (8–128 chars, `^[A-Za-z0-9_.:-]+$`). Echoed back on the response and on every log line of the request; one is generated when you omit it. */
+                "X-Request-Id"?: string;
+                /** @description Retry-safe write key. The same key with the same body replays the stored response for 24h with `Idempotent-Replayed: true`; with a different body it is `409 idempotency_key_reuse`; while the first call is still running it is `409 idempotency_key_in_progress`. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                /** @example 20417 */
+                product: string;
+                /** @example 9101 */
+                group: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "status": "success",
+                     *       "message": "Add-ons detached",
+                     *       "data": {
+                     *         "id": 20417,
+                     *         "uid": "019a1d52-3c8e-7f41-b0d2-6a3e9c1f4b21",
+                     *         "addons": []
+                     *       }
+                     *     }
+                     */
+                    "application/json": {
+                        /** @constant */
+                        status: "success";
+                        message: string;
+                        data: {
+                            /** @description The product p_id. */
+                            id: number;
+                            /**
+                             * Format: uuid
+                             * @description The product UUID.
+                             */
+                            uid: string;
+                            addons: components["schemas"]["MerchantAddonGroup"][];
+                        };
+                    };
+                };
+            };
+            /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "invalid_client_key",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Forbidden — the key cannot call this operation. Switch on `error.code`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "insufficient_scope",
+                     *         "message": "This API key does not carry the 'merchant-options-update' scope it was called with.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Not found — the addressed record does not exist at this store. Switch on `error.code`. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "not_found",
+                     *         "message": "Add-on group not found on this product.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#not_found",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Idempotency conflict — `idempotency_key_reuse` or `idempotency_key_in_progress`. Switch on `error.code`. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "idempotency_key_reuse",
+                     *         "message": "This Idempotency-Key was already used for a different request body. Use a new key for a new request.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#idempotency_key_reuse",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Too many requests — slow down and retry. Switch on `error.code`. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "too_many_requests",
+                     *         "message": "Too Many Attempts.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+        };
+    };
+    "analytics.retrieve_traffic": {
+        parameters: {
+            query?: {
+                /** @example 30 */
+                days?: number;
+                app_id?: string;
+                installation_id?: string;
+                source?: string;
+                source_app_id?: string;
+            };
+            header: {
+                /**
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @example {{merchantKey}}
+                 */
+                "X-Client-Key": string;
+                /** @description Your own correlation id (8–128 chars, `^[A-Za-z0-9_.:-]+$`). Echoed back on the response and on every log line of the request; one is generated when you omit it. */
+                "X-Request-Id"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "status": "success",
+                     *       "message": "Traffic retrieved.",
+                     *       "data": {
+                     *         "range": {
+                     *           "days": 3,
+                     *           "start": "2026-10-01T00:00:00+01:00",
+                     *           "end": "2026-10-03T23:59:59+01:00"
+                     *         },
+                     *         "cards": {
+                     *           "views": 31,
+                     *           "visits": 21,
+                     *           "bot_requests": 4
+                     *         },
+                     *         "charts": {
+                     *           "views_trend": [
+                     *             {
+                     *               "date": "2026-10-01",
+                     *               "views": 10,
+                     *               "visits": 7
+                     *             },
+                     *             {
+                     *               "date": "2026-10-02",
+                     *               "views": 12,
+                     *               "visits": 8
+                     *             },
+                     *             {
+                     *               "date": "2026-10-03",
+                     *               "views": 9,
+                     *               "visits": 6
+                     *             }
+                     *           ]
+                     *         },
+                     *         "meta": {
+                     *           "collecting_since": "2026-09-20T00:00:00+01:00",
+                     *           "raw_retention_days": 14,
+                     *           "dedupe_window_minutes": 30
+                     *         }
+                     *       }
+                     *     }
+                     */
+                    "application/json": {
+                        /** @constant */
+                        status: "success";
+                        /** @constant */
+                        message: "Traffic retrieved.";
+                        data: Record<string, never>;
+                        meta: string;
+                    };
+                };
+            };
+            /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "invalid_client_key",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Forbidden — the key cannot call this operation. Switch on `error.code`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "insufficient_scope",
+                     *         "message": "This API key does not carry the 'merchant-analytics-traffic-read' scope it was called with.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Validation failed — `error.errors` carries per-field detail. Switch on `error.code`. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "validation_failed",
+                     *         "message": "The days field must be at least 1.",
+                     *         "field": "days",
+                     *         "errors": {
+                     *           "days": [
+                     *             "The days field must be at least 1."
+                     *           ]
+                     *         },
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Too many requests — slow down and retry. Switch on `error.code`. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "too_many_requests",
+                     *         "message": "Too Many Attempts.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+        };
+    };
     "app.setup_update": {
         parameters: {
             query?: never;
@@ -4507,6 +7595,152 @@ export interface operations {
             };
         };
     };
+    "app.records_list": {
+        parameters: {
+            query?: {
+                /** @example 74 */
+                definition?: string;
+                /** @example 2 */
+                limit?: number | null;
+                /** @example WzEsIjAyNTRiNDZlMWU2YTIxZmM3M2ZiZTVkMTQ1NTk5MDM4OGFjYzFmNWRkNzY3ZDY1OWM2YmJkOTIwNzliZjU3MWEiLCJleUp6ZFdKdGFYUjBaV1JmWVhRaU9pSXlNREkyTFRBNUxUSTBJREUxT2pJd09qQXdJaXdpY0Y5cFpDSTZOVFV6TUN3aVgzQnZhVzUwYzFSdlRtVjRkRWwwWlcxeklqcDBjblZsZlEiXQ */
+                starting_after?: string | null;
+                /** @example new */
+                status?: components["schemas"]["CollectedRecordStatus"] | null;
+                search?: string | null;
+            };
+            header: {
+                /**
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @example {{merchantKey}}
+                 */
+                "X-Client-Key": string;
+                /** @description Your own correlation id (8–128 chars, `^[A-Za-z0-9_.:-]+$`). Echoed back on the response and on every log line of the request; one is generated when you omit it. */
+                "X-Request-Id"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "data": [
+                     *         {
+                     *           "p_id": 5530,
+                     *           "definition_p_id": 74,
+                     *           "type": "app_forms_12_catering_enquiry",
+                     *           "status": "new",
+                     *           "source": "app",
+                     *           "submitted_at": "2026-09-24T14:20:00.000000Z",
+                     *           "values": {
+                     *             "name": "Funmilayo Ogunleye",
+                     *             "event_date": "2026-11-22",
+                     *             "guests": 250
+                     *           },
+                     *           "created_at": "2026-09-24T14:20:00.000000Z",
+                     *           "updated_at": "2026-09-24T14:20:00.000000Z"
+                     *         }
+                     *       ],
+                     *       "has_more": true,
+                     *       "next_cursor": "WzEsIjAyNTRiNDZlMWU2YTIxZmM3M2ZiZTVkMTQ1NTk5MDM4OGFjYzFmNWRkNzY3ZDY1OWM2YmJkOTIwNzliZjU3MWEiLCJleUp6ZFdKdGFYUjBaV1JmWVhRaU9pSXlNREkyTFRBNUxUSTBJREUxT2pJd09qQXdJaXdpY0Y5cFpDSTZOVFV6TUN3aVgzQnZhVzUwYzFSdlRtVjRkRWwwWlcxeklqcDBjblZsZlEiXQ"
+                     *     }
+                     */
+                    "application/json": {
+                        data: components["schemas"]["MerchantCollectedRecord"][];
+                        has_more: boolean;
+                        next_cursor?: string | null;
+                    };
+                };
+            };
+            /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "invalid_client_key",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Forbidden — the key cannot call this operation. Switch on `error.code`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "insufficient_scope",
+                     *         "message": "This API key does not carry the 'merchant-collected-records-read' scope it was called with.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Validation failed — `error.errors` carries per-field detail. Switch on `error.code`. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "validation_failed",
+                     *         "message": "The starting after cursor is invalid.",
+                     *         "field": "starting_after",
+                     *         "errors": {
+                     *           "starting_after": [
+                     *             "The starting after cursor is invalid."
+                     *           ]
+                     *         },
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Too many requests — slow down and retry. Switch on `error.code`. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "too_many_requests",
+                     *         "message": "Too Many Attempts.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+        };
+    };
     "app.records_submit": {
         parameters: {
             query?: never;
@@ -4676,6 +7910,333 @@ export interface operations {
             };
         };
     };
+    "app.records_show": {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @example {{merchantKey}}
+                 */
+                "X-Client-Key": string;
+                /** @description Your own correlation id (8–128 chars, `^[A-Za-z0-9_.:-]+$`). Echoed back on the response and on every log line of the request; one is generated when you omit it. */
+                "X-Request-Id"?: string;
+            };
+            path: {
+                /** @example 5530 */
+                record: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "status": "success",
+                     *       "message": "Collected record",
+                     *       "data": {
+                     *         "p_id": 5530,
+                     *         "definition_p_id": 74,
+                     *         "type": "app_forms_12_catering_enquiry",
+                     *         "status": "new",
+                     *         "source": "app",
+                     *         "submitted_at": "2026-09-24T14:20:00.000000Z",
+                     *         "values": {
+                     *           "name": "Funmilayo Ogunleye",
+                     *           "event_date": "2026-11-22",
+                     *           "guests": 250
+                     *         },
+                     *         "created_at": "2026-09-24T14:20:00.000000Z",
+                     *         "updated_at": "2026-09-24T14:20:00.000000Z"
+                     *       }
+                     *     }
+                     */
+                    "application/json": {
+                        /** @constant */
+                        status: "success";
+                        /** @constant */
+                        message: "Collected record";
+                        data: Record<string, never>;
+                        meta: string;
+                    };
+                };
+            };
+            /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "invalid_client_key",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Forbidden — the key cannot call this operation. Switch on `error.code`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "insufficient_scope",
+                     *         "message": "This API key does not carry the 'merchant-collected-records-read' scope it was called with.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Not found — the addressed record does not exist at this store. Switch on `error.code`. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "not_found",
+                     *         "message": "Collected record not found",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#not_found",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Too many requests — slow down and retry. Switch on `error.code`. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "too_many_requests",
+                     *         "message": "Too Many Attempts.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+        };
+    };
+    "app.records_update": {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @example {{merchantKey}}
+                 */
+                "X-Client-Key": string;
+                /** @description Your own correlation id (8–128 chars, `^[A-Za-z0-9_.:-]+$`). Echoed back on the response and on every log line of the request; one is generated when you omit it. */
+                "X-Request-Id"?: string;
+                /** @description Retry-safe write key. The same key with the same body replays the stored response for 24h with `Idempotent-Replayed: true`; with a different body it is `409 idempotency_key_reuse`; while the first call is still running it is `409 idempotency_key_in_progress`. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                /** @example 5530 */
+                record: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                /**
+                 * @example {
+                 *       "values": {
+                 *         "name": "Funmilayo Ogunleye",
+                 *         "event_date": "2026-11-22",
+                 *         "guests": 250
+                 *       }
+                 *     }
+                 */
+                "application/json": components["schemas"]["AppCollectedRecordUpdateRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "status": "success",
+                     *       "message": "Collected record updated",
+                     *       "data": {
+                     *         "p_id": 5530,
+                     *         "definition_p_id": 74,
+                     *         "type": "app_forms_12_catering_enquiry",
+                     *         "status": "new",
+                     *         "source": "app",
+                     *         "submitted_at": "2026-09-24T14:20:00.000000Z",
+                     *         "values": {
+                     *           "name": "Funmilayo Ogunleye",
+                     *           "event_date": "2026-11-22",
+                     *           "guests": 250
+                     *         },
+                     *         "created_at": "2026-09-24T14:20:00.000000Z",
+                     *         "updated_at": "2026-09-24T14:20:00.000000Z"
+                     *       }
+                     *     }
+                     */
+                    "application/json": {
+                        /** @constant */
+                        status: "success";
+                        /** @constant */
+                        message: "Collected record updated";
+                        data: Record<string, never>;
+                        meta: string;
+                    };
+                };
+            };
+            /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "invalid_client_key",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Forbidden — the key cannot call this operation. Switch on `error.code`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "insufficient_scope",
+                     *         "message": "This API key does not carry the 'merchant-collected-records-update' scope it was called with.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Not found — the addressed record does not exist at this store. Switch on `error.code`. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "not_found",
+                     *         "message": "Collected record not found",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#not_found",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Idempotency conflict — `idempotency_key_reuse` or `idempotency_key_in_progress`. Switch on `error.code`. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "idempotency_key_reuse",
+                     *         "message": "This Idempotency-Key was already used for a different request body. Use a new key for a new request.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#idempotency_key_reuse",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Validation failed — `error.errors` carries per-field detail. Switch on `error.code`. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "validation_failed",
+                     *         "message": "The values field must be an array.",
+                     *         "field": "values",
+                     *         "errors": {
+                     *           "values": [
+                     *             "The values field must be an array."
+                     *           ]
+                     *         },
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Too many requests — slow down and retry. Switch on `error.code`. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "too_many_requests",
+                     *         "message": "Too Many Attempts.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+        };
+    };
     "collections.list": {
         parameters: {
             query?: {
@@ -4688,6 +8249,7 @@ export interface operations {
                 search?: string | null;
                 sort_by?: string | null;
                 sort_order?: "asc" | "desc" | null;
+                publication?: string | null;
             };
             header: {
                 /**
@@ -4750,7 +8312,11 @@ export interface operations {
                      *       "next_cursor": "eyJpZCI6MzEwOSwiX3BvaW50c1RvTmV4dEl0ZW1zIjp0cnVlfQ"
                      *     }
                      */
-                    "application/json": Record<string, never>;
+                    "application/json": {
+                        data: components["schemas"]["MerchantCollection"][];
+                        has_more: boolean;
+                        next_cursor?: string | null;
+                    };
                 };
             };
             /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
@@ -4860,9 +8426,26 @@ export interface operations {
                  * @example {
                  *       "collections": [
                  *         {
-                 *           "name": "Drinks",
-                 *           "description": "Chapman, zobo and fresh juices.",
-                 *           "collection_mode": "smart"
+                 *           "name": "On sale",
+                 *           "description": "Products currently on sale.",
+                 *           "collection_mode": "smart",
+                 *           "collection_rules": {
+                 *             "match": "all",
+                 *             "conditions": [
+                 *               {
+                 *                 "field": "compare_at_price",
+                 *                 "operator": "gt",
+                 *                 "value": 0
+                 *               },
+                 *               {
+                 *                 "field": "on_sale",
+                 *                 "operator": "eq",
+                 *                 "value": true
+                 *               }
+                 *             ],
+                 *             "sort": "price_low",
+                 *             "limit": 50
+                 *           }
                  *         }
                  *       ]
                  *     }
@@ -4901,7 +8484,12 @@ export interface operations {
                      *       "message": "Collections created successfully"
                      *     }
                      */
-                    "application/json": Record<string, never>;
+                    "application/json": {
+                        /** @constant */
+                        success: true;
+                        message: string;
+                        data: components["schemas"]["MerchantCollection"][];
+                    };
                 };
             };
             /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
@@ -5472,7 +9060,11 @@ export interface operations {
                      *       "next_cursor": "eyJpZCI6IjAxOWEyZDExLTVhNmItN2M3ZC04ZTlmLTBhMWIyYzNkNGUwMiIsIl9wb2ludHNUb05leHRJdGVtcyI6dHJ1ZX0"
                      *     }
                      */
-                    "application/json": Record<string, never>;
+                    "application/json": {
+                        data: components["schemas"]["MerchantPost"][];
+                        has_more: boolean;
+                        next_cursor?: string | null;
+                    };
                 };
             };
             /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
@@ -5531,6 +9123,718 @@ export interface operations {
                      *           ]
                      *         },
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Too many requests — slow down and retry. Switch on `error.code`. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "too_many_requests",
+                     *         "message": "Too Many Attempts.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+        };
+    };
+    "posts.create": {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @example {{merchantKey}}
+                 */
+                "X-Client-Key": string;
+                /** @description Your own correlation id (8–128 chars, `^[A-Za-z0-9_.:-]+$`). Echoed back on the response and on every log line of the request; one is generated when you omit it. */
+                "X-Request-Id"?: string;
+                /** @description Retry-safe write key. The same key with the same body replays the stored response for 24h with `Idempotent-Replayed: true`; with a different body it is `409 idempotency_key_reuse`; while the first call is still running it is `409 idempotency_key_in_progress`. */
+                "Idempotency-Key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "title": "How we smoke our party jollof",
+                 *       "body": "Every tray starts over firewood at 5am in our Lekki kitchen.",
+                 *       "excerpt": "Firewood, patience and a lot of tomatoes.",
+                 *       "status": "draft",
+                 *       "tags": [
+                 *         "jollof",
+                 *         "kitchen"
+                 *       ],
+                 *       "cover_image_url": "https://adeyemifoods.com/images/posts/party-jollof.jpg",
+                 *       "seo": {
+                 *         "title": "How we smoke our party jollof | Adeyemi Foods",
+                 *         "description": "Inside the Adeyemi Foods kitchen."
+                 *       }
+                 *     }
+                 */
+                "application/json": components["schemas"]["MerchantStorePostRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "status": "success",
+                     *       "message": "Storefront post created",
+                     *       "data": {
+                     *         "id": "019a2d11-5a6b-7c7d-8e9f-0a1b2c3d4e01",
+                     *         "parent_id": null,
+                     *         "blog_category_ids": [],
+                     *         "type": "post",
+                     *         "template": null,
+                     *         "slug": "how-we-smoke-our-party-jollof",
+                     *         "title": "How we smoke our party jollof",
+                     *         "content": [
+                     *           {
+                     *             "type": "content",
+                     *             "data": {
+                     *               "markdown": "Every tray starts over firewood at 5am in our Lekki kitchen."
+                     *             }
+                     *           }
+                     *         ],
+                     *         "excerpt": "Firewood, patience and a lot of tomatoes.",
+                     *         "cover_image_url": "https://media.usequeek.com/uploads/stores/1095/posts/party-jollof.jpg",
+                     *         "status": "published",
+                     *         "tags": [
+                     *           "jollof",
+                     *           "kitchen"
+                     *         ],
+                     *         "seo": {
+                     *           "title": "How we smoke our party jollof | Adeyemi Foods",
+                     *           "description": "Inside the Adeyemi Foods kitchen."
+                     *         },
+                     *         "position": 1,
+                     *         "is_home": false,
+                     *         "chrome": "full",
+                     *         "show_page_title": true,
+                     *         "published_at": "2026-09-12T08:00:00+01:00",
+                     *         "created_at": "2026-09-10T16:20:00+01:00",
+                     *         "updated_at": "2026-09-10T16:20:00+01:00"
+                     *       }
+                     *     }
+                     */
+                    "application/json": {
+                        /** @constant */
+                        status: "success";
+                        message: string;
+                        data: components["schemas"]["MerchantPost"];
+                    };
+                };
+            };
+            /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "invalid_client_key",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Forbidden — the key cannot call this operation. Switch on `error.code`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "insufficient_scope",
+                     *         "message": "This API key does not carry the 'merchant-posts-create' scope it was called with.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Idempotency conflict — `idempotency_key_reuse` or `idempotency_key_in_progress`. Switch on `error.code`. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "idempotency_key_reuse",
+                     *         "message": "This Idempotency-Key was already used for a different request body. Use a new key for a new request.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#idempotency_key_reuse",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Validation failed — `error.errors` carries per-field detail. Switch on `error.code`. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "validation_failed",
+                     *         "message": "The title field is required.",
+                     *         "field": "title",
+                     *         "errors": {
+                     *           "title": [
+                     *             "The title field is required."
+                     *           ]
+                     *         },
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Too many requests — slow down and retry. Switch on `error.code`. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "too_many_requests",
+                     *         "message": "Too Many Attempts.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+        };
+    };
+    "posts.get": {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @example {{merchantKey}}
+                 */
+                "X-Client-Key": string;
+                /** @description Your own correlation id (8–128 chars, `^[A-Za-z0-9_.:-]+$`). Echoed back on the response and on every log line of the request; one is generated when you omit it. */
+                "X-Request-Id"?: string;
+            };
+            path: {
+                /** @example how-we-smoke-our-party-jollof */
+                post: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "status": "success",
+                     *       "message": "Storefront post retrieved",
+                     *       "data": {
+                     *         "id": "019a2d11-5a6b-7c7d-8e9f-0a1b2c3d4e01",
+                     *         "parent_id": null,
+                     *         "blog_category_ids": [],
+                     *         "type": "post",
+                     *         "template": null,
+                     *         "slug": "how-we-smoke-our-party-jollof",
+                     *         "title": "How we smoke our party jollof",
+                     *         "content": [
+                     *           {
+                     *             "type": "content",
+                     *             "data": {
+                     *               "markdown": "Every tray starts over firewood at 5am in our Lekki kitchen."
+                     *             }
+                     *           }
+                     *         ],
+                     *         "excerpt": "Firewood, patience and a lot of tomatoes.",
+                     *         "cover_image_url": "https://media.usequeek.com/uploads/stores/1095/posts/party-jollof.jpg",
+                     *         "status": "published",
+                     *         "tags": [
+                     *           "jollof",
+                     *           "kitchen"
+                     *         ],
+                     *         "seo": {
+                     *           "title": "How we smoke our party jollof | Adeyemi Foods",
+                     *           "description": "Inside the Adeyemi Foods kitchen."
+                     *         },
+                     *         "position": 1,
+                     *         "is_home": false,
+                     *         "chrome": "full",
+                     *         "show_page_title": true,
+                     *         "published_at": "2026-09-12T08:00:00+01:00",
+                     *         "created_at": "2026-09-10T16:20:00+01:00",
+                     *         "updated_at": "2026-09-12T08:00:00+01:00"
+                     *       }
+                     *     }
+                     */
+                    "application/json": {
+                        /** @constant */
+                        status: "success";
+                        message: string;
+                        data: components["schemas"]["MerchantPost"];
+                    };
+                };
+            };
+            /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "invalid_client_key",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Forbidden — the key cannot call this operation. Switch on `error.code`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "insufficient_scope",
+                     *         "message": "This API key does not carry the 'merchant-posts-detail' scope it was called with.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Not found — the addressed record does not exist at this store. Switch on `error.code`. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "not_found",
+                     *         "message": "Post not found",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#not_found",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Too many requests — slow down and retry. Switch on `error.code`. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "too_many_requests",
+                     *         "message": "Too Many Attempts.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+        };
+    };
+    "posts.update": {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @example {{merchantKey}}
+                 */
+                "X-Client-Key": string;
+                /** @description Your own correlation id (8–128 chars, `^[A-Za-z0-9_.:-]+$`). Echoed back on the response and on every log line of the request; one is generated when you omit it. */
+                "X-Request-Id"?: string;
+                /** @description Retry-safe write key. The same key with the same body replays the stored response for 24h with `Idempotent-Replayed: true`; with a different body it is `409 idempotency_key_reuse`; while the first call is still running it is `409 idempotency_key_in_progress`. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                /** @example how-we-smoke-our-party-jollof */
+                post: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "title": "How we smoke our party jollof",
+                 *       "body": "Every tray starts over firewood at 5am in our Lekki kitchen, and serves fifty.",
+                 *       "tags": [
+                 *         "jollof",
+                 *         "kitchen"
+                 *       ],
+                 *       "status": "published"
+                 *     }
+                 */
+                "application/json": components["schemas"]["MerchantUpdatePostRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "status": "success",
+                     *       "message": "Storefront post updated",
+                     *       "data": {
+                     *         "id": "019a2d11-5a6b-7c7d-8e9f-0a1b2c3d4e01",
+                     *         "parent_id": null,
+                     *         "blog_category_ids": [],
+                     *         "type": "post",
+                     *         "template": null,
+                     *         "slug": "how-we-smoke-our-party-jollof",
+                     *         "title": "How we smoke our party jollof",
+                     *         "content": [
+                     *           {
+                     *             "type": "content",
+                     *             "data": {
+                     *               "markdown": "Every tray starts over firewood at 5am in our Lekki kitchen."
+                     *             }
+                     *           }
+                     *         ],
+                     *         "excerpt": "Firewood, patience and a lot of tomatoes.",
+                     *         "cover_image_url": "https://media.usequeek.com/uploads/stores/1095/posts/party-jollof.jpg",
+                     *         "status": "published",
+                     *         "tags": [
+                     *           "jollof",
+                     *           "kitchen"
+                     *         ],
+                     *         "seo": {
+                     *           "title": "How we smoke our party jollof | Adeyemi Foods",
+                     *           "description": "Inside the Adeyemi Foods kitchen."
+                     *         },
+                     *         "position": 1,
+                     *         "is_home": false,
+                     *         "chrome": "full",
+                     *         "show_page_title": true,
+                     *         "published_at": "2026-09-12T08:00:00+01:00",
+                     *         "created_at": "2026-09-10T16:20:00+01:00",
+                     *         "updated_at": "2026-09-12T08:00:00+01:00"
+                     *       }
+                     *     }
+                     */
+                    "application/json": {
+                        /** @constant */
+                        status: "success";
+                        message: string;
+                        data: components["schemas"]["MerchantPost"];
+                    };
+                };
+            };
+            /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "invalid_client_key",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Forbidden — the key cannot call this operation. Switch on `error.code`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "insufficient_scope",
+                     *         "message": "This API key does not carry the 'merchant-posts-update' scope it was called with.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Not found — the addressed record does not exist at this store. Switch on `error.code`. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "not_found",
+                     *         "message": "Post not found",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#not_found",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Idempotency conflict — `idempotency_key_reuse` or `idempotency_key_in_progress`. Switch on `error.code`. A state conflict answers code `conflict` with `data.reason` set to `slug_taken` (another post holds the slug), `rich_layout` (the rich editor owns this post) or `pending_draft` (unsynced draft changes). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "idempotency_key_reuse",
+                     *         "message": "This Idempotency-Key was already used for a different request body. Use a new key for a new request.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#idempotency_key_reuse",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Validation failed — `error.errors` carries per-field detail. Switch on `error.code`. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "validation_failed",
+                     *         "message": "The selected status is invalid.",
+                     *         "field": "status",
+                     *         "errors": {
+                     *           "status": [
+                     *             "The selected status is invalid."
+                     *           ]
+                     *         },
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Too many requests — slow down and retry. Switch on `error.code`. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "too_many_requests",
+                     *         "message": "Too Many Attempts.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+        };
+    };
+    "posts.delete": {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @example {{merchantKey}}
+                 */
+                "X-Client-Key": string;
+                /** @description Your own correlation id (8–128 chars, `^[A-Za-z0-9_.:-]+$`). Echoed back on the response and on every log line of the request; one is generated when you omit it. */
+                "X-Request-Id"?: string;
+                /** @description Retry-safe write key. The same key with the same body replays the stored response for 24h with `Idempotent-Replayed: true`; with a different body it is `409 idempotency_key_reuse`; while the first call is still running it is `409 idempotency_key_in_progress`. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                /** @example how-we-smoke-our-party-jollof */
+                post: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "status": "success",
+                     *       "message": "Storefront post deleted",
+                     *       "data": {
+                     *         "id": "019a2d11-5a6b-7c7d-8e9f-0a1b2c3d4e01",
+                     *         "slug": "how-we-smoke-our-party-jollof",
+                     *         "deleted": true
+                     *       }
+                     *     }
+                     */
+                    "application/json": {
+                        /** @constant */
+                        status: "success";
+                        message: string;
+                        data: {
+                            /** @description The deleted post UUID. */
+                            id: string;
+                            /** @description The deleted post slug. */
+                            slug: string;
+                            /** @description Always true when this shape answers. */
+                            deleted: boolean;
+                        };
+                    };
+                };
+            };
+            /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "invalid_client_key",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Forbidden — the key cannot call this operation. Switch on `error.code`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "insufficient_scope",
+                     *         "message": "This API key does not carry the 'merchant-posts-delete' scope it was called with.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Not found — the addressed record does not exist at this store. Switch on `error.code`. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "not_found",
+                     *         "message": "Post not found",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#not_found",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Idempotency conflict — `idempotency_key_reuse` or `idempotency_key_in_progress`. Switch on `error.code`. A post with unsynced draft changes answers code `conflict` with `data.reason` set to `pending_draft`. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "idempotency_key_reuse",
+                     *         "message": "This Idempotency-Key was already used for a different request body. Use a new key for a new request.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#idempotency_key_reuse",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
@@ -5623,7 +9927,11 @@ export interface operations {
                      *       "next_cursor": "eyJpZCI6IjAxOWEyZTkxLTBiMWMtN2QyZS04ZjNhLTRiNWM2ZDdlOGYwMSIsIl9wb2ludHNUb05leHRJdGVtcyI6dHJ1ZX0"
                      *     }
                      */
-                    "application/json": Record<string, never>;
+                    "application/json": {
+                        data: components["schemas"]["MerchantCoupon"][];
+                        has_more: boolean;
+                        next_cursor?: string | null;
+                    };
                 };
             };
             /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
@@ -5782,7 +10090,12 @@ export interface operations {
                      *       "message": "Coupon created successfully"
                      *     }
                      */
-                    "application/json": Record<string, never>;
+                    "application/json": {
+                        /** @constant */
+                        success: true;
+                        message: string;
+                        data: components["schemas"]["MerchantCoupon"];
+                    };
                 };
             };
             /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
@@ -5897,6 +10210,7 @@ export interface operations {
                 from_date?: string | null;
                 to_date?: string | null;
                 date_range?: "today" | "this_week" | "this_month" | null;
+                audience?: "campaign" | null;
                 search?: string | null;
                 /** @example created_at */
                 sort_by?: "created_at" | "updated_at" | "joined_date" | "name" | "email" | "phone" | "p_id" | "customer_orders_count" | null;
@@ -5933,7 +10247,16 @@ export interface operations {
                      *           "phone": "+2348059876543",
                      *           "avatar": null,
                      *           "created_at": "2026-08-11T08:40:00+01:00",
-                     *           "updated_at": "2026-09-18T20:02:00+01:00"
+                     *           "updated_at": "2026-09-18T20:02:00+01:00",
+                     *           "email_marketing_consent": {
+                     *             "state": "not_opted_out",
+                     *             "consent_updated_at": null
+                     *           },
+                     *           "sms_marketing_consent": {
+                     *             "state": "not_subscribed",
+                     *             "opt_in_level": null,
+                     *             "consent_updated_at": null
+                     *           }
                      *         },
                      *         {
                      *           "id": 90341,
@@ -5943,14 +10266,27 @@ export interface operations {
                      *           "phone": "+2348031234567",
                      *           "avatar": null,
                      *           "created_at": "2026-07-03T19:12:00+01:00",
-                     *           "updated_at": "2026-09-24T12:58:00+01:00"
+                     *           "updated_at": "2026-09-24T12:58:00+01:00",
+                     *           "email_marketing_consent": {
+                     *             "state": "not_opted_out",
+                     *             "consent_updated_at": null
+                     *           },
+                     *           "sms_marketing_consent": {
+                     *             "state": "not_subscribed",
+                     *             "opt_in_level": null,
+                     *             "consent_updated_at": null
+                     *           }
                      *         }
                      *       ],
                      *       "has_more": true,
                      *       "next_cursor": "eyJpZCI6OTAzNDEsIl9wb2ludHNUb05leHRJdGVtcyI6dHJ1ZX0"
                      *     }
                      */
-                    "application/json": Record<string, never>;
+                    "application/json": {
+                        data: components["schemas"]["MerchantCustomer"][];
+                        has_more: boolean;
+                        next_cursor?: string | null;
+                    };
                 };
             };
             /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
@@ -6094,7 +10430,11 @@ export interface operations {
                      *       "next_cursor": "eyJpZCI6IjAxOWEyZjMzLTFhMmItN2MzZC04ZTRmLTVhNmI3YzhkOWUwMSIsIl9wb2ludHNUb05leHRJdGVtcyI6dHJ1ZX0"
                      *     }
                      */
-                    "application/json": Record<string, never>;
+                    "application/json": {
+                        data: components["schemas"]["MerchantFollower"][];
+                        has_more: boolean;
+                        next_cursor?: string | null;
+                    };
                 };
             };
             /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
@@ -6218,7 +10558,16 @@ export interface operations {
                      *         "phone": "+2348031234567",
                      *         "avatar": null,
                      *         "created_at": "2026-07-03T19:12:00+01:00",
-                     *         "updated_at": "2026-09-24T12:58:00+01:00"
+                     *         "updated_at": "2026-09-24T12:58:00+01:00",
+                     *         "email_marketing_consent": {
+                     *           "state": "not_opted_out",
+                     *           "consent_updated_at": null
+                     *         },
+                     *         "sms_marketing_consent": {
+                     *           "state": "not_subscribed",
+                     *           "opt_in_level": null,
+                     *           "consent_updated_at": null
+                     *         }
                      *       }
                      *     }
                      */
@@ -6282,6 +10631,946 @@ export interface operations {
                      *         "code": "not_found",
                      *         "message": "Customer not found",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#not_found",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Too many requests — slow down and retry. Switch on `error.code`. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "too_many_requests",
+                     *         "message": "Too Many Attempts.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+        };
+    };
+    "customers.update_email_marketing_consent": {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @example {{merchantKey}}
+                 */
+                "X-Client-Key": string;
+                /** @description Your own correlation id (8–128 chars, `^[A-Za-z0-9_.:-]+$`). Echoed back on the response and on every log line of the request; one is generated when you omit it. */
+                "X-Request-Id"?: string;
+                /** @description Retry-safe write key. The same key with the same body replays the stored response for 24h with `Idempotent-Replayed: true`; with a different body it is `409 idempotency_key_reuse`; while the first call is still running it is `409 idempotency_key_in_progress`. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                /** @example 90341 */
+                customer: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "state": "unsubscribed"
+                 *     }
+                 */
+                "application/json": components["schemas"]["UpdateCustomerEmailMarketingConsentRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "id": 90341,
+                     *       "email_marketing_consent": {
+                     *         "state": "unsubscribed",
+                     *         "opt_in_level": null,
+                     *         "consent_updated_at": "2026-10-04T10:00:00+01:00"
+                     *       }
+                     *     }
+                     */
+                    "application/json": {
+                        id: number;
+                        email_marketing_consent: {
+                            /** @enum {string} */
+                            state: "unsubscribed" | "not_opted_out";
+                            opt_in_level: string | null;
+                            consent_updated_at: string;
+                        };
+                    };
+                };
+            };
+            /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "invalid_client_key",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Forbidden — the key cannot call this operation. Switch on `error.code`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "insufficient_scope",
+                     *         "message": "This API key does not carry the 'merchant-customers-consent-update' scope it was called with.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Not found — the addressed record does not exist at this store. Switch on `error.code`. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "not_found",
+                     *         "message": "Customer not found",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#not_found",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Idempotency conflict — `idempotency_key_reuse` or `idempotency_key_in_progress`. Switch on `error.code`. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "idempotency_key_reuse",
+                     *         "message": "This Idempotency-Key was already used for a different request body. Use a new key for a new request.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#idempotency_key_reuse",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Validation failed — `error.errors` carries per-field detail. Switch on `error.code`. A missing email or consent_updated_at that is not strictly later than the stored unsubscribe or exceeds the allowed clock skew also returns 422 for state=not_opted_out. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "validation_failed",
+                     *         "message": "The selected opt in level is invalid.",
+                     *         "field": "opt_in_level",
+                     *         "errors": {
+                     *           "opt_in_level": [
+                     *             "The selected opt in level is invalid."
+                     *           ]
+                     *         },
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Too many requests — slow down and retry. Switch on `error.code`. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "too_many_requests",
+                     *         "message": "Too Many Attempts.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+        };
+    };
+    "customers.update_sms_marketing_consent": {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @example {{merchantKey}}
+                 */
+                "X-Client-Key": string;
+                /** @description Your own correlation id (8–128 chars, `^[A-Za-z0-9_.:-]+$`). Echoed back on the response and on every log line of the request; one is generated when you omit it. */
+                "X-Request-Id"?: string;
+                /** @description Retry-safe write key. The same key with the same body replays the stored response for 24h with `Idempotent-Replayed: true`; with a different body it is `409 idempotency_key_reuse`; while the first call is still running it is `409 idempotency_key_in_progress`. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                /** @example 90341 */
+                customer: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                /**
+                 * @example {
+                 *       "state": "unsubscribed"
+                 *     }
+                 */
+                "application/json": components["schemas"]["UpdateCustomerSmsMarketingConsentRequest"] & {
+                    /**
+                     * @description Consent state: subscribed or unsubscribed. not_subscribed is read-only.
+                     * @example unsubscribed
+                     */
+                    state: string;
+                    /**
+                     * @description Source of explicit opt-in evidence. Required for subscribed; optional for unsubscribed. Accepted values: checkout, account, import, provider_sync, other.
+                     * @example provider_sync
+                     */
+                    source?: string;
+                    /**
+                     * @description Required for subscribed. RFC3339 consent timestamp. Subscribe timestamps more than 120 seconds in the future are rejected. Future unsubscribe timestamps are treated as the current time; omitted time uses the current time except an unchanged unsubscribe is a no-op. The stored consent time never moves backward; an unsubscribe older than the existing time keeps the existing time.
+                     * @example 2026-10-04T10:00:00+01:00
+                     */
+                    consent_updated_at?: string;
+                    /**
+                     * @description Required for subscribed: SINGLE_OPT_IN or CONFIRMED_OPT_IN. Not accepted for unsubscribed.
+                     * @example SINGLE_OPT_IN
+                     */
+                    opt_in_level?: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "id": 90341,
+                     *       "sms_marketing_consent": {
+                     *         "state": "unsubscribed",
+                     *         "opt_in_level": null,
+                     *         "consent_updated_at": "2026-10-04T10:00:00+01:00"
+                     *       }
+                     *     }
+                     */
+                    "application/json": {
+                        id: number;
+                        sms_marketing_consent: string;
+                    };
+                };
+            };
+            /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "invalid_client_key",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Forbidden — the key cannot call this operation. Switch on `error.code`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "insufficient_scope",
+                     *         "message": "This API key does not carry the 'merchant-customers-sms-consent-update' scope it was called with.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Not found — the addressed record does not exist at this store. Switch on `error.code`. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "not_found",
+                     *         "message": "Customer not found",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#not_found",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Idempotency conflict — `idempotency_key_reuse` or `idempotency_key_in_progress`. Switch on `error.code`. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "idempotency_key_reuse",
+                     *         "message": "This Idempotency-Key was already used for a different request body. Use a new key for a new request.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#idempotency_key_reuse",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Validation failed — `error.errors` carries per-field detail. Switch on `error.code`. A missing or invalid phone and a consent time that exceeds the allowed clock skew or is not later than the existing consent also return 422. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "validation_failed",
+                     *         "message": "The selected opt in level is invalid.",
+                     *         "field": "opt_in_level",
+                     *         "errors": {
+                     *           "opt_in_level": [
+                     *             "The selected opt in level is invalid."
+                     *           ]
+                     *         },
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Too many requests — slow down and retry. Switch on `error.code`. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "too_many_requests",
+                     *         "message": "Too Many Attempts.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+        };
+    };
+    "customers.list_wishlist_items": {
+        parameters: {
+            query?: {
+                /** @example 2 */
+                limit?: number | null;
+                /** @example eyJjdXN0b21lcl93aXNobGlzdF9pdGVtcy5jcmVhdGVkX2F0IjoiMjAyNi0wOS0yNCAxMjowMDowMCIsImN1c3RvbWVyX3dpc2hsaXN0X2l0ZW1zLmlkIjoiMDE5YTFkNTItM2M4ZS03ZjQxLWIwZDItNmEzZTljMWY0YjI4IiwiX3BvaW50c1RvTmV4dEl0ZW1zIjp0cnVlfQ */
+                starting_after?: string | null;
+            };
+            header: {
+                /**
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @example {{merchantKey}}
+                 */
+                "X-Client-Key": string;
+                /** @description Your own correlation id (8–128 chars, `^[A-Za-z0-9_.:-]+$`). Echoed back on the response and on every log line of the request; one is generated when you omit it. */
+                "X-Request-Id"?: string;
+            };
+            path: {
+                /** @example 90341 */
+                customer: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "data": [
+                     *         {
+                     *           "created_at": "2026-09-20T09:00:00.000000Z",
+                     *           "product": {
+                     *             "shop_id": "019a0b3a-af57-72d0-9c13-7036c3805892",
+                     *             "id": "019a1d52-3c8e-7f41-b0d2-6a3e9c1f4b22",
+                     *             "p_id": 20418,
+                     *             "title": "Homemade Chapman",
+                     *             "slug": "homemade-chapman",
+                     *             "excerpt": "Fresh Chapman with cucumber and orange slices.",
+                     *             "description": "Our house Chapman, mixed fresh every morning. Served chilled.",
+                     *             "image": "https://media.usequeek.com/uploads/stores/1095/homemade-chapman-view.webp",
+                     *             "thumbnail_image": "https://media.usequeek.com/uploads/stores/1095/homemade-chapman-thumb.webp",
+                     *             "video_url": null,
+                     *             "video_poster_url": "https://media.usequeek.com/uploads/stores/1095/homemade-chapman-view.webp",
+                     *             "type": null,
+                     *             "commerce_mode": "shop",
+                     *             "currency": "NGN",
+                     *             "price": 2875,
+                     *             "discount_price": 2875,
+                     *             "compare_at_price": null,
+                     *             "is_price_from": true,
+                     *             "price_range": {
+                     *               "min": 2875,
+                     *               "max": 4830
+                     *             },
+                     *             "has_variants": true,
+                     *             "has_addons": false,
+                     *             "tax_inclusive": false,
+                     *             "discount": null,
+                     *             "discounts": [],
+                     *             "media": {
+                     *               "thumbnail": "https://media.usequeek.com/uploads/stores/1095/homemade-chapman-thumb.webp",
+                     *               "image": "https://media.usequeek.com/uploads/stores/1095/homemade-chapman-view.webp",
+                     *               "original": "https://media.usequeek.com/uploads/stores/1095/homemade-chapman.jpg",
+                     *               "primary_variant_image": null,
+                     *               "image_variants": {
+                     *                 "thumb": {
+                     *                   "url": "https://media.usequeek.com/uploads/stores/1095/homemade-chapman-thumb.webp",
+                     *                   "w": null,
+                     *                   "h": null
+                     *                 },
+                     *                 "card": {
+                     *                   "url": "https://media.usequeek.com/uploads/stores/1095/homemade-chapman-card.webp",
+                     *                   "w": 480,
+                     *                   "h": 480
+                     *                 },
+                     *                 "card2x": {
+                     *                   "url": "https://media.usequeek.com/uploads/stores/1095/homemade-chapman-card2x.webp",
+                     *                   "w": 800,
+                     *                   "h": 800
+                     *                 },
+                     *                 "view": {
+                     *                   "url": "https://media.usequeek.com/uploads/stores/1095/homemade-chapman-view.webp",
+                     *                   "w": 1200,
+                     *                   "h": 1200
+                     *                 },
+                     *                 "wa": {
+                     *                   "url": "https://media.usequeek.com/uploads/stores/1095/homemade-chapman-wa.jpg",
+                     *                   "w": 1080,
+                     *                   "h": 1080
+                     *                 },
+                     *                 "original": {
+                     *                   "url": "https://media.usequeek.com/uploads/stores/1095/homemade-chapman.jpg",
+                     *                   "w": 1200,
+                     *                   "h": 1200
+                     *                 }
+                     *               },
+                     *               "primary_variant_image_variants": null,
+                     *               "images": [
+                     *                 {
+                     *                   "id": 88220,
+                     *                   "url": "https://media.usequeek.com/uploads/stores/1095/homemade-chapman-card.webp",
+                     *                   "alt": "Two bottles of chilled Chapman with cucumber slices",
+                     *                   "variants": {
+                     *                     "thumb": {
+                     *                       "url": "https://media.usequeek.com/uploads/stores/1095/homemade-chapman-thumb.webp",
+                     *                       "w": null,
+                     *                       "h": null
+                     *                     },
+                     *                     "card": {
+                     *                       "url": "https://media.usequeek.com/uploads/stores/1095/homemade-chapman-card.webp",
+                     *                       "w": 480,
+                     *                       "h": 480
+                     *                     },
+                     *                     "card2x": {
+                     *                       "url": "https://media.usequeek.com/uploads/stores/1095/homemade-chapman-card2x.webp",
+                     *                       "w": 800,
+                     *                       "h": 800
+                     *                     },
+                     *                     "view": {
+                     *                       "url": "https://media.usequeek.com/uploads/stores/1095/homemade-chapman-view.webp",
+                     *                       "w": 1200,
+                     *                       "h": 1200
+                     *                     },
+                     *                     "wa": {
+                     *                       "url": "https://media.usequeek.com/uploads/stores/1095/homemade-chapman-wa.jpg",
+                     *                       "w": 1080,
+                     *                       "h": 1080
+                     *                     },
+                     *                     "original": {
+                     *                       "url": "https://media.usequeek.com/uploads/stores/1095/homemade-chapman.jpg",
+                     *                       "w": 1200,
+                     *                       "h": 1200
+                     *                     }
+                     *                   }
+                     *                 }
+                     *               ],
+                     *               "video_url": null,
+                     *               "video_poster_url": "https://media.usequeek.com/uploads/stores/1095/homemade-chapman-view.webp"
+                     *             },
+                     *             "inventory": {
+                     *               "in_stock": true,
+                     *               "tracking": true,
+                     *               "quantity": 60,
+                     *               "allow_backorder": false,
+                     *               "low_stock_threshold": 5,
+                     *               "updated_at": "2026-09-22 16:05:00"
+                     *             },
+                     *             "variant_summary": {
+                     *               "count": 2,
+                     *               "min_price": 2875,
+                     *               "max_price": 4830,
+                     *               "total_stock": 60,
+                     *               "tracks_inventory": true,
+                     *               "in_stock": true
+                     *             },
+                     *             "variants_count": 2,
+                     *             "rating": 4.8,
+                     *             "review_count": 14,
+                     *             "flags": {
+                     *               "featured": false,
+                     *               "is_marketplace": false,
+                     *               "is_new": false
+                     *             },
+                     *             "metafields": {},
+                     *             "created_at": "2026-07-15 11:30:00",
+                     *             "updated_at": "2026-09-22 16:05:00",
+                     *             "shop": {
+                     *               "id": "019a0b3a-af57-72d0-9c13-7036c3805892",
+                     *               "name": "Adeyemi Foods",
+                     *               "slug": "adeyemi-foods",
+                     *               "logo": "https://media.usequeek.com/uploads/stores/1095/logo.png",
+                     *               "rating": 4.8,
+                     *               "rating_count": 231
+                     *             },
+                     *             "addons": [],
+                     *             "taxonomy": {
+                     *               "categories": [],
+                     *               "tags": [],
+                     *               "brand": null,
+                     *               "collections": []
+                     *             },
+                     *             "purchase_limits": {
+                     *               "min_qty": 1,
+                     *               "max_qty": null,
+                     *               "step_qty": 1
+                     *             },
+                     *             "measurement": {
+                     *               "weight": null,
+                     *               "dimensions": null
+                     *             },
+                     *             "specs": [],
+                     *             "options": [
+                     *               {
+                     *                 "name": "Size",
+                     *                 "position": 0,
+                     *                 "type": "size",
+                     *                 "values": [
+                     *                   "50cl",
+                     *                   "1 litre"
+                     *                 ],
+                     *                 "values_detailed": [
+                     *                   {
+                     *                     "value": "50cl",
+                     *                     "color_code": null,
+                     *                     "image": "https://media.usequeek.com/uploads/stores/1095/homemade-chapman.jpg"
+                     *                   },
+                     *                   {
+                     *                     "value": "1 litre",
+                     *                     "color_code": null,
+                     *                     "image": "https://media.usequeek.com/uploads/stores/1095/homemade-chapman.jpg"
+                     *                   }
+                     *                 ]
+                     *               }
+                     *             ],
+                     *             "variants": [
+                     *               {
+                     *                 "id": "019a1d52-5f10-7a02-8c61-0b2d4e6f8a31",
+                     *                 "sku": "ADF-CHP-50CL",
+                     *                 "barcode": "6151101370016",
+                     *                 "title": "50cl",
+                     *                 "option_values": {
+                     *                   "Size": "50cl"
+                     *                 },
+                     *                 "price": 2875,
+                     *                 "discount_price": 2875,
+                     *                 "discount_amount": 0,
+                     *                 "has_discount": false,
+                     *                 "compare_at_price": null,
+                     *                 "stock": 36,
+                     *                 "track_inventory": true,
+                     *                 "is_active": true,
+                     *                 "in_stock": true,
+                     *                 "weight": 0.55,
+                     *                 "position": 0,
+                     *                 "media": {
+                     *                   "thumbnail": "https://media.usequeek.com/uploads/stores/1095/homemade-chapman.jpg",
+                     *                   "image": "https://media.usequeek.com/uploads/stores/1095/homemade-chapman.jpg",
+                     *                   "image_media_id": null,
+                     *                   "image_variants": {
+                     *                     "thumb": {
+                     *                       "url": "https://media.usequeek.com/uploads/stores/1095/homemade-chapman-thumb.webp",
+                     *                       "w": null,
+                     *                       "h": null
+                     *                     },
+                     *                     "card": {
+                     *                       "url": "https://media.usequeek.com/uploads/stores/1095/homemade-chapman-card.webp",
+                     *                       "w": 480,
+                     *                       "h": 480
+                     *                     },
+                     *                     "card2x": {
+                     *                       "url": "https://media.usequeek.com/uploads/stores/1095/homemade-chapman-card2x.webp",
+                     *                       "w": 800,
+                     *                       "h": 800
+                     *                     },
+                     *                     "view": {
+                     *                       "url": "https://media.usequeek.com/uploads/stores/1095/homemade-chapman-view.webp",
+                     *                       "w": 1200,
+                     *                       "h": 1200
+                     *                     },
+                     *                     "wa": {
+                     *                       "url": "https://media.usequeek.com/uploads/stores/1095/homemade-chapman-wa.jpg",
+                     *                       "w": 1080,
+                     *                       "h": 1080
+                     *                     },
+                     *                     "original": {
+                     *                       "url": "https://media.usequeek.com/uploads/stores/1095/homemade-chapman.jpg",
+                     *                       "w": 1200,
+                     *                       "h": 1200
+                     *                     }
+                     *                   },
+                     *                   "images": [
+                     *                     {
+                     *                       "id": 88220,
+                     *                       "url": "https://media.usequeek.com/uploads/stores/1095/homemade-chapman-card.webp",
+                     *                       "alt": "Two bottles of chilled Chapman with cucumber slices",
+                     *                       "variants": {
+                     *                         "thumb": {
+                     *                           "url": "https://media.usequeek.com/uploads/stores/1095/homemade-chapman-thumb.webp",
+                     *                           "w": null,
+                     *                           "h": null
+                     *                         },
+                     *                         "card": {
+                     *                           "url": "https://media.usequeek.com/uploads/stores/1095/homemade-chapman-card.webp",
+                     *                           "w": 480,
+                     *                           "h": 480
+                     *                         },
+                     *                         "card2x": {
+                     *                           "url": "https://media.usequeek.com/uploads/stores/1095/homemade-chapman-card2x.webp",
+                     *                           "w": 800,
+                     *                           "h": 800
+                     *                         },
+                     *                         "view": {
+                     *                           "url": "https://media.usequeek.com/uploads/stores/1095/homemade-chapman-view.webp",
+                     *                           "w": 1200,
+                     *                           "h": 1200
+                     *                         },
+                     *                         "wa": {
+                     *                           "url": "https://media.usequeek.com/uploads/stores/1095/homemade-chapman-wa.jpg",
+                     *                           "w": 1080,
+                     *                           "h": 1080
+                     *                         },
+                     *                         "original": {
+                     *                           "url": "https://media.usequeek.com/uploads/stores/1095/homemade-chapman.jpg",
+                     *                           "w": 1200,
+                     *                           "h": 1200
+                     *                         }
+                     *                       }
+                     *                     }
+                     *                   ],
+                     *                   "video_url": null,
+                     *                   "source": "product"
+                     *                 }
+                     *               },
+                     *               {
+                     *                 "id": "019a1d52-5f10-7a02-8c61-0b2d4e6f8a32",
+                     *                 "sku": "ADF-CHP-1L",
+                     *                 "barcode": "6151101370023",
+                     *                 "title": "1 litre",
+                     *                 "option_values": {
+                     *                   "Size": "1 litre"
+                     *                 },
+                     *                 "price": 4830,
+                     *                 "discount_price": 4830,
+                     *                 "discount_amount": 0,
+                     *                 "has_discount": false,
+                     *                 "compare_at_price": null,
+                     *                 "stock": 24,
+                     *                 "track_inventory": true,
+                     *                 "is_active": true,
+                     *                 "in_stock": true,
+                     *                 "weight": 1.05,
+                     *                 "position": 1,
+                     *                 "media": {
+                     *                   "thumbnail": "https://media.usequeek.com/uploads/stores/1095/homemade-chapman.jpg",
+                     *                   "image": "https://media.usequeek.com/uploads/stores/1095/homemade-chapman.jpg",
+                     *                   "image_media_id": null,
+                     *                   "image_variants": {
+                     *                     "thumb": {
+                     *                       "url": "https://media.usequeek.com/uploads/stores/1095/homemade-chapman-thumb.webp",
+                     *                       "w": null,
+                     *                       "h": null
+                     *                     },
+                     *                     "card": {
+                     *                       "url": "https://media.usequeek.com/uploads/stores/1095/homemade-chapman-card.webp",
+                     *                       "w": 480,
+                     *                       "h": 480
+                     *                     },
+                     *                     "card2x": {
+                     *                       "url": "https://media.usequeek.com/uploads/stores/1095/homemade-chapman-card2x.webp",
+                     *                       "w": 800,
+                     *                       "h": 800
+                     *                     },
+                     *                     "view": {
+                     *                       "url": "https://media.usequeek.com/uploads/stores/1095/homemade-chapman-view.webp",
+                     *                       "w": 1200,
+                     *                       "h": 1200
+                     *                     },
+                     *                     "wa": {
+                     *                       "url": "https://media.usequeek.com/uploads/stores/1095/homemade-chapman-wa.jpg",
+                     *                       "w": 1080,
+                     *                       "h": 1080
+                     *                     },
+                     *                     "original": {
+                     *                       "url": "https://media.usequeek.com/uploads/stores/1095/homemade-chapman.jpg",
+                     *                       "w": 1200,
+                     *                       "h": 1200
+                     *                     }
+                     *                   },
+                     *                   "images": [
+                     *                     {
+                     *                       "id": 88220,
+                     *                       "url": "https://media.usequeek.com/uploads/stores/1095/homemade-chapman-card.webp",
+                     *                       "alt": "Two bottles of chilled Chapman with cucumber slices",
+                     *                       "variants": {
+                     *                         "thumb": {
+                     *                           "url": "https://media.usequeek.com/uploads/stores/1095/homemade-chapman-thumb.webp",
+                     *                           "w": null,
+                     *                           "h": null
+                     *                         },
+                     *                         "card": {
+                     *                           "url": "https://media.usequeek.com/uploads/stores/1095/homemade-chapman-card.webp",
+                     *                           "w": 480,
+                     *                           "h": 480
+                     *                         },
+                     *                         "card2x": {
+                     *                           "url": "https://media.usequeek.com/uploads/stores/1095/homemade-chapman-card2x.webp",
+                     *                           "w": 800,
+                     *                           "h": 800
+                     *                         },
+                     *                         "view": {
+                     *                           "url": "https://media.usequeek.com/uploads/stores/1095/homemade-chapman-view.webp",
+                     *                           "w": 1200,
+                     *                           "h": 1200
+                     *                         },
+                     *                         "wa": {
+                     *                           "url": "https://media.usequeek.com/uploads/stores/1095/homemade-chapman-wa.jpg",
+                     *                           "w": 1080,
+                     *                           "h": 1080
+                     *                         },
+                     *                         "original": {
+                     *                           "url": "https://media.usequeek.com/uploads/stores/1095/homemade-chapman.jpg",
+                     *                           "w": 1200,
+                     *                           "h": 1200
+                     *                         }
+                     *                       }
+                     *                     }
+                     *                   ],
+                     *                   "video_url": null,
+                     *                   "source": "product"
+                     *                 }
+                     *               }
+                     *             ],
+                     *             "fulfillment": {
+                     *               "type": "delivery_or_pickup",
+                     *               "is_digital": false,
+                     *               "delivery_available": true,
+                     *               "pickup_available": true,
+                     *               "lead_time_min": null,
+                     *               "lead_time_max": null
+                     *             },
+                     *             "compliance": {
+                     *               "warranty_months": 0,
+                     *               "country_of_origin": null,
+                     *               "safety_notes": null
+                     *             },
+                     *             "seo": {
+                     *               "meta_title": null,
+                     *               "meta_description": null,
+                     *               "canonical_url": null,
+                     *               "keywords": []
+                     *             },
+                     *             "analytics": {
+                     *               "sales_count": 31,
+                     *               "view_count": 218,
+                     *               "favorite_count": 0,
+                     *               "review_count": 14
+                     *             }
+                     *           },
+                     *           "variant": {
+                     *             "id": "019a1d52-5f10-7a02-8c61-0b2d4e6f8a31",
+                     *             "p_id": 7731,
+                     *             "title": "50cl",
+                     *             "option_values": {
+                     *               "Size": "50cl"
+                     *             }
+                     *           }
+                     *         }
+                     *       ],
+                     *       "has_more": true,
+                     *       "next_cursor": "eyJpZCI6IjAxOWIwYzRkLTVlNmYtN2E4Yi05YzBkLTFlMmYzYTRiNWM5OSIsIl9wb2ludHNUb05leHRJdGVtcyI6dHJ1ZX0"
+                     *     }
+                     */
+                    "application/json": {
+                        data: components["schemas"]["MerchantWishlistItem"][];
+                        has_more: boolean;
+                        next_cursor?: string | null;
+                    };
+                };
+            };
+            /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "invalid_client_key",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Forbidden — the key cannot call this operation. Switch on `error.code`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "insufficient_scope",
+                     *         "message": "This API key does not carry the 'merchant-customers-detail' scope it was called with.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Not found — the addressed record does not exist at this store. Switch on `error.code`. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "not_found",
+                     *         "message": "Customer not found",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#not_found",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Validation failed — `error.errors` carries per-field detail. Switch on `error.code`. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "validation_failed",
+                     *         "message": "The limit field must not be greater than 100.",
+                     *         "field": "limit",
+                     *         "errors": {
+                     *           "limit": [
+                     *             "The limit field must not be greater than 100."
+                     *           ]
+                     *         },
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
@@ -6408,7 +11697,11 @@ export interface operations {
                      *       "next_cursor": "eyJpZCI6IjAxOWEyZTkwLTdhMWItN2MyZC05ZTNmLTRhNWI2YzdkOGUwMSIsIl9wb2ludHNUb05leHRJdGVtcyI6dHJ1ZX0"
                      *     }
                      */
-                    "application/json": Record<string, never>;
+                    "application/json": {
+                        data: components["schemas"]["MerchantDiscount"][];
+                        has_more: boolean;
+                        next_cursor?: string | null;
+                    };
                 };
             };
             /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
@@ -6577,7 +11870,12 @@ export interface operations {
                      *       }
                      *     }
                      */
-                    "application/json": Record<string, never>;
+                    "application/json": {
+                        /** @constant */
+                        status: "success";
+                        message: string;
+                        data: components["schemas"]["MerchantDiscount"];
+                    };
                 };
             };
             /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
@@ -6743,7 +12041,12 @@ export interface operations {
                      *       }
                      *     }
                      */
-                    "application/json": Record<string, never>;
+                    "application/json": {
+                        /** @constant */
+                        status: "success";
+                        message: string;
+                        data: components["schemas"]["MerchantDiscount"];
+                    };
                 };
             };
             /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
@@ -7112,6 +12415,422 @@ export interface operations {
             };
         };
     };
+    "files.list": {
+        parameters: {
+            query?: {
+                /** @example 10 */
+                limit?: number | null;
+                starting_after?: string | null;
+            };
+            header: {
+                /**
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @example {{merchantKey}}
+                 */
+                "X-Client-Key": string;
+                /** @description Your own correlation id (8–128 chars, `^[A-Za-z0-9_.:-]+$`). Echoed back on the response and on every log line of the request; one is generated when you omit it. */
+                "X-Request-Id"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "data": [
+                     *         {
+                     *           "id": 88214,
+                     *           "url": "https://media.usequeek.com/uploads/stores/1095/jollof-rice-party-pack.jpg",
+                     *           "thumbnail_url": "https://media.usequeek.com/uploads/stores/1095/jollof-rice-party-pack-thumb.webp",
+                     *           "variants": {
+                     *             "thumb": {
+                     *               "url": "https://media.usequeek.com/uploads/stores/1095/jollof-rice-party-pack-thumb.webp",
+                     *               "w": null,
+                     *               "h": null
+                     *             },
+                     *             "card": {
+                     *               "url": "https://media.usequeek.com/uploads/stores/1095/jollof-rice-party-pack-card.webp",
+                     *               "w": 480,
+                     *               "h": 480
+                     *             },
+                     *             "card2x": {
+                     *               "url": "https://media.usequeek.com/uploads/stores/1095/jollof-rice-party-pack-card2x.webp",
+                     *               "w": 800,
+                     *               "h": 800
+                     *             },
+                     *             "view": {
+                     *               "url": "https://media.usequeek.com/uploads/stores/1095/jollof-rice-party-pack-view.webp",
+                     *               "w": 1200,
+                     *               "h": 1200
+                     *             },
+                     *             "wa": {
+                     *               "url": "https://media.usequeek.com/uploads/stores/1095/jollof-rice-party-pack-wa.jpg",
+                     *               "w": 1080,
+                     *               "h": 1080
+                     *             },
+                     *             "original": {
+                     *               "url": "https://media.usequeek.com/uploads/stores/1095/jollof-rice-party-pack.jpg",
+                     *               "w": 1200,
+                     *               "h": 1200
+                     *             }
+                     *           },
+                     *           "mime_type": "image/jpeg",
+                     *           "size": 0,
+                     *           "width": 1200,
+                     *           "height": 1200,
+                     *           "created_at": null
+                     *         }
+                     *       ],
+                     *       "has_more": true,
+                     *       "next_cursor": "eyJpZCI6ODgyMTQsIl9wb2ludHNUb05leHRJdGVtcyI6dHJ1ZX0"
+                     *     }
+                     */
+                    "application/json": {
+                        data: components["schemas"]["MerchantMedia"][];
+                        has_more: boolean;
+                        next_cursor?: string | null;
+                    };
+                };
+            };
+            /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "invalid_client_key",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Forbidden — the key cannot call this operation. Switch on `error.code`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "insufficient_scope",
+                     *         "message": "This API key does not carry the 'merchant-media-read' scope it was called with.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Validation failed — `error.errors` carries per-field detail. Switch on `error.code`. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "validation_failed",
+                     *         "message": "The limit field must be at least 1.",
+                     *         "field": "limit",
+                     *         "errors": {
+                     *           "limit": [
+                     *             "The limit field must be at least 1."
+                     *           ]
+                     *         },
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Too many requests — slow down and retry. Switch on `error.code`. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "too_many_requests",
+                     *         "message": "Too Many Attempts.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+        };
+    };
+    "files.create": {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @example {{merchantKey}}
+                 */
+                "X-Client-Key": string;
+                /** @description Your own correlation id (8–128 chars, `^[A-Za-z0-9_.:-]+$`). Echoed back on the response and on every log line of the request; one is generated when you omit it. */
+                "X-Request-Id"?: string;
+                /** @description Retry-safe write key. The same key with the same body replays the stored response for 24h with `Idempotent-Replayed: true`; with a different body it is `409 idempotency_key_reuse`; while the first call is still running it is `409 idempotency_key_in_progress`. */
+                "Idempotency-Key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "file": "(binary image)"
+                 *     }
+                 */
+                "multipart/form-data": {
+                    /**
+                     * Format: binary
+                     * @description One JPEG, PNG or WebP image up to 10 MiB.
+                     */
+                    file: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "data": {
+                     *         "id": 88214,
+                     *         "url": "https://media.usequeek.com/uploads/stores/1095/jollof-rice-party-pack.jpg",
+                     *         "thumbnail_url": "https://media.usequeek.com/uploads/stores/1095/jollof-rice-party-pack-thumb.webp",
+                     *         "variants": {
+                     *           "thumb": {
+                     *             "url": "https://media.usequeek.com/uploads/stores/1095/jollof-rice-party-pack-thumb.webp",
+                     *             "w": null,
+                     *             "h": null
+                     *           },
+                     *           "card": {
+                     *             "url": "https://media.usequeek.com/uploads/stores/1095/jollof-rice-party-pack-card.webp",
+                     *             "w": 480,
+                     *             "h": 480
+                     *           },
+                     *           "card2x": {
+                     *             "url": "https://media.usequeek.com/uploads/stores/1095/jollof-rice-party-pack-card2x.webp",
+                     *             "w": 800,
+                     *             "h": 800
+                     *           },
+                     *           "view": {
+                     *             "url": "https://media.usequeek.com/uploads/stores/1095/jollof-rice-party-pack-view.webp",
+                     *             "w": 1200,
+                     *             "h": 1200
+                     *           },
+                     *           "wa": {
+                     *             "url": "https://media.usequeek.com/uploads/stores/1095/jollof-rice-party-pack-wa.jpg",
+                     *             "w": 1080,
+                     *             "h": 1080
+                     *           },
+                     *           "original": {
+                     *             "url": "https://media.usequeek.com/uploads/stores/1095/jollof-rice-party-pack.jpg",
+                     *             "w": 1200,
+                     *             "h": 1200
+                     *           }
+                     *         },
+                     *         "mime_type": "image/jpeg",
+                     *         "size": 0,
+                     *         "width": 1200,
+                     *         "height": 1200,
+                     *         "created_at": null
+                     *       }
+                     *     }
+                     */
+                    "application/json": {
+                        data: components["schemas"]["MerchantMedia"];
+                    };
+                };
+            };
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "data": {
+                     *         "id": 88214,
+                     *         "url": "https://media.usequeek.com/uploads/stores/1095/jollof-rice-party-pack.jpg",
+                     *         "thumbnail_url": "https://media.usequeek.com/uploads/stores/1095/jollof-rice-party-pack-thumb.webp",
+                     *         "variants": {
+                     *           "thumb": {
+                     *             "url": "https://media.usequeek.com/uploads/stores/1095/jollof-rice-party-pack-thumb.webp",
+                     *             "w": null,
+                     *             "h": null
+                     *           },
+                     *           "card": {
+                     *             "url": "https://media.usequeek.com/uploads/stores/1095/jollof-rice-party-pack-card.webp",
+                     *             "w": 480,
+                     *             "h": 480
+                     *           },
+                     *           "card2x": {
+                     *             "url": "https://media.usequeek.com/uploads/stores/1095/jollof-rice-party-pack-card2x.webp",
+                     *             "w": 800,
+                     *             "h": 800
+                     *           },
+                     *           "view": {
+                     *             "url": "https://media.usequeek.com/uploads/stores/1095/jollof-rice-party-pack-view.webp",
+                     *             "w": 1200,
+                     *             "h": 1200
+                     *           },
+                     *           "wa": {
+                     *             "url": "https://media.usequeek.com/uploads/stores/1095/jollof-rice-party-pack-wa.jpg",
+                     *             "w": 1080,
+                     *             "h": 1080
+                     *           },
+                     *           "original": {
+                     *             "url": "https://media.usequeek.com/uploads/stores/1095/jollof-rice-party-pack.jpg",
+                     *             "w": 1200,
+                     *             "h": 1200
+                     *           }
+                     *         },
+                     *         "mime_type": "image/jpeg",
+                     *         "size": 0,
+                     *         "width": 1200,
+                     *         "height": 1200,
+                     *         "created_at": null
+                     *       }
+                     *     }
+                     */
+                    "application/json": {
+                        data: components["schemas"]["MerchantMedia"];
+                    };
+                };
+            };
+            /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "invalid_client_key",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Forbidden — the key cannot call this operation. Switch on `error.code`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "insufficient_scope",
+                     *         "message": "This API key does not carry the 'merchant-media-create' scope it was called with.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Idempotency conflict — `idempotency_key_reuse` or `idempotency_key_in_progress`. Switch on `error.code`. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "idempotency_key_reuse",
+                     *         "message": "This Idempotency-Key was already used for a different request body. Use a new key for a new request.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#idempotency_key_reuse",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Validation failed — `error.errors` carries per-field detail. Switch on `error.code`. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "validation_failed",
+                     *         "message": "The file field is required.",
+                     *         "field": "file",
+                     *         "errors": {
+                     *           "file": [
+                     *             "The file field is required."
+                     *           ]
+                     *         },
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Too many requests — slow down and retry. Switch on `error.code`. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "too_many_requests",
+                     *         "message": "Too Many Attempts.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+        };
+    };
     "images.list": {
         parameters: {
             query?: {
@@ -7232,16 +12951,9 @@ export interface operations {
                      *     }
                      */
                     "application/json": {
-                        /** @constant */
-                        status: "success";
-                        /** @constant */
-                        message: "Product images";
-                        data: string[];
-                        meta: string;
-                    } | {
-                        data: unknown[];
+                        data: components["schemas"]["MerchantProductImage"][];
                         has_more: boolean;
-                        next_cursor: string | null;
+                        next_cursor?: string | null;
                     };
                 };
             };
@@ -7432,7 +13144,12 @@ export interface operations {
                      *       }
                      *     }
                      */
-                    "application/json": string;
+                    "application/json": {
+                        /** @constant */
+                        status: "success";
+                        message: string;
+                        data: components["schemas"]["MerchantProductImage"];
+                    };
                 };
             };
             201: {
@@ -7487,7 +13204,12 @@ export interface operations {
                      *       }
                      *     }
                      */
-                    "application/json": string;
+                    "application/json": {
+                        /** @constant */
+                        status: "success";
+                        message: string;
+                        data: components["schemas"]["MerchantProductImage"];
+                    };
                 };
             };
             /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
@@ -8076,6 +13798,350 @@ export interface operations {
             };
         };
     };
+    "inventory.levels": {
+        parameters: {
+            query?: {
+                /** @example 2 */
+                limit?: number | null;
+                /** @example eyJwX2lkIjoyMDQxNywiX3BvaW50c1RvTmV4dEl0ZW1zIjp0cnVlfQ */
+                starting_after?: string | null;
+                product?: string;
+                barcode?: string;
+            };
+            header: {
+                /**
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @example {{merchantKey}}
+                 */
+                "X-Client-Key": string;
+                /** @description Your own correlation id (8–128 chars, `^[A-Za-z0-9_.:-]+$`). Echoed back on the response and on every log line of the request; one is generated when you omit it. */
+                "X-Request-Id"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "data": [
+                     *         {
+                     *           "p_id": 20418,
+                     *           "slug": "homemade-chapman",
+                     *           "barcode": null,
+                     *           "stock": 60,
+                     *           "effective_tracking": true,
+                     *           "variants": [
+                     *             {
+                     *               "p_id": 7731,
+                     *               "sku": "ADF-CHP-50CL",
+                     *               "barcode": "615625300050",
+                     *               "title": "50cl",
+                     *               "stock": 36,
+                     *               "is_active": true,
+                     *               "effective_tracking": true
+                     *             },
+                     *             {
+                     *               "p_id": 7732,
+                     *               "sku": "ADF-CHP-1L",
+                     *               "barcode": null,
+                     *               "title": "1 litre",
+                     *               "stock": 24,
+                     *               "is_active": true,
+                     *               "effective_tracking": true
+                     *             }
+                     *           ]
+                     *         }
+                     *       ],
+                     *       "has_more": true,
+                     *       "next_cursor": "eyJwX2lkIjoyMDQxOCwiX3BvaW50c1RvTmV4dEl0ZW1zIjp0cnVlfQ"
+                     *     }
+                     */
+                    "application/json": {
+                        data: components["schemas"]["MerchantInventoryLevels"][];
+                        has_more: boolean;
+                        next_cursor?: string | null;
+                    };
+                };
+            };
+            /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "invalid_client_key",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Forbidden — the key cannot call this operation. Switch on `error.code`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "insufficient_scope",
+                     *         "message": "This API key does not carry the 'merchant-inventory-read' scope it was called with.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Validation failed — `error.errors` carries per-field detail. Switch on `error.code`. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "validation_failed",
+                     *         "message": "The limit field must be at least 1.",
+                     *         "field": "limit",
+                     *         "errors": {
+                     *           "limit": [
+                     *             "The limit field must be at least 1."
+                     *           ]
+                     *         },
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Too many requests — slow down and retry. Switch on `error.code`. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "too_many_requests",
+                     *         "message": "Too Many Attempts.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+        };
+    };
+    "inventory.adjust_level": {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @example {{merchantKey}}
+                 */
+                "X-Client-Key": string;
+                /** @description Your own correlation id (8–128 chars, `^[A-Za-z0-9_.:-]+$`). Echoed back on the response and on every log line of the request; one is generated when you omit it. */
+                "X-Request-Id"?: string;
+                /** @description Retry-safe write key. The same key with the same body replays the stored response for 24h with `Idempotent-Replayed: true`; with a different body it is `409 idempotency_key_reuse`; while the first call is still running it is `409 idempotency_key_in_progress`. */
+                "Idempotency-Key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "product": "20417",
+                 *       "mode": "set",
+                 *       "quantity": 44,
+                 *       "expected_stock": 42,
+                 *       "reason_code": "count"
+                 *     }
+                 */
+                "application/json": components["schemas"]["MerchantInventoryLevelAdjustmentRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "status": "success",
+                     *       "message": "Inventory level adjusted.",
+                     *       "data": {
+                     *         "result": "adjusted",
+                     *         "level": {
+                     *           "product_p_id": 20417,
+                     *           "variant_p_id": null,
+                     *           "mode": "set",
+                     *           "before": 42,
+                     *           "change": 2,
+                     *           "after": 44,
+                     *           "reason_code": "count"
+                     *         },
+                     *         "adjustment": {
+                     *           "id": "019a3a0e-6d21-7b54-8e90-2f4a6c8e0b13",
+                     *           "type": "adjustment",
+                     *           "quantity_before": 42,
+                     *           "quantity_change": 2,
+                     *           "quantity_after": 44,
+                     *           "reason": "Physical count",
+                     *           "reason_code": "count",
+                     *           "scope": "product",
+                     *           "product": {
+                     *             "id": 20417,
+                     *             "uid": "019a1d52-3c8e-7f41-b0d2-6a3e9c1f4b21",
+                     *             "title": "Jollof Rice Party Pack",
+                     *             "slug": "jollof-rice-party-pack"
+                     *           },
+                     *           "variant": null,
+                     *           "order": null,
+                     *           "shortfall": {
+                     *             "captured": false,
+                     *             "quantity": 0
+                     *           },
+                     *           "created_at": "2026-10-04T12:00:00+01:00"
+                     *         }
+                     *       }
+                     *     }
+                     */
+                    "application/json": {
+                        /** @constant */
+                        status: "success";
+                        message: string;
+                        data: components["schemas"]["MerchantInventoryAdjustment"];
+                    };
+                };
+            };
+            /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "invalid_client_key",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Forbidden — the key cannot call this operation. Switch on `error.code`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "insufficient_scope",
+                     *         "message": "This API key does not carry the 'merchant-inventory-update' scope it was called with.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Idempotency conflict — `idempotency_key_reuse` or `idempotency_key_in_progress`. Switch on `error.code`. A stale `expected_stock` also answers 409, with `error.code` `conflict`: the level changed after you read it, and `data.current_stock` holds the current quantity. Read it, then retry with that value as `expected_stock`. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "idempotency_key_reuse",
+                     *         "message": "This Idempotency-Key was already used for a different request body. Use a new key for a new request.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#idempotency_key_reuse",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Validation failed — `error.errors` carries per-field detail. Switch on `error.code`. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "validation_failed",
+                     *         "message": "The selected mode is invalid.",
+                     *         "field": "mode",
+                     *         "errors": {
+                     *           "mode": [
+                     *             "The selected mode is invalid."
+                     *           ]
+                     *         },
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Too many requests — slow down and retry. Switch on `error.code`. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "too_many_requests",
+                     *         "message": "Too Many Attempts.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+        };
+    };
     "inventory.history": {
         parameters: {
             query?: {
@@ -8116,6 +14182,7 @@ export interface operations {
                      *           "quantity_change": -2,
                      *           "quantity_after": 42,
                      *           "reason": "Order 26-0924-58213",
+                     *           "reason_code": null,
                      *           "scope": "product",
                      *           "product": {
                      *             "id": 20417,
@@ -8141,6 +14208,7 @@ export interface operations {
                      *           "quantity_change": 20,
                      *           "quantity_after": 44,
                      *           "reason": "Morning batch",
+                     *           "reason_code": null,
                      *           "scope": "product",
                      *           "product": {
                      *             "id": 20417,
@@ -8161,7 +14229,11 @@ export interface operations {
                      *       "next_cursor": "eyJpZCI6IjAxOWEzYTBlLTZkMjEtN2I1NC04ZTkwLTJmNGE2YzhlMGIxMCIsIl9wb2ludHNUb05leHRJdGVtcyI6dHJ1ZX0"
                      *     }
                      */
-                    "application/json": Record<string, never>;
+                    "application/json": {
+                        data: components["schemas"]["MerchantStockAdjustment"][];
+                        has_more: boolean;
+                        next_cursor?: string | null;
+                    };
                 };
             };
             /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
@@ -8309,6 +14381,7 @@ export interface operations {
                      *           "quantity_change": 24,
                      *           "quantity_after": 36,
                      *           "reason": "Afternoon batch",
+                     *           "reason_code": null,
                      *           "scope": "variant",
                      *           "product": {
                      *             "id": 20418,
@@ -8337,6 +14410,7 @@ export interface operations {
                      *           "quantity_change": -2,
                      *           "quantity_after": 42,
                      *           "reason": "Order 26-0924-58213",
+                     *           "reason_code": null,
                      *           "scope": "product",
                      *           "product": {
                      *             "id": 20417,
@@ -8360,7 +14434,11 @@ export interface operations {
                      *       "next_cursor": "eyJpZCI6IjAxOWEzYTBlLTZkMjEtN2I1NC04ZTkwLTJmNGE2YzhlMGIxMSIsIl9wb2ludHNUb05leHRJdGVtcyI6dHJ1ZX0"
                      *     }
                      */
-                    "application/json": Record<string, never>;
+                    "application/json": {
+                        data: components["schemas"]["MerchantStockAdjustment"][];
+                        has_more: boolean;
+                        next_cursor?: string | null;
+                    };
                 };
             };
             /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
@@ -8497,6 +14575,7 @@ export interface operations {
                      *         "quantity_change": 24,
                      *         "quantity_after": 36,
                      *         "reason": "Afternoon batch",
+                     *         "reason_code": null,
                      *         "scope": "variant",
                      *         "product": {
                      *           "id": 20418,
@@ -8520,7 +14599,24 @@ export interface operations {
                      *       }
                      *     }
                      */
-                    "application/json": Record<string, never>;
+                    "application/json": {
+                        /** @constant */
+                        success: true;
+                        message: string;
+                        data: components["schemas"]["MerchantStockAdjustment"] | {
+                            requested_products: number;
+                            adjusted_products: number;
+                            skipped_products: {
+                                product: {
+                                    /** @description The product p_id. */
+                                    id: number;
+                                    /** @description The product UUID. */
+                                    uid: string;
+                                };
+                                reason: string;
+                            }[];
+                        };
+                    };
                 };
             };
             /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
@@ -9428,7 +15524,11 @@ export interface operations {
                      *       "next_cursor": "eyJpZCI6MTIwMiwiX3BvaW50c1RvTmV4dEl0ZW1zIjp0cnVlfQ"
                      *     }
                      */
-                    "application/json": Record<string, never>;
+                    "application/json": {
+                        data: components["schemas"]["MerchantMetaobject"][];
+                        has_more: boolean;
+                        next_cursor?: string | null;
+                    };
                 };
             };
             /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
@@ -9697,13 +15797,13 @@ export interface operations {
                 delivery_method?: "delivery" | "pickup" | "instore" | "shipping" | null;
                 registry_id?: string | null;
                 "metafield[]"?: string[] | null;
-                /** @example created_at */
                 sort_by?: "created_at" | "updated_at" | "status" | "payment_status" | "total" | null;
-                /** @example desc */
                 sort_order?: "asc" | "desc" | null;
                 /** @example 2 */
                 limit?: number | null;
                 starting_after?: string | null;
+                /** @example 2026-10-03T11:55:00Z */
+                updated_after?: string;
             };
             header: {
                 /**
@@ -9741,6 +15841,7 @@ export interface operations {
                      *           "platform": "third_party",
                      *           "custom_channel": "chowdeck",
                      *           "external_ref": "CD-7F3K2Q",
+                     *           "publication": null,
                      *           "delivery_method": "delivery",
                      *           "currency": "NGN",
                      *           "subtotal": "5000.00",
@@ -9775,7 +15876,29 @@ export interface operations {
                      *           "metadata": {},
                      *           "created_at": "2026-09-24T14:05:00+01:00",
                      *           "updated_at": "2026-09-24T14:05:00+01:00",
-                     *           "fulfilled_at": null
+                     *           "fulfilled_at": null,
+                     *           "transactions": [
+                     *             {
+                     *               "id": 992001,
+                     *               "type": "payment",
+                     *               "status": "success",
+                     *               "payment_method": "online",
+                     *               "payment_provider": "paystack",
+                     *               "amount": "35800.00",
+                     *               "currency": "NGN",
+                     *               "created_at": "2026-09-24T13:41:00+01:00"
+                     *             }
+                     *           ],
+                     *           "refunds": [
+                     *             {
+                     *               "id": 992002,
+                     *               "transaction_id": 992001,
+                     *               "status": "success",
+                     *               "amount": "2500.00",
+                     *               "currency": "NGN",
+                     *               "created_at": "2026-09-24T14:20:00+01:00"
+                     *             }
+                     *           ]
                      *         },
                      *         {
                      *           "id": 58213,
@@ -9791,6 +15914,7 @@ export interface operations {
                      *           "platform": "storefront",
                      *           "custom_channel": null,
                      *           "external_ref": null,
+                     *           "publication": null,
                      *           "delivery_method": "delivery",
                      *           "currency": "NGN",
                      *           "subtotal": "37000.00",
@@ -9834,14 +15958,40 @@ export interface operations {
                      *           },
                      *           "created_at": "2026-09-24T13:40:00+01:00",
                      *           "updated_at": "2026-09-24T13:52:00+01:00",
-                     *           "fulfilled_at": null
+                     *           "fulfilled_at": null,
+                     *           "transactions": [
+                     *             {
+                     *               "id": 992001,
+                     *               "type": "payment",
+                     *               "status": "success",
+                     *               "payment_method": "online",
+                     *               "payment_provider": "paystack",
+                     *               "amount": "35800.00",
+                     *               "currency": "NGN",
+                     *               "created_at": "2026-09-24T13:41:00+01:00"
+                     *             }
+                     *           ],
+                     *           "refunds": [
+                     *             {
+                     *               "id": 992002,
+                     *               "transaction_id": 992001,
+                     *               "status": "success",
+                     *               "amount": "2500.00",
+                     *               "currency": "NGN",
+                     *               "created_at": "2026-09-24T14:20:00+01:00"
+                     *             }
+                     *           ]
                      *         }
                      *       ],
                      *       "has_more": true,
                      *       "next_cursor": "eyJpZCI6NTgyMTMsIl9wb2ludHNUb05leHRJdGVtcyI6dHJ1ZX0"
                      *     }
                      */
-                    "application/json": Record<string, never>;
+                    "application/json": {
+                        data: components["schemas"]["MerchantOrder"][];
+                        has_more: boolean;
+                        next_cursor?: string | null;
+                    };
                 };
             };
             /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
@@ -9882,7 +16032,7 @@ export interface operations {
                     "application/json": components["schemas"]["QueekError"];
                 };
             };
-            /** @description Validation failed — `error.errors` carries per-field detail. Switch on `error.code`. */
+            /** @description Validation failed — `error.errors` carries per-field detail. Switch on `error.code`. updated_after requires a real RFC3339 timestamp with an offset; February 31 and offsets beyond 23:59 are invalid. URL-encode `+` as `%2B` or use `Z`. Rows are returned oldest change first. With updated_after, sort_by, sort_order, page and per_page return 422; a cursor is bound to the same updated_after value and filters. For a previous poll started at 2026-10-03T12:00:00Z, begin the next poll at 2026-10-03T11:55:00Z and deduplicate by order id. */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -9971,6 +16121,7 @@ export interface operations {
                      *         "platform": "storefront",
                      *         "custom_channel": null,
                      *         "external_ref": null,
+                     *         "publication": null,
                      *         "delivery_method": "delivery",
                      *         "currency": "NGN",
                      *         "subtotal": "37000.00",
@@ -10014,7 +16165,29 @@ export interface operations {
                      *         },
                      *         "created_at": "2026-09-24T13:40:00+01:00",
                      *         "updated_at": "2026-09-24T13:52:00+01:00",
-                     *         "fulfilled_at": null
+                     *         "fulfilled_at": null,
+                     *         "transactions": [
+                     *           {
+                     *             "id": 992001,
+                     *             "type": "payment",
+                     *             "status": "success",
+                     *             "payment_method": "online",
+                     *             "payment_provider": "paystack",
+                     *             "amount": "35800.00",
+                     *             "currency": "NGN",
+                     *             "created_at": "2026-09-24T13:41:00+01:00"
+                     *           }
+                     *         ],
+                     *         "refunds": [
+                     *           {
+                     *             "id": 992002,
+                     *             "transaction_id": 992001,
+                     *             "status": "success",
+                     *             "amount": "2500.00",
+                     *             "currency": "NGN",
+                     *             "created_at": "2026-09-24T14:20:00+01:00"
+                     *           }
+                     *         ]
                      *       }
                      *     }
                      */
@@ -10171,6 +16344,7 @@ export interface operations {
                      *         "platform": "storefront",
                      *         "custom_channel": null,
                      *         "external_ref": null,
+                     *         "publication": null,
                      *         "delivery_method": "delivery",
                      *         "currency": "NGN",
                      *         "subtotal": "37000.00",
@@ -10221,10 +16395,8 @@ export interface operations {
                     "application/json": {
                         /** @constant */
                         status: "success";
-                        /** @constant */
-                        message: "Order updated";
-                        data: Record<string, never>;
-                        meta: string;
+                        message: string;
+                        data: components["schemas"]["MerchantOrder"];
                     };
                 };
             };
@@ -10371,8 +16543,7 @@ export interface operations {
             content: {
                 /**
                  * @example {
-                 *       "channel": "chowdeck",
-                 *       "external_ref": "CD-7F3K2Q",
+                 *       "external_ref": "APP-7F3K2Q",
                  *       "placed_at": "2026-09-24T13:05:00Z",
                  *       "customer": {
                  *         "name": "Ifeoma Adebayo",
@@ -10417,8 +16588,9 @@ export interface operations {
                      *         "cancel_reason": null,
                      *         "channel": null,
                      *         "platform": "third_party",
-                     *         "custom_channel": "chowdeck",
-                     *         "external_ref": "CD-7F3K2Q",
+                     *         "custom_channel": "example-sales-app",
+                     *         "external_ref": "APP-7F3K2Q",
+                     *         "publication": null,
                      *         "delivery_method": "delivery",
                      *         "currency": "NGN",
                      *         "subtotal": "5000.00",
@@ -10475,7 +16647,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "status": "success",
-                     *       "message": "Chowdeck order imported.",
+                     *       "message": "Example Sales App order imported.",
                      *       "data": {
                      *         "id": 58214,
                      *         "uid": "019a3a0e-1c2d-7e3f-8a4b-5c6d7e8f9a02",
@@ -10488,8 +16660,9 @@ export interface operations {
                      *         "cancel_reason": null,
                      *         "channel": null,
                      *         "platform": "third_party",
-                     *         "custom_channel": "chowdeck",
-                     *         "external_ref": "CD-7F3K2Q",
+                     *         "custom_channel": "example-sales-app",
+                     *         "external_ref": "APP-7F3K2Q",
+                     *         "publication": null,
                      *         "delivery_method": "delivery",
                      *         "currency": "NGN",
                      *         "subtotal": "5000.00",
@@ -10694,6 +16867,7 @@ export interface operations {
                      *         "platform": "storefront",
                      *         "custom_channel": null,
                      *         "external_ref": null,
+                     *         "publication": null,
                      *         "delivery_method": "delivery",
                      *         "currency": "NGN",
                      *         "subtotal": "37000.00",
@@ -10741,7 +16915,12 @@ export interface operations {
                      *       }
                      *     }
                      */
-                    "application/json": Record<string, never>;
+                    "application/json": {
+                        /** @constant */
+                        status: "success";
+                        message: string;
+                        data: components["schemas"]["MerchantOrder"];
+                    };
                 };
             };
             /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
@@ -10920,6 +17099,7 @@ export interface operations {
                      *         "platform": "storefront",
                      *         "custom_channel": null,
                      *         "external_ref": null,
+                     *         "publication": null,
                      *         "delivery_method": "delivery",
                      *         "currency": "NGN",
                      *         "subtotal": "37000.00",
@@ -10967,7 +17147,12 @@ export interface operations {
                      *       }
                      *     }
                      */
-                    "application/json": Record<string, never>;
+                    "application/json": {
+                        /** @constant */
+                        status: "success";
+                        message: string;
+                        data: components["schemas"]["MerchantOrder"];
+                    };
                 };
             };
             /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
@@ -11151,6 +17336,7 @@ export interface operations {
                      *         "platform": "storefront",
                      *         "custom_channel": null,
                      *         "external_ref": null,
+                     *         "publication": null,
                      *         "delivery_method": "shipping",
                      *         "currency": "NGN",
                      *         "subtotal": "25200.00",
@@ -11202,7 +17388,12 @@ export interface operations {
                      *       }
                      *     }
                      */
-                    "application/json": Record<string, never>;
+                    "application/json": {
+                        /** @constant */
+                        status: "success";
+                        message: string;
+                        data: components["schemas"]["MerchantOrder"];
+                    };
                 };
             };
             /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
@@ -11327,15 +17518,284 @@ export interface operations {
             };
         };
     };
+    "payouts.list": {
+        parameters: {
+            query?: {
+                /** @example 10 */
+                limit?: number | null;
+                starting_after?: string | null;
+            };
+            header: {
+                /**
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @example {{merchantKey}}
+                 */
+                "X-Client-Key": string;
+                /** @description Your own correlation id (8–128 chars, `^[A-Za-z0-9_.:-]+$`). Echoed back on the response and on every log line of the request; one is generated when you omit it. */
+                "X-Request-Id"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "data": [
+                     *         {
+                     *           "id": "2026-09-24",
+                     *           "settlement_date": "2026-09-24",
+                     *           "total_amount": "33300.00",
+                     *           "currency": "NGN",
+                     *           "order_count": 1,
+                     *           "first_posted_at": "2026-09-24T15:00:00+01:00",
+                     *           "last_posted_at": "2026-09-24T15:00:00+01:00"
+                     *         }
+                     *       ],
+                     *       "has_more": true,
+                     *       "next_cursor": "WzEsImUzMDI2MWU4ZWQ5YzI4NWFlMDMwN2Q3M2RjOGQxMjgyNTU0NWQ5N2M5M2FkNWEyMGRmYmFlOWJmOGY0MjU1ZDAiLCJleUp6WlhSMGJHVnRaVzUwWDJSaGRHVWlPaUl5TURJMkxUQTVMVEkwSWl3aVgzQnZhVzUwYzFSdlRtVjRkRWwwWlcxeklqcDBjblZsZlEiXQ"
+                     *     }
+                     */
+                    "application/json": {
+                        data: components["schemas"]["MerchantPayoutBatch"][];
+                        has_more: boolean;
+                        next_cursor?: string | null;
+                    };
+                };
+            };
+            /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "invalid_client_key",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Forbidden — the key cannot call this operation. Switch on `error.code`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "insufficient_scope",
+                     *         "message": "This API key does not carry the 'merchant-payout-batches-read' scope it was called with.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Validation failed — `error.errors` carries per-field detail. Switch on `error.code`. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "validation_failed",
+                     *         "message": "The limit field must be at least 1.",
+                     *         "field": "limit",
+                     *         "errors": {
+                     *           "limit": [
+                     *             "The limit field must be at least 1."
+                     *           ]
+                     *         },
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Too many requests — slow down and retry. Switch on `error.code`. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "too_many_requests",
+                     *         "message": "Too Many Attempts.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+        };
+    };
+    "payouts.retrieve": {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @example {{merchantKey}}
+                 */
+                "X-Client-Key": string;
+                /** @description Your own correlation id (8–128 chars, `^[A-Za-z0-9_.:-]+$`). Echoed back on the response and on every log line of the request; one is generated when you omit it. */
+                "X-Request-Id"?: string;
+            };
+            path: {
+                /** @example 2026-09-24 */
+                payout: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "status": "success",
+                     *       "message": "Payout retrieved",
+                     *       "data": {
+                     *         "id": "2026-09-24",
+                     *         "settlement_date": "2026-09-24",
+                     *         "total_amount": "33300.00",
+                     *         "currency": "NGN",
+                     *         "order_count": 1,
+                     *         "first_posted_at": "2026-09-24T15:00:00+01:00",
+                     *         "last_posted_at": "2026-09-24T15:00:00+01:00",
+                     *         "orders": [
+                     *           {
+                     *             "order_id": 58213,
+                     *             "order_number": "26-0924-58213",
+                     *             "amount": "33300.00",
+                     *             "posted_at": "2026-09-24T15:00:00+01:00"
+                     *           }
+                     *         ],
+                     *         "orders_has_more": false
+                     *       }
+                     *     }
+                     */
+                    "application/json": {
+                        /** @constant */
+                        status: "success";
+                        /** @constant */
+                        message: "Payout retrieved";
+                        data: Record<string, never>;
+                        meta: string;
+                    };
+                };
+            };
+            /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "invalid_client_key",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Forbidden — the key cannot call this operation. Switch on `error.code`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "insufficient_scope",
+                     *         "message": "This API key does not carry the 'merchant-payout-batches-read' scope it was called with.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Not found — the addressed record does not exist at this store. Switch on `error.code`. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "not_found",
+                     *         "message": "Payout not found",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#not_found",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Too many requests — slow down and retry. Switch on `error.code`. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "too_many_requests",
+                     *         "message": "Too Many Attempts.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+        };
+    };
     "products.list": {
         parameters: {
             query?: {
                 /** @example 2 */
                 limit?: number | null;
                 starting_after?: string | null;
-                /** @example created_at */
                 sort_by?: "created_at" | "updated_at" | "title" | "price" | "stock" | "published" | null;
-                /** @example desc */
                 sort_order?: string | null;
                 search?: string | null;
                 category_id?: string | null;
@@ -11346,9 +17806,12 @@ export interface operations {
                 import_id?: string | null;
                 batch_id?: string | null;
                 channel?: string | null;
+                publication?: string | null;
                 is_marketplace?: "0" | "1" | "true" | "false" | null;
                 is_wholesale?: "0" | "1" | "true" | "false" | null;
                 "metafield[]"?: string[] | null;
+                /** @example 2026-10-03T11:55:00Z */
+                updated_after?: string;
             };
             header: {
                 /**
@@ -11401,6 +17864,7 @@ export interface operations {
                      *               "id": 7731,
                      *               "uid": "019a1d52-5f10-7a02-8c61-0b2d4e6f8a31",
                      *               "sku": "ADF-CHP-50CL",
+                     *               "barcode": "6151101370016",
                      *               "title": "50cl",
                      *               "option_values": {
                      *                 "Size": "50cl"
@@ -11425,6 +17889,7 @@ export interface operations {
                      *               "id": 7732,
                      *               "uid": "019a1d52-5f10-7a02-8c61-0b2d4e6f8a32",
                      *               "sku": "ADF-CHP-1L",
+                     *               "barcode": "6151101370023",
                      *               "title": "1 litre",
                      *               "option_values": {
                      *                 "Size": "1 litre"
@@ -11446,6 +17911,17 @@ export interface operations {
                      *               "updated_at": "2026-09-22T16:05:00+01:00"
                      *             }
                      *           ],
+                     *           "options": [
+                     *             {
+                     *               "name": "Size",
+                     *               "position": 0,
+                     *               "values": [
+                     *                 "50cl",
+                     *                 "1 litre"
+                     *               ]
+                     *             }
+                     *           ],
+                     *           "addons": [],
                      *           "images": [
                      *             {
                      *               "id": 88220,
@@ -11520,6 +17996,8 @@ export interface operations {
                      *           "thumbnail_image": null,
                      *           "primary_image_url": "https://media.usequeek.com/uploads/stores/1095/jollof-rice-party-pack.jpg",
                      *           "variants": [],
+                     *           "options": [],
+                     *           "addons": [],
                      *           "images": [
                      *             {
                      *               "id": 88214,
@@ -11576,7 +18054,11 @@ export interface operations {
                      *       "next_cursor": "eyJpZCI6MjA0MTcsIl9wb2ludHNUb05leHRJdGVtcyI6dHJ1ZX0"
                      *     }
                      */
-                    "application/json": Record<string, never>;
+                    "application/json": {
+                        data: components["schemas"]["MerchantProduct"][];
+                        has_more: boolean;
+                        next_cursor?: string | null;
+                    };
                 };
             };
             /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
@@ -11617,7 +18099,7 @@ export interface operations {
                     "application/json": components["schemas"]["QueekError"];
                 };
             };
-            /** @description Validation failed — `error.errors` carries per-field detail. Switch on `error.code`. */
+            /** @description Validation failed — `error.errors` carries per-field detail. Switch on `error.code`. updated_after requires a real RFC3339 timestamp with an offset; February 31 and offsets beyond 23:59 are invalid. URL-encode `+` as `%2B` or use `Z`. Rows are returned oldest change first. With updated_after, sort_by, sort_order, page and per_page return 422; a cursor is bound to the same updated_after value and filters. For a previous poll started at 2026-10-03T12:00:00Z, begin the next poll at 2026-10-03T11:55:00Z and deduplicate by product id. Bulk publish, unpublish, archive status and inventory-tracking changes may not appear in this poll. */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -11735,6 +18217,8 @@ export interface operations {
                      *         "thumbnail_image": null,
                      *         "primary_image_url": "https://media.usequeek.com/uploads/stores/1095/jollof-rice-party-pack.jpg",
                      *         "variants": [],
+                     *         "options": [],
+                     *         "addons": [],
                      *         "images": [
                      *           {
                      *             "id": 88214,
@@ -11788,7 +18272,12 @@ export interface operations {
                      *       }
                      *     }
                      */
-                    "application/json": Record<string, never>;
+                    "application/json": {
+                        /** @constant */
+                        status: "success";
+                        message: string;
+                        data: components["schemas"]["MerchantProduct"];
+                    };
                 };
             };
             /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
@@ -11894,6 +18383,357 @@ export interface operations {
             };
         };
     };
+    "products.search": {
+        parameters: {
+            query?: {
+                /** @example jollof */
+                keyword?: string | null;
+                /** @example 1 */
+                in_stock?: "0" | "1" | "true" | "false" | null;
+                /**
+                 * @description The dot is part of the handle (namespace.key), not a nested path, so
+                 *     each handle and value is validated on the map as a whole.
+                 */
+                "metafield[]"?: string[] | null;
+                /** @example latest */
+                sort?: "latest" | "popular" | "price_low" | "price_high" | null;
+                /** @example 2 */
+                limit?: number | null;
+                /** @description The cursor is an opaque signed token; pass it back unchanged. */
+                starting_after?: string | null;
+            };
+            header: {
+                /**
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @example {{merchantKey}}
+                 */
+                "X-Client-Key": string;
+                /** @description Your own correlation id (8–128 chars, `^[A-Za-z0-9_.:-]+$`). Echoed back on the response and on every log line of the request; one is generated when you omit it. */
+                "X-Request-Id"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "data": [
+                     *         {
+                     *           "id": 20418,
+                     *           "uid": "019a1d52-3c8e-7f41-b0d2-6a3e9c1f4b22",
+                     *           "title": "Homemade Chapman",
+                     *           "slug": "homemade-chapman",
+                     *           "excerpt": "Fresh Chapman with cucumber and orange slices.",
+                     *           "description": "Our house Chapman, mixed fresh every morning. Served chilled.",
+                     *           "status": "active",
+                     *           "published": true,
+                     *           "in_stock": true,
+                     *           "price": "2500.00",
+                     *           "storefront_price": "2500.00",
+                     *           "storefront_compare_at_price": null,
+                     *           "url": "https://adeyemifoods.com/products/homemade-chapman",
+                     *           "currency": "NGN",
+                     *           "sku": "ADF-CHP-000",
+                     *           "barcode": null,
+                     *           "stock": 60,
+                     *           "track_inventory": true,
+                     *           "is_digital": false,
+                     *           "has_variants": true,
+                     *           "image": "https://media.usequeek.com/uploads/stores/1095/homemade-chapman.jpg",
+                     *           "thumbnail_image": null,
+                     *           "primary_image_url": "https://media.usequeek.com/uploads/stores/1095/homemade-chapman.jpg",
+                     *           "variants": [
+                     *             {
+                     *               "id": 7731,
+                     *               "uid": "019a1d52-5f10-7a02-8c61-0b2d4e6f8a31",
+                     *               "sku": "ADF-CHP-50CL",
+                     *               "barcode": "6151101370016",
+                     *               "title": "50cl",
+                     *               "option_values": {
+                     *                 "Size": "50cl"
+                     *               },
+                     *               "price": "2500.00",
+                     *               "storefront_price": "2500.00",
+                     *               "storefront_compare_at_price": null,
+                     *               "url": "https://adeyemifoods.com/products/homemade-chapman",
+                     *               "compare_at_price": null,
+                     *               "stock": 36,
+                     *               "track_inventory": true,
+                     *               "is_digital": false,
+                     *               "is_active": true,
+                     *               "is_backorder": false,
+                     *               "backorder_ready_date": null,
+                     *               "weight": 0.55,
+                     *               "position": 0,
+                     *               "created_at": "2026-07-15T11:30:00+01:00",
+                     *               "updated_at": "2026-09-22T16:05:00+01:00"
+                     *             },
+                     *             {
+                     *               "id": 7732,
+                     *               "uid": "019a1d52-5f10-7a02-8c61-0b2d4e6f8a32",
+                     *               "sku": "ADF-CHP-1L",
+                     *               "barcode": "6151101370023",
+                     *               "title": "1 litre",
+                     *               "option_values": {
+                     *                 "Size": "1 litre"
+                     *               },
+                     *               "price": "4200.00",
+                     *               "storefront_price": "4200.00",
+                     *               "storefront_compare_at_price": null,
+                     *               "url": "https://adeyemifoods.com/products/homemade-chapman",
+                     *               "compare_at_price": null,
+                     *               "stock": 24,
+                     *               "track_inventory": true,
+                     *               "is_digital": false,
+                     *               "is_active": true,
+                     *               "is_backorder": false,
+                     *               "backorder_ready_date": null,
+                     *               "weight": 1.05,
+                     *               "position": 1,
+                     *               "created_at": "2026-07-15T11:30:00+01:00",
+                     *               "updated_at": "2026-09-22T16:05:00+01:00"
+                     *             }
+                     *           ],
+                     *           "options": [
+                     *             {
+                     *               "name": "Size",
+                     *               "position": 0,
+                     *               "values": [
+                     *                 "50cl",
+                     *                 "1 litre"
+                     *               ]
+                     *             }
+                     *           ],
+                     *           "addons": [],
+                     *           "images": [
+                     *             {
+                     *               "id": 88220,
+                     *               "is_primary": true,
+                     *               "position": 0,
+                     *               "url": "https://media.usequeek.com/uploads/stores/1095/homemade-chapman.jpg",
+                     *               "alt": "Two bottles of chilled Chapman with cucumber slices",
+                     *               "width": 1200,
+                     *               "height": 1200,
+                     *               "variants": {
+                     *                 "thumb": {
+                     *                   "url": "https://media.usequeek.com/uploads/stores/1095/homemade-chapman-thumb.webp",
+                     *                   "w": null,
+                     *                   "h": null
+                     *                 },
+                     *                 "card": {
+                     *                   "url": "https://media.usequeek.com/uploads/stores/1095/homemade-chapman-card.webp",
+                     *                   "w": 480,
+                     *                   "h": 480
+                     *                 },
+                     *                 "card2x": {
+                     *                   "url": "https://media.usequeek.com/uploads/stores/1095/homemade-chapman-card2x.webp",
+                     *                   "w": 800,
+                     *                   "h": 800
+                     *                 },
+                     *                 "view": {
+                     *                   "url": "https://media.usequeek.com/uploads/stores/1095/homemade-chapman-view.webp",
+                     *                   "w": 1200,
+                     *                   "h": 1200
+                     *                 },
+                     *                 "wa": {
+                     *                   "url": "https://media.usequeek.com/uploads/stores/1095/homemade-chapman-wa.jpg",
+                     *                   "w": 1080,
+                     *                   "h": 1080
+                     *                 },
+                     *                 "original": {
+                     *                   "url": "https://media.usequeek.com/uploads/stores/1095/homemade-chapman.jpg",
+                     *                   "w": 1200,
+                     *                   "h": 1200
+                     *                 }
+                     *               }
+                     *             }
+                     *           ],
+                     *           "metafields": {},
+                     *           "metadata": {},
+                     *           "created_at": "2026-07-15T11:30:00+01:00",
+                     *           "updated_at": "2026-09-22T16:05:00+01:00",
+                     *           "deleted_at": null
+                     *         },
+                     *         {
+                     *           "id": 20417,
+                     *           "uid": "019a1d52-3c8e-7f41-b0d2-6a3e9c1f4b21",
+                     *           "title": "Jollof Rice Party Pack",
+                     *           "slug": "jollof-rice-party-pack",
+                     *           "excerpt": "Smoky party jollof for 10, with fried plantain and grilled chicken.",
+                     *           "description": "Firewood-smoked party jollof cooked to order, served with dodo and six pieces of grilled chicken. Feeds 10.",
+                     *           "status": "active",
+                     *           "published": true,
+                     *           "in_stock": true,
+                     *           "price": "18500.00",
+                     *           "storefront_price": "16650.00",
+                     *           "storefront_compare_at_price": "18500.00",
+                     *           "url": "https://adeyemifoods.com/products/jollof-rice-party-pack",
+                     *           "currency": "NGN",
+                     *           "sku": "ADF-JRP-001",
+                     *           "barcode": "6154000102417",
+                     *           "stock": 42,
+                     *           "track_inventory": true,
+                     *           "is_digital": false,
+                     *           "has_variants": false,
+                     *           "image": "https://media.usequeek.com/uploads/stores/1095/jollof-rice-party-pack.jpg",
+                     *           "thumbnail_image": null,
+                     *           "primary_image_url": "https://media.usequeek.com/uploads/stores/1095/jollof-rice-party-pack.jpg",
+                     *           "variants": [],
+                     *           "options": [],
+                     *           "addons": [],
+                     *           "images": [
+                     *             {
+                     *               "id": 88214,
+                     *               "is_primary": true,
+                     *               "position": 0,
+                     *               "url": "https://media.usequeek.com/uploads/stores/1095/jollof-rice-party-pack.jpg",
+                     *               "alt": "Jollof rice party pack in a foil tray",
+                     *               "width": 1200,
+                     *               "height": 1200,
+                     *               "variants": {
+                     *                 "thumb": {
+                     *                   "url": "https://media.usequeek.com/uploads/stores/1095/jollof-rice-party-pack-thumb.webp",
+                     *                   "w": null,
+                     *                   "h": null
+                     *                 },
+                     *                 "card": {
+                     *                   "url": "https://media.usequeek.com/uploads/stores/1095/jollof-rice-party-pack-card.webp",
+                     *                   "w": 480,
+                     *                   "h": 480
+                     *                 },
+                     *                 "card2x": {
+                     *                   "url": "https://media.usequeek.com/uploads/stores/1095/jollof-rice-party-pack-card2x.webp",
+                     *                   "w": 800,
+                     *                   "h": 800
+                     *                 },
+                     *                 "view": {
+                     *                   "url": "https://media.usequeek.com/uploads/stores/1095/jollof-rice-party-pack-view.webp",
+                     *                   "w": 1200,
+                     *                   "h": 1200
+                     *                 },
+                     *                 "wa": {
+                     *                   "url": "https://media.usequeek.com/uploads/stores/1095/jollof-rice-party-pack-wa.jpg",
+                     *                   "w": 1080,
+                     *                   "h": 1080
+                     *                 },
+                     *                 "original": {
+                     *                   "url": "https://media.usequeek.com/uploads/stores/1095/jollof-rice-party-pack.jpg",
+                     *                   "w": 1200,
+                     *                   "h": 1200
+                     *                 }
+                     *               }
+                     *             }
+                     *           ],
+                     *           "metafields": {},
+                     *           "metadata": {
+                     *             "erp_id": "ERP-20417"
+                     *           },
+                     *           "created_at": "2026-07-14T10:20:00+01:00",
+                     *           "updated_at": "2026-09-22T16:05:00+01:00",
+                     *           "deleted_at": null
+                     *         }
+                     *       ],
+                     *       "has_more": true,
+                     *       "next_cursor": "WzEsIjQ4NWY2NTk0YzYxODA3NmVmMDYxZWIwZjc2MGZlNGFiOWY0MGE0NzE3MGYzZTU2N2I4NDUzZTYwNzQwNGNiODIiLCJleUp3Y205a2RXTjBjeTVqY21WaGRHVmtYMkYwSWpvaU1qQXlOaTB3TnkweE5DQXhNRG95TURvd01DSXNJbkJ5YjJSMVkzUnpMbWxrSWpvaU1ERTVZVEZrTlRJdE0yTTRaUzAzWmpReExXSXdaREl0Tm1FelpUbGpNV1kwWWpJeElpd2lYM0J2YVc1MGMxUnZUbVY0ZEVsMFpXMXpJanAwY25WbGZRIl0"
+                     *     }
+                     */
+                    "application/json": {
+                        data: components["schemas"]["MerchantProduct"][];
+                        has_more: boolean;
+                        next_cursor?: string | null;
+                    };
+                };
+            };
+            /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "invalid_client_key",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Forbidden — the key cannot call this operation. Switch on `error.code`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "insufficient_scope",
+                     *         "message": "This API key does not carry the 'merchant-items-read' scope it was called with.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Validation failed — `error.errors` carries per-field detail. Switch on `error.code`. An undefined metafield handle also answers 422 with the metafield_definition_missing code and the handle in its error details. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "validation_failed",
+                     *         "message": "The starting after cursor is invalid.",
+                     *         "field": "starting_after",
+                     *         "errors": {
+                     *           "starting_after": [
+                     *             "The starting after cursor is invalid."
+                     *           ]
+                     *         },
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Too many requests — slow down and retry. Switch on `error.code`. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "too_many_requests",
+                     *         "message": "Too Many Attempts.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+        };
+    };
     "products.retrieve": {
         parameters: {
             query?: never;
@@ -11948,6 +18788,8 @@ export interface operations {
                      *         "thumbnail_image": null,
                      *         "primary_image_url": "https://media.usequeek.com/uploads/stores/1095/jollof-rice-party-pack.jpg",
                      *         "variants": [],
+                     *         "options": [],
+                     *         "addons": [],
                      *         "images": [
                      *           {
                      *             "id": 88214,
@@ -12163,6 +19005,8 @@ export interface operations {
                      *         "thumbnail_image": null,
                      *         "primary_image_url": "https://media.usequeek.com/uploads/stores/1095/jollof-rice-party-pack.jpg",
                      *         "variants": [],
+                     *         "options": [],
+                     *         "addons": [],
                      *         "images": [
                      *           {
                      *             "id": 88214,
@@ -12216,7 +19060,12 @@ export interface operations {
                      *       }
                      *     }
                      */
-                    "application/json": Record<string, never>;
+                    "application/json": {
+                        /** @constant */
+                        status: "success";
+                        message: string;
+                        data: components["schemas"]["MerchantProduct"];
+                    };
                 };
             };
             /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
@@ -12664,6 +19513,824 @@ export interface operations {
             };
         };
     };
+    "publications.list": {
+        parameters: {
+            query?: {
+                /** @example 2 */
+                limit?: number | null;
+                starting_after?: string | null;
+            };
+            header: {
+                /**
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @example {{merchantKey}}
+                 */
+                "X-Client-Key": string;
+                /** @description Your own correlation id (8–128 chars, `^[A-Za-z0-9_.:-]+$`). Echoed back on the response and on every log line of the request; one is generated when you omit it. */
+                "X-Request-Id"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "data": [
+                     *         {
+                     *           "id": 1001,
+                     *           "key": "kiosk-lagos",
+                     *           "name": "Lagos kiosk",
+                     *           "kind": "app",
+                     *           "status": "active",
+                     *           "created_at": "2026-10-07T12:00:00+01:00"
+                     *         }
+                     *       ],
+                     *       "has_more": true,
+                     *       "next_cursor": "eyJpZCI6MTAwMSwiX3BvaW50c1RvTmV4dEl0ZW1zIjp0cnVlfQ"
+                     *     }
+                     */
+                    "application/json": {
+                        data: components["schemas"]["MerchantPublication"][];
+                        has_more: boolean;
+                        next_cursor?: string | null;
+                    };
+                };
+            };
+            /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "invalid_client_key",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Forbidden — the key cannot call this operation. Switch on `error.code`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "insufficient_scope",
+                     *         "message": "This API key does not carry the 'merchant-publications-read' scope it was called with.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Validation failed — `error.errors` carries per-field detail. Switch on `error.code`. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "validation_failed",
+                     *         "message": "The limit field must be at least 1.",
+                     *         "field": "limit",
+                     *         "errors": {
+                     *           "limit": [
+                     *             "The limit field must be at least 1."
+                     *           ]
+                     *         },
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Too many requests — slow down and retry. Switch on `error.code`. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "too_many_requests",
+                     *         "message": "Too Many Attempts.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+        };
+    };
+    "publications.create": {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @example {{merchantKey}}
+                 */
+                "X-Client-Key": string;
+                /** @description Your own correlation id (8–128 chars, `^[A-Za-z0-9_.:-]+$`). Echoed back on the response and on every log line of the request; one is generated when you omit it. */
+                "X-Request-Id"?: string;
+                /** @description Retry-safe write key. The same key with the same body replays the stored response for 24h with `Idempotent-Replayed: true`; with a different body it is `409 idempotency_key_reuse`; while the first call is still running it is `409 idempotency_key_in_progress`. */
+                "Idempotency-Key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "key": "kiosk-lagos",
+                 *       "name": "Lagos kiosk"
+                 *     }
+                 */
+                "application/json": components["schemas"]["RegisterPublicationRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "status": "success",
+                     *       "message": "Publication registered.",
+                     *       "data": {
+                     *         "id": 1001,
+                     *         "key": "kiosk-lagos",
+                     *         "name": "Lagos kiosk",
+                     *         "kind": "app",
+                     *         "status": "active",
+                     *         "created_at": "2026-10-07T12:00:00+01:00"
+                     *       }
+                     *     }
+                     */
+                    "application/json": {
+                        /** @constant */
+                        status: "success";
+                        message: string;
+                        data: components["schemas"]["MerchantPublication"];
+                    };
+                };
+            };
+            /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "invalid_client_key",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Forbidden — the key cannot call this operation. Switch on `error.code`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "insufficient_scope",
+                     *         "message": "This API key does not carry the 'merchant-publications-create' scope it was called with.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Idempotency conflict — `idempotency_key_reuse` or `idempotency_key_in_progress`. Switch on `error.code`. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "idempotency_key_reuse",
+                     *         "message": "This Idempotency-Key was already used for a different request body. Use a new key for a new request.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#idempotency_key_reuse",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Validation failed — `error.errors` carries per-field detail. Switch on `error.code`. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "validation_failed",
+                     *         "message": "The key may only contain letters, numbers, dashes and underscores.",
+                     *         "field": "key",
+                     *         "errors": {
+                     *           "key": [
+                     *             "The key may only contain letters, numbers, dashes and underscores."
+                     *           ]
+                     *         },
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Too many requests — slow down and retry. Switch on `error.code`. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "too_many_requests",
+                     *         "message": "Too Many Attempts.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+        };
+    };
+    "publications.update_resources": {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @example {{merchantKey}}
+                 */
+                "X-Client-Key": string;
+                /** @description Your own correlation id (8–128 chars, `^[A-Za-z0-9_.:-]+$`). Echoed back on the response and on every log line of the request; one is generated when you omit it. */
+                "X-Request-Id"?: string;
+                /** @description Retry-safe write key. The same key with the same body replays the stored response for 24h with `Idempotent-Replayed: true`; with a different body it is `409 idempotency_key_reuse`; while the first call is still running it is `409 idempotency_key_in_progress`. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                /** @example 1001 */
+                publication: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                /**
+                 * @example {
+                 *       "publish": {
+                 *         "products": [
+                 *           "019a1d52-3c8e-7f41-b0d2-6a3e9c1f4b21"
+                 *         ],
+                 *         "collections": []
+                 *       },
+                 *       "unpublish": {
+                 *         "products": [],
+                 *         "collections": []
+                 *       }
+                 *     }
+                 */
+                "application/json": components["schemas"]["UpdatePublicationResourcesRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "status": "success",
+                     *       "message": "Publication resources updated.",
+                     *       "data": {
+                     *         "publication": {
+                     *           "id": 1001,
+                     *           "key": "kiosk-lagos",
+                     *           "name": "Lagos kiosk",
+                     *           "kind": "app",
+                     *           "status": "active",
+                     *           "created_at": "2026-10-07T12:00:00+01:00"
+                     *         },
+                     *         "results": [
+                     *           {
+                     *             "ref": "20417",
+                     *             "type": "product",
+                     *             "id": 20417,
+                     *             "result": "published",
+                     *             "code": null
+                     *           },
+                     *           {
+                     *             "ref": "3108",
+                     *             "type": "collection",
+                     *             "id": 3108,
+                     *             "result": "unchanged",
+                     *             "code": null
+                     *           }
+                     *         ]
+                     *       }
+                     *     }
+                     */
+                    "application/json": {
+                        /** @constant */
+                        status: "success";
+                        message: string;
+                        data: Record<string, never>;
+                    };
+                };
+            };
+            /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "invalid_client_key",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Forbidden — the key cannot call this operation. Switch on `error.code`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "insufficient_scope",
+                     *         "message": "This API key does not carry the 'merchant-publications-update' scope it was called with.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Not found — the addressed record does not exist at this store. Switch on `error.code`. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "not_found",
+                     *         "message": "Publication not found.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#not_found",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Idempotency conflict — `idempotency_key_reuse` or `idempotency_key_in_progress`. Switch on `error.code`. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "idempotency_key_reuse",
+                     *         "message": "This Idempotency-Key was already used for a different request body. Use a new key for a new request.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#idempotency_key_reuse",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Validation failed — `error.errors` carries per-field detail. Switch on `error.code`. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "validation_failed",
+                     *         "message": "The publish.products field must not have more than 50 items.",
+                     *         "field": "publish.products",
+                     *         "errors": {
+                     *           "publish.products": [
+                     *             "The publish.products field must not have more than 50 items."
+                     *           ]
+                     *         },
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Too many requests — slow down and retry. Switch on `error.code`. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "too_many_requests",
+                     *         "message": "Too Many Attempts.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+        };
+    };
+    "reviews.list_imported": {
+        parameters: {
+            query?: {
+                /** @example 2 */
+                limit?: number | null;
+                /** @example eyJjcmVhdGVkX2F0IjoiMjAyNi0xMC0wMyAwOTowMDowMCIsImlkIjoiMDE5YTFkNTItM2M4ZS03ZjQxLWIwZDItNmEzZTljMWY0YjIxIiwiX3BvaW50c1RvTmV4dEl0ZW1zIjp0cnVlfQ */
+                starting_after?: string | null;
+                product?: string;
+                /** @example pending */
+                status?: "pending" | "approved" | "rejected";
+            };
+            header: {
+                /**
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @example {{merchantKey}}
+                 */
+                "X-Client-Key": string;
+                /** @description Your own correlation id (8–128 chars, `^[A-Za-z0-9_.:-]+$`). Echoed back on the response and on every log line of the request; one is generated when you omit it. */
+                "X-Request-Id"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "data": [
+                     *         {
+                     *           "source_review_id": "chowdeck-review-2026-0042",
+                     *           "source": "chowdeck",
+                     *           "author_display_name": "Ifeoma Adebayo",
+                     *           "product_p_id": 20417,
+                     *           "rating": 5,
+                     *           "title": "Fresh and delicious",
+                     *           "description": "The jollof arrived hot.",
+                     *           "media": [],
+                     *           "status": "pending",
+                     *           "is_verified_purchase": false,
+                     *           "submitted_at": "2026-09-24T13:05:00+00:00",
+                     *           "created_at": "2026-10-03T08:00:00.000000Z",
+                     *           "edited_at": null
+                     *         }
+                     *       ],
+                     *       "has_more": true,
+                     *       "next_cursor": "eyJjcmVhdGVkX2F0IjoiMjAyNi0xMC0wMyAwOTowMDowMCIsImlkIjoiMDE5YTFkNTItM2M4ZS03ZjQxLWIwZDItNmEzZTljMWY0YjIxIiwiX3BvaW50c1RvTmV4dEl0ZW1zIjp0cnVlfQ"
+                     *     }
+                     */
+                    "application/json": {
+                        data: components["schemas"]["MerchantImportedReview"][];
+                        has_more: boolean;
+                        next_cursor?: string | null;
+                    };
+                };
+            };
+            /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "invalid_client_key",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Forbidden — the key cannot call this operation. Switch on `error.code`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "insufficient_scope",
+                     *         "message": "This API key does not carry the 'merchant-reviews-read' scope it was called with.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Validation failed — `error.errors` carries per-field detail. Switch on `error.code`. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "validation_failed",
+                     *         "message": "The limit field must be at least 1.",
+                     *         "field": "limit",
+                     *         "errors": {
+                     *           "limit": [
+                     *             "The limit field must be at least 1."
+                     *           ]
+                     *         },
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Too many requests — slow down and retry. Switch on `error.code`. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "too_many_requests",
+                     *         "message": "Too Many Attempts.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+        };
+    };
+    "reviews.import": {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @example {{merchantKey}}
+                 */
+                "X-Client-Key": string;
+                /** @description Your own correlation id (8–128 chars, `^[A-Za-z0-9_.:-]+$`). Echoed back on the response and on every log line of the request; one is generated when you omit it. */
+                "X-Request-Id"?: string;
+                /** @description Retry-safe write key. The same key with the same body replays the stored response for 24h with `Idempotent-Replayed: true`; with a different body it is `409 idempotency_key_reuse`; while the first call is still running it is `409 idempotency_key_in_progress`. */
+                "Idempotency-Key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "reviews": [
+                 *         {
+                 *           "source_review_id": "chowdeck-review-2026-0042",
+                 *           "product": "20417",
+                 *           "rating": 5,
+                 *           "title": "Fresh and delicious",
+                 *           "description": "The jollof arrived hot.",
+                 *           "author_display_name": "Ifeoma Adebayo",
+                 *           "submitted_at": "2026-09-24T13:05:00+00:00",
+                 *           "media": [
+                 *             "https://adeyemifoods.com/reviews/2026-0042.jpg"
+                 *           ]
+                 *         }
+                 *       ]
+                 *     }
+                 */
+                "application/json": components["schemas"]["ImportProductReviewsRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "status": "success",
+                     *       "message": "Product reviews imported",
+                     *       "data": {
+                     *         "results": [
+                     *           {
+                     *             "source_review_id": "chowdeck-review-2026-0042",
+                     *             "result": "imported",
+                     *             "status": "pending",
+                     *             "product_p_id": 20417
+                     *           }
+                     *         ]
+                     *       }
+                     *     }
+                     */
+                    "application/json": {
+                        /** @constant */
+                        status: "success";
+                        /** @constant */
+                        message: "Product reviews imported";
+                        data: Record<string, never>;
+                        meta: string;
+                    };
+                };
+            };
+            /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "invalid_client_key",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Forbidden — the key cannot call this operation. Switch on `error.code`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "insufficient_scope",
+                     *         "message": "This API key does not carry the 'merchant-reviews-import' scope it was called with.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Idempotency conflict — `idempotency_key_reuse` or `idempotency_key_in_progress`. Switch on `error.code`. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "idempotency_key_reuse",
+                     *         "message": "This Idempotency-Key was already used for a different request body. Use a new key for a new request.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#idempotency_key_reuse",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Validation failed — `error.errors` carries per-field detail. Switch on `error.code`. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "validation_failed",
+                     *         "message": "The reviews field is required.",
+                     *         "field": "reviews",
+                     *         "errors": {
+                     *           "reviews": [
+                     *             "The reviews field is required."
+                     *           ]
+                     *         },
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Too many requests — slow down and retry. Switch on `error.code`. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "too_many_requests",
+                     *         "message": "Too Many Attempts.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+        };
+    };
     "shipping_zones.list": {
         parameters: {
             query?: {
@@ -12740,7 +20407,11 @@ export interface operations {
                      *       "next_cursor": "eyJpZCI6IjAxOWEyYzVkLTNlNGYtN2E1Yi04YzZkLTdlOGY5YTBiMWMyMiIsIl9wb2ludHNUb05leHRJdGVtcyI6dHJ1ZX0"
                      *     }
                      */
-                    "application/json": Record<string, never>;
+                    "application/json": {
+                        data: components["schemas"]["MerchantShippingZone"][];
+                        has_more: boolean;
+                        next_cursor?: string | null;
+                    };
                 };
             };
             /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
@@ -13466,7 +21137,11 @@ export interface operations {
                      *       "next_cursor": "eyJpZCI6MTA5NTAyLCJfcG9pbnRzVG9OZXh0SXRlbXMiOnRydWV9"
                      *     }
                      */
-                    "application/json": Record<string, never>;
+                    "application/json": {
+                        data: components["schemas"]["MerchantTeamMember"][];
+                        has_more: boolean;
+                        next_cursor?: string | null;
+                    };
                 };
             };
             /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
@@ -13610,7 +21285,21 @@ export interface operations {
                      *       ]
                      *     }
                      */
-                    "application/json": Record<string, never>;
+                    "application/json": {
+                        /** @constant */
+                        status: "success";
+                        message: string;
+                        data: {
+                            locale: string;
+                            name: string;
+                            native_name: string;
+                            html_lang: string;
+                            /** @enum {string} */
+                            dir: "ltr" | "rtl";
+                            published: boolean;
+                            is_primary: boolean;
+                        }[];
+                    };
                 };
             };
             /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
@@ -13720,7 +21409,21 @@ export interface operations {
                      *       }
                      *     }
                      */
-                    "application/json": Record<string, never>;
+                    "application/json": {
+                        /** @constant */
+                        status: "success";
+                        message: string;
+                        data: {
+                            locale: string;
+                            name: string;
+                            native_name: string;
+                            html_lang: string;
+                            /** @enum {string} */
+                            dir: "ltr" | "rtl";
+                            published: boolean;
+                            is_primary: boolean;
+                        };
+                    };
                 };
             };
             /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
@@ -13863,7 +21566,17 @@ export interface operations {
                      *       }
                      *     }
                      */
-                    "application/json": Record<string, never>;
+                    "application/json": {
+                        /** @constant */
+                        status: "success";
+                        message: string;
+                        data: {
+                            /** @description The removed locale code. */
+                            locale: string;
+                            /** @description Always true when this shape answers. */
+                            deleted: boolean;
+                        };
+                    };
                 };
             };
             /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
@@ -14014,7 +21727,21 @@ export interface operations {
                      *       }
                      *     }
                      */
-                    "application/json": Record<string, never>;
+                    "application/json": {
+                        /** @constant */
+                        status: "success";
+                        message: string;
+                        data: {
+                            locale: string;
+                            name: string;
+                            native_name: string;
+                            html_lang: string;
+                            /** @enum {string} */
+                            dir: "ltr" | "rtl";
+                            published: boolean;
+                            is_primary: boolean;
+                        };
+                    };
                 };
             };
             /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
@@ -14192,7 +21919,8 @@ export interface operations {
                      *               "digest": "5fd1090cc7510d55f0cba61ef520a4e5b8c2fbce650a2032ae84cf2a1c0584cd",
                      *               "type": "text"
                      *             }
-                     *           ]
+                     *           ],
+                     *           "machine_translation_allowed": true
                      *         },
                      *         {
                      *           "type": "product",
@@ -14216,14 +21944,30 @@ export interface operations {
                      *               "digest": "da2da5ed20ba1c1a185ffcf1ed030b1e0f4d0455283599b9b950d7fba32b42e9",
                      *               "type": "text"
                      *             }
-                     *           ]
+                     *           ],
+                     *           "machine_translation_allowed": true
                      *         }
                      *       ],
                      *       "has_more": true,
                      *       "next_cursor": "eyJpZCI6MjA0MTgsIl9wb2ludHNUb05leHRJdGVtcyI6dHJ1ZX0"
                      *     }
                      */
-                    "application/json": Record<string, never>;
+                    "application/json": {
+                        /** @constant */
+                        status: "success";
+                        message: string;
+                        data: {
+                            type: string;
+                            /** @description The resource p_id. */
+                            id: number;
+                            content: {
+                                key: string;
+                                value: string;
+                                digest: string;
+                                type: string;
+                            }[];
+                        }[];
+                    };
                 };
             };
             /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
@@ -14367,6 +22111,7 @@ export interface operations {
                      *             "type": "text"
                      *           }
                      *         ],
+                     *         "machine_translation_allowed": true,
                      *         "translations": [
                      *           {
                      *             "key": "title",
@@ -14556,7 +22301,24 @@ export interface operations {
                      *       }
                      *     }
                      */
-                    "application/json": Record<string, never>;
+                    "application/json": {
+                        /** @constant */
+                        status: "success";
+                        message: string;
+                        data: {
+                            type: string;
+                            /** @description The resource p_id. */
+                            id: number;
+                            translations: {
+                                key: string;
+                                locale: string;
+                                value: string;
+                                outdated: boolean;
+                                /** Format: date-time */
+                                updated_at?: string | null;
+                            }[];
+                        };
+                    };
                 };
             };
             /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
@@ -14724,7 +22486,19 @@ export interface operations {
                      *       }
                      *     }
                      */
-                    "application/json": Record<string, never>;
+                    "application/json": {
+                        /** @constant */
+                        status: "success";
+                        message: string;
+                        data: {
+                            /** @description The resource type the translations were removed from. */
+                            type: string;
+                            /** @description The resource p_id. */
+                            id: number;
+                            /** @description How many translation rows were removed. */
+                            deleted: number;
+                        };
+                    };
                 };
             };
             /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
@@ -14885,6 +22659,7 @@ export interface operations {
                      *           "id": 7731,
                      *           "uid": "019a1d52-5f10-7a02-8c61-0b2d4e6f8a31",
                      *           "sku": "ADF-CHP-50CL",
+                     *           "barcode": "6151101370016",
                      *           "title": "50cl",
                      *           "option_values": {
                      *             "Size": "50cl"
@@ -14909,6 +22684,7 @@ export interface operations {
                      *           "id": 7732,
                      *           "uid": "019a1d52-5f10-7a02-8c61-0b2d4e6f8a32",
                      *           "sku": "ADF-CHP-1L",
+                     *           "barcode": "6151101370023",
                      *           "title": "1 litre",
                      *           "option_values": {
                      *             "Size": "1 litre"
@@ -15075,6 +22851,7 @@ export interface operations {
                  *         "Size": "1 litre"
                  *       },
                  *       "sku": "ADF-CHP-1L",
+                 *       "barcode": "6151101370023",
                  *       "price": "4200.00",
                  *       "stock": 24,
                  *       "weight": 1.05,
@@ -15098,6 +22875,7 @@ export interface operations {
                      *         "id": 7732,
                      *         "uid": "019a1d52-5f10-7a02-8c61-0b2d4e6f8a32",
                      *         "sku": "ADF-CHP-1L",
+                     *         "barcode": "6151101370023",
                      *         "title": "1 litre",
                      *         "option_values": {
                      *           "Size": "1 litre"
@@ -15446,6 +23224,7 @@ export interface operations {
                      *         "id": 7732,
                      *         "uid": "019a1d52-5f10-7a02-8c61-0b2d4e6f8a32",
                      *         "sku": "ADF-CHP-1L",
+                     *         "barcode": "6151101370023",
                      *         "title": "1 litre",
                      *         "option_values": {
                      *           "Size": "1 litre"
@@ -15597,6 +23376,402 @@ export interface operations {
                      */
                     "application/json": components["schemas"]["QueekError"];
                 };
+            };
+        };
+    };
+    "webhook.orders.create": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QueekWebhookEvent"];
+            };
+        };
+        responses: {
+            /** @description Acknowledged. Any other status (or a timeout) is retried on the published backoff schedule. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    "webhook.orders.paid": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QueekWebhookEvent"];
+            };
+        };
+        responses: {
+            /** @description Acknowledged. Any other status (or a timeout) is retried on the published backoff schedule. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    "webhook.orders.updated": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QueekWebhookEvent"];
+            };
+        };
+        responses: {
+            /** @description Acknowledged. Any other status (or a timeout) is retried on the published backoff schedule. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    "webhook.orders.fulfilled": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QueekWebhookEvent"];
+            };
+        };
+        responses: {
+            /** @description Acknowledged. Any other status (or a timeout) is retried on the published backoff schedule. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    "webhook.orders.cancelled": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QueekWebhookEvent"];
+            };
+        };
+        responses: {
+            /** @description Acknowledged. Any other status (or a timeout) is retried on the published backoff schedule. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    "webhook.products.create": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QueekWebhookProductEvent"];
+            };
+        };
+        responses: {
+            /** @description Acknowledged. Any other status (or a timeout) is retried on the published backoff schedule. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    "webhook.products.update": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QueekWebhookProductEvent"];
+            };
+        };
+        responses: {
+            /** @description Acknowledged. Any other status (or a timeout) is retried on the published backoff schedule. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    "webhook.products.delete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QueekWebhookProductEvent"];
+            };
+        };
+        responses: {
+            /** @description Acknowledged. Any other status (or a timeout) is retried on the published backoff schedule. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    "webhook.customers.create": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QueekWebhookCustomerEvent"];
+            };
+        };
+        responses: {
+            /** @description Acknowledged. Any other status (or a timeout) is retried on the published backoff schedule. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    "webhook.customers.update": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QueekWebhookCustomerEvent"];
+            };
+        };
+        responses: {
+            /** @description Acknowledged. Any other status (or a timeout) is retried on the published backoff schedule. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    "webhook.customers_email_marketing_consent.update": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QueekWebhookCustomerEmailMarketingConsentEvent"];
+            };
+        };
+        responses: {
+            /** @description Acknowledged. Any other status (or a timeout) is retried on the published backoff schedule. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    "webhook.customers_marketing_consent.update": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QueekWebhookCustomerSmsMarketingConsentEvent"];
+            };
+        };
+        responses: {
+            /** @description Acknowledged. Any other status (or a timeout) is retried on the published backoff schedule. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    "webhook.inventory_levels.update": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QueekWebhookInventoryLevelEvent"];
+            };
+        };
+        responses: {
+            /** @description Acknowledged. Any other status (or a timeout) is retried on the published backoff schedule. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    "webhook.locales.create": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QueekWebhookEvent"];
+            };
+        };
+        responses: {
+            /** @description Acknowledged. Any other status (or a timeout) is retried on the published backoff schedule. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    "webhook.locales.update": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QueekWebhookEvent"];
+            };
+        };
+        responses: {
+            /** @description Acknowledged. Any other status (or a timeout) is retried on the published backoff schedule. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    "webhook.locales.destroy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QueekWebhookEvent"];
+            };
+        };
+        responses: {
+            /** @description Acknowledged. Any other status (or a timeout) is retried on the published backoff schedule. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    "webhook.translations.update": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QueekWebhookEvent"];
+            };
+        };
+        responses: {
+            /** @description Acknowledged. Any other status (or a timeout) is retried on the published backoff schedule. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    "webhook.translations.delete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QueekWebhookEvent"];
+            };
+        };
+        responses: {
+            /** @description Acknowledged. Any other status (or a timeout) is retried on the published backoff schedule. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
