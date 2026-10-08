@@ -2250,8 +2250,8 @@ export interface components {
             approved?: string | null;
             price: number;
             /**
-             * @description Product-level identity/pricing for products WITHOUT variants
-             *     (Shopify default-variant parity). Prohibited the moment
+             * @description Product-level identity/pricing for products WITHOUT variants.
+             *     Prohibited the moment
              *     variants are in play — variants carry their own
              *     sku/compare_at_price and the product-level pair is ignored
              *     there, never merged.

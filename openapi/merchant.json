@@ -19317,7 +19317,7 @@
               "string",
               "null"
             ],
-            "description": "Product-level identity/pricing for products WITHOUT variants\n(Shopify default-variant parity). Prohibited the moment\nvariants are in play — variants carry their own\nsku/compare_at_price and the product-level pair is ignored\nthere, never merged.",
+            "description": "Product-level identity/pricing for products WITHOUT variants.\nProhibited the moment\nvariants are in play — variants carry their own\nsku/compare_at_price and the product-level pair is ignored\nthere, never merged.",
             "maxLength": 100
           },
           "compare_at_price": {
