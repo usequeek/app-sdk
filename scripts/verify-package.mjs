@@ -18,8 +18,8 @@
  *    once via `react-dom/server`.
  * D. WITHOUT any framework: `@usequeek/app-sdk/browser` loads in a DOM-free
  *    runtime AND bundles cleanly with esbuild (`platform=browser`, no node
- *    polyfills) — the Booking guard: the bundle must build and must contain
- *    no `node:` or `__vite-browser-external` strings.
+ *    polyfills): the bundle must build and must contain no `node:` or
+ *    `__vite-browser-external` strings.
  */
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -398,7 +398,7 @@ function sandboxBrowser(pkgName, tarballPath) {
     console.log(run("node", ["entry.js"], dir).trim());
     // Then it must bundle the way a browser app bundler does: a node-only
     // import anywhere in the graph fails this build (esbuild ships no node
-    // polyfills), which is exactly the Booking Vite failure.
+    // polyfills), which is exactly how a Vite/Rollup browser build fails.
     let esbuild;
     try {
       esbuild = rootRequire("esbuild");

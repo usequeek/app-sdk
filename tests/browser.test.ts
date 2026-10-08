@@ -9,7 +9,7 @@ import * as browser from "../src/browser.js";
  * bundle must never pull `node:*`, `pg`, `hono`, `jose`, or `react`. This
  * test statically walks `src/browser.ts`'s transitive relative imports and
  * fails on the first banned specifier, so a future edit can never silently
- * regress the entry (the Booking Vite failure).
+ * regress the entry (a Vite/Rollup browser build fails on a node-only import).
  */
 
 const HERE = dirname(fileURLToPath(import.meta.url));

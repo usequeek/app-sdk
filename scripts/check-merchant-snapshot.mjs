@@ -8,10 +8,10 @@
  * green offline: only a real contract diff fails the check.
  *
  * Intended ahead-of-production drift is DECLARED, not hidden: when the
- * snapshot carries an undeployed backend slice,
+ * snapshot carries an API change that is not live yet,
  * openapi/merchant.drift.json lists exactly the paths/schemas ahead of
  * live, and only diff lines OUTSIDE that list fail. A drift entry that no
- * longer appears warns (the slice deployed — delete the file).
+ * longer appears warns (the change is live — delete the file).
  */
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -93,7 +93,7 @@ try {
   process.exit(0);
 }
 
-/** Declared ahead-of-production drift (absent once its slice deploys). */
+/** Declared ahead-of-production drift (absent once the change is live). */
 function loadDrift() {
   try {
     return JSON.parse(readFileSync(join(root, "openapi", "merchant.drift.json"), "utf8"));
@@ -107,7 +107,7 @@ if (canonical(live) === canonical(snapshot)) {
   const drift = loadDrift();
   if ((drift.paths ?? []).length > 0 || (drift.schemas ?? []).length > 0) {
     warn(
-      "openapi/merchant.drift.json still declares drift but live matches — its slice deployed; delete the file.",
+      "openapi/merchant.drift.json still declares drift but live matches — the change is live; delete the file.",
     );
   } else {
     console.log("merchant snapshot matches the live contract.");
@@ -138,7 +138,7 @@ for (const entry of [...driftPaths]
   .concat([...driftSchemas].map((s) => `schema:${s}`))) {
   if (!seen.has(entry))
     warn(
-      `drift entry no longer differs from live: ${entry} — delete openapi/merchant.drift.json once its slice deploys.`,
+      `drift entry no longer differs from live: ${entry} — delete openapi/merchant.drift.json once the change is live.`,
     );
 }
 if (unexpected.length === 0) {

@@ -37,7 +37,7 @@ export function signedHeaders(eventId: string, timestamp: number, rawBody: strin
 }
 
 /**
- * Backend `AppInstallService::resyncPayload()` shape: the install-shaped
+ * The resync handoff shape: the install-shaped
  * data under `type: app/resync`, plus the resync-only `secret_rotated`
  * flag. Settings carry the non-secret snapshot only.
  */
@@ -71,9 +71,8 @@ export function resyncBody(overrides: Record<string, unknown> = {}): string {
 }
 
 /**
- * Backend `AppInstallService::scopesUpdatePayload()` shape: the grant-change
- * handoff under `type: app/scopes_update`. The installation rides its
- * `p_id` ONLY (never the UUID — the backend `p_id` rule); `scopes` is the
+ * The grant-change handoff shape, under `type: app/scopes_update`. The
+ * installation rides its `p_id` ONLY (never the UUID); `scopes` is the
  * effective grant. No settings, no secrets.
  */
 export function scopesUpdateBody(overrides: Record<string, unknown> = {}): string {
@@ -113,7 +112,7 @@ export function installBody(overrides: Record<string, unknown> = {}): string {
         is_test: true,
       },
       api_base: "https://api.usequeek.com/api/v1/merchant",
-      // S1: no store-callable credential crosses the handoff (the app mints
+      // No store-callable credential crosses the handoff (the app mints
       // installation tokens with its app key instead).
       scopes: ["merchant-business_profile-read"],
       settings: {},

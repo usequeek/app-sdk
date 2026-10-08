@@ -128,7 +128,7 @@ describe("scopes_update handoff", () => {
     expect(await ctx.store.hasSeenWebhookId("evt-scopes-9")).toBe(false);
   });
 
-  it("is accepted on the settings route too (the backend aims at settings_url first)", async () => {
+  it("is accepted on the settings route too (Queek aims at settings_url first)", async () => {
     await seedWithToken(ctx.store);
     const body = scopesUpdateBody({ scopes: [REQUIRED, OPTIONAL_A] });
     const response = await postRaw(
@@ -365,9 +365,9 @@ describe("revokeScopes", () => {
   });
 
   it("surfaces 422 app_scope_required as a typed error and keeps the cache", async () => {
-    // The body mirrors the backend `ApiError::response(code, message,
-    // status, errors)` shape exactly: legacy top-level keys plus the
-    // `error` envelope, with the per-field detail at `error.errors`.
+    // The body mirrors Queek's error shape exactly: legacy top-level keys
+    // plus the `error` envelope, with the per-field detail at
+    // `error.errors`.
     const { store, client } = revokeSetup(
       (_url, _init) =>
         new Response(

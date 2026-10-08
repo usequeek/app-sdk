@@ -149,7 +149,7 @@ describe("acquireToken", () => {
 
   it("two independent providers (two containers) minting at once: both tokens stay usable", async () => {
     // Two provider instances = two single-flight maps (the cross-container
-    // case) sharing one persisted cache row; the backend keeps both minted
+    // case) sharing one persisted cache row; Queek keeps both minted
     // tokens valid, so neither container is locked out.
     const keypair = KEYPAIR;
     const fake = fakeQueekAppApi({ keypair });

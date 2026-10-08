@@ -2,9 +2,8 @@ import { createVerify, generateKeyPairSync, randomBytes } from "node:crypto";
 import { vi } from "vitest";
 
 /**
- * In-process fake Queek app-credential + merchant API for S1 tests. NEVER
- * touched by production code; the backend (B1/B2) is built in parallel
- * against the same wire contract and is not deployed.
+ * In-process fake Queek app-credential + merchant API for tests. NEVER
+ * touched by production code.
  *
  * Routes (all under one fake origin, e.g. https://api.usequeek.com):
  * - `POST /api/v1/apps/installations/{id}/access_tokens` → 201
@@ -66,7 +65,7 @@ export interface MintRecord {
 
 export interface FakeAppApiOptions {
   keypair: TestAppKeypair;
-  /** Installation-token TTL in seconds (default 3600, the founder's decision). */
+  /** Installation-token TTL in seconds (default 3600). */
   tokenTtlSeconds?: number;
   /** Rows served by the list endpoint (default []). */
   listItems?: FakeListItem[];

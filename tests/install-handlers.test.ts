@@ -38,7 +38,7 @@ describe("install handler", () => {
     expect(stored?.storePid).toBe("store_xyz");
     expect(stored?.webhookSecret).toContain("whsec_");
     expect(stored?.proxySecret).toContain("whsec_");
-    // S4: the embed secret + app id that verify dashboard session tokens.
+    // The embed secret + app id that verify dashboard session tokens.
     expect(stored?.embedSecret).toContain("embsec_");
     expect(stored?.appId).toBe("app-uuid-hello");
   });
@@ -273,7 +273,7 @@ describe("platform resync handoff (type app/resync)", () => {
     const ctx = setup();
     const before = await installFirst(ctx);
 
-    // The outage wiped the S4 keys from the row; the resync restores them.
+    // The outage wiped the embed secret + app id from the row; the resync restores them.
     const wiped = await ctx.store.getInstallation(INSTALLATION_ID);
     if (!wiped) throw new Error("expected the install to be stored");
     await ctx.store.saveInstallation({ ...wiped, embedSecret: null, appId: null });
@@ -485,7 +485,7 @@ describe("resync delivery (install envelope for an existing installation)", () =
     expect(after?.token).toBe("tok_cached_before_resync");
     expect(after?.tokenKid).toBe("kid-1");
 
-    // A handoff that omits the S4 keys (older payload) keeps what is stored.
+    // A handoff that omits the embed secret + app id (older payload) keeps what is stored.
     const older = JSON.parse(resync) as { id: string; data: Record<string, unknown> };
     delete older.data.embed_secret;
     delete older.data.app_id;
@@ -592,10 +592,10 @@ describe("grant change drops the cached installation token", () => {
 
   it("normalises numeric handoff p_ids to integer strings so the proxy kid matches", async () => {
     const ctx = setup();
-    // The backend once sent p_ids as JSON integers; node:sqlite binds a JS
+    // Queek once sent p_ids as JSON integers; node:sqlite binds a JS
     // number into a TEXT column as "1021.0", so the stored pid never equalled
     // the proxy `kid` ("1021") and every proxy read 404d. The SDK normalises
-    // defensively even though the backend now sends strings.
+    // defensively even though Queek now sends strings.
     const body = installBody({
       installation: { id: "11111111-1111-1111-1111-111111111111", p_id: 1021 },
       store: {

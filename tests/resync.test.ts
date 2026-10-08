@@ -317,9 +317,9 @@ describe("resyncFromQueek", () => {
   });
 
   it("404 gone on one resync purges just that installation; the run continues", async () => {
-    // The backend re-checks status on resync (B2 review r2): an
-    // uninstall landing between authorize and resync 404s here, and the
-    // SDK purges that row without aborting the rest of the run.
+    // Queek re-checks status on resync: an uninstall landing between
+    // authorize and resync 404s here, and the SDK purges that row without
+    // aborting the rest of the run.
     const ctx = context({
       listItems: [{ id: ID_A }, { id: ID_B }],
       resyncQueue: [{ status: 404, code: "app_installation_gone", message: "Gone." }],

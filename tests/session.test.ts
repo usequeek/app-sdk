@@ -12,11 +12,11 @@ import {
 import { fakeSecret } from "./helpers.js";
 
 /**
- * Dashboard session-token verification (S4 stage 2): the app backend's view
- * of the token the dashboard mints. Round-trip uses a locally signed token
- * with the exact contract (HS256, slug audience, api_base issuer, 60s TTL,
- * installation binding); every negative the backend enforces has a case
- * here, plus the server-entry boundary (the secret never ships to browsers).
+ * Dashboard session-token verification: the app server's view of the
+ * token the dashboard mints. Round-trip uses a locally signed token with
+ * the exact contract (HS256, slug audience, api_base issuer, 60s TTL,
+ * installation binding); every negative case the verifier enforces is
+ * covered here, plus the server-entry boundary (the secret never ships to browsers).
  */
 
 const SECRET = `${EMBED_SECRET_PREFIX}test-secret-for-session-tokens-only`;
@@ -251,7 +251,7 @@ describe("verifySessionToken", () => {
     expect("LaunchTokenClaims" in serverEntry).toBe(false);
   });
 
-  it("pins the backend-matching clock tolerance", () => {
+  it("pins the clock tolerance that matches the mint side", () => {
     expect(SESSION_CLOCK_TOLERANCE_SECONDS).toBe(20);
   });
 

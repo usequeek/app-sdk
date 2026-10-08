@@ -3,18 +3,18 @@
  * Pre-publish guard for @usequeek/app-sdk. Run locally
  * (`npm run check:publish`) and in CI before every
  * publish: `npm pack --dry-run` must list ONLY the intended files, and the
- * packed contents must hold no secret VALUES, no `.agent-` files, and no
- * non-public hostnames.
+ * packed contents must hold no secret VALUES, no `.agent-` working files,
+ * and no non-public hostnames.
  *
  * Secret detection is value-shaped ON PURPOSE: the SDK legitimately
  * MENTIONS key shapes (`sk_…` in docs, `SECRET_PREFIX = "whsec_"`, the
  * logger's redaction regex). Placeholders ship; only real-looking values
  * fail — `sk_live_/sk_test_` + 8 chars, `whsec_` + 8 chars, `ghp_` /
  * `github_pat_` tokens, PEM blocks. Likewise `.agent-` is checked against
- * packed FILE paths (brief files live at the repo root and must never be
+ * packed FILE paths (working files at the repo root must never be
  * packed), and hostnames fail only when internal (localhost, IPs,
  * .test/.local, tunnels) or a non-public usequeek host: api.usequeek.com,
- * docs.usequeek.com (backend-generated descriptions link it),
+ * docs.usequeek.com (the generated API descriptions link it),
  * apps.usequeek.com + *.apps.usequeek.com, media.usequeek.com (public
  * media CDN examples inside the generated merchant schema, shipped in
  * `dist/` comments), and dashboard.usequeek.com (the production merchant
@@ -85,7 +85,7 @@ try {
 
 for (const entry of packed) {
   const path = entry.path;
-  if (path.includes(".agent-")) failures.push(`packed path looks like a brief file: ${path}`);
+  if (path.includes(".agent-")) failures.push(`packed path looks like an internal working file: ${path}`);
   if (!allowedFile(path)) {
     failures.push(`unexpected packed file: ${path}`);
     continue;

@@ -52,7 +52,7 @@ function fakeTargets() {
 
 const ORIGIN = "https://merchant.example.com";
 
-describe("byte compatibility with today's protocol", () => {
+describe("byte compatibility with the v0 protocol", () => {
   it("bare ready/resize/ack still parse and send unchanged", () => {
     expect(parseOutboundMessage({ source: APP_SOURCE, type: "ready" })).toEqual({
       source: APP_SOURCE,

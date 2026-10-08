@@ -9,9 +9,9 @@ import { createInstallationClient } from "../src/tokens.js";
 import { fakeApiKey } from "./helpers.js";
 
 /**
- * S1 proof: an app's own codegen types flow through the generic client
+ * Proof that an app's own codegen types flow through the generic client
  * with NO SDK change. `AppStorePaths` stands in for the app-owned
- * `types/merchant.ts` after the backend ships a new field
+ * `types/merchant.ts` after the Merchant API ships a new field
  * (`loyalty_points`); the bundled SDK types never mention it.
  */
 interface AppStorePaths {
@@ -56,7 +56,7 @@ describe("generic client types (enforced by `npm run typecheck:tests`)", () => {
   it("ReturnType<typeof createInstallationClient> is exactly the default QueekClient", () => {
     // The alias every real app uses. TS instantiates the unconstrained
     // generic at `unknown` (ignoring `= paths`); without the StoreProfile
-    // collapse this became QueekClient<unknown> and broke Booking/Forms/Chowdeck.
+    // collapse this became QueekClient<unknown> and broke apps that use the alias.
     expectTypeOf<ReturnType<typeof createInstallationClient>>().toEqualTypeOf<QueekClient>();
     expectTypeOf<ReturnType<typeof createQueekClient>>().toEqualTypeOf<QueekClient>();
   });
@@ -79,7 +79,7 @@ describe("generic client types (enforced by `npm run typecheck:tests`)", () => {
   });
 });
 
-describe("generic client (S1: app-owned paths flow through)", () => {
+describe("generic client (app-owned paths flow through)", () => {
   it("createQueekClient<AppPaths>.getStore() types the app's extra field", async () => {
     const fetchImpl = vi.fn(async () =>
       jsonResponse(200, { data: { p_id: "store_xyz", name: "Test", loyalty_points: 42 } }),

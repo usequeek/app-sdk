@@ -3,7 +3,7 @@ import { signQueekPayload, verifyQueekSignature } from "../src/signatures.js";
 import { fakeSecret } from "./helpers.js";
 
 /**
- * Byte-exact vectors against Queek's `App\Services\Webhooks\WebhookSigner`.
+ * Byte-exact vectors for Queek's webhook signature format.
  * Each `expected` below was computed with an INDEPENDENT HMAC-SHA256
  * implementation (python `hmac`, key = base64-decoded `whsec_…` bytes) and
  * is pinned here — if the two sides ever disagree, this test goes red.
@@ -36,10 +36,10 @@ const VECTORS = [
   },
 ] as const;
 
-describe("byte-exact vectors from WebhookSigner", () => {
+describe("byte-exact signature vectors", () => {
   for (const vector of VECTORS) {
     const secret = fakeSecret(vector.word);
-    it(`signs ${vector.id} exactly like the backend`, () => {
+    it(`signs ${vector.id} exactly like Queek`, () => {
       expect(signQueekPayload(vector.id, vector.timestamp, vector.body, secret)).toBe(vector.expected);
     });
 
@@ -60,7 +60,7 @@ describe("byte-exact vectors from WebhookSigner", () => {
   }
 });
 
-describe("verification semantics (mirroring WebhookSigner::verify)", () => {
+describe("verification semantics", () => {
   const now = 1758685600;
   const input = {
     id: "evt_live",

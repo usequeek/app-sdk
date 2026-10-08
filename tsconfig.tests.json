@@ -16,14 +16,14 @@
     "noEmit": true,
     "types": ["node"]
   },
-  // S1 gate (MUST-1): vitest strips types without checking and the src
-  // tsconfig covers src/ only, so the type-level halves of the generic
-  // proof below would stay green through a generics regression. This
-  // program typechecks the proof test against src. Scope is deliberately
-  // the proof test only: the wider suite carries 71 pre-existing strict
-  // errors (mock fetch signatures typed `(url: string)` vs `typeof fetch`,
-  // unchecked indexing) unrelated to S1 — type-cleaning it is separate
-  // work, not a reason to leave the S1 proof unenforced. Keep this file
-  // non-composite with no rootDir/outDir: it must never disturb the build.
+  // Type gate for the generic client: vitest strips types without checking
+  // and the src tsconfig covers src/ only, so the type-level half of the
+  // generics proof test would stay green through a generics regression.
+  // This program typechecks that proof test against src. Scope is
+  // deliberately that one test: the wider suite has strict-mode type errors
+  // (mock fetch signatures typed `(url: string)` vs `typeof fetch`,
+  // unchecked indexing) that are separate from the generics proof. Keep
+  // this file non-composite with no rootDir/outDir: it must never disturb
+  // the build.
   "include": ["src/**/*.ts", "tests/client-generics.test.ts"]
 }

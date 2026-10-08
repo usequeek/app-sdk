@@ -13,17 +13,14 @@ import { type InstallationRecord, SqliteInstallationStore } from "../src/store.j
 import { fakeSecret } from "./helpers.js";
 
 /**
- * App-proxy query verification against Queek's
- * `App\Services\Apps\AppProxyService::signQuery()/verifyQuery()`.
+ * App-proxy query verification against Queek's signing format.
  *
- * BACKEND_VECTOR was produced by the BACKEND's signer
- * (`APP_ENV=testing php artisan tinker --execute` in the
- * review-flow worktree: `signQuery("/apps/booking/availability",
- * "store_xyz", ["date" => "2026-10-01", "slot" => "09:00"], $secret,
- * $installation(p_id 424242), 1767225600)` with
- * `$secret = fakeSecret("proxy-backend")` rebuilt there as
- * `whsec_`.`base64("fake-secret-proxy-backend")`) and is pinned here — if
- * the two sides ever disagree, this test goes red.
+ * The BACKEND_* vector was produced by Queek's own signer for the path
+ * "/apps/booking/availability", shop "store_xyz", params
+ * `date=2026-10-01` and `slot=09:00`, installation p_id 424242, ts
+ * 1767225600, keyed by `fakeSecret("proxy-backend")` (that is,
+ * `whsec_` + `base64("fake-secret-proxy-backend")`) and is pinned here —
+ * if the two sides ever disagree, this test goes red.
  */
 
 const PATH = "/apps/booking/availability";
@@ -69,8 +66,8 @@ function record(overrides: Partial<InstallationRecord> = {}): InstallationRecord
   };
 }
 
-describe("backend-exact canonical string + HMAC (tinker vector)", () => {
-  it("builds the canonical string exactly like AppProxyService::signature()", () => {
+describe("canonical string + HMAC match Queek's signer (pinned vector)", () => {
+  it("builds the canonical string exactly like Queek", () => {
     expect(buildProxyCanonicalString(PATH, BACKEND_PARAMS)).toBe(
       "/apps/booking/availability\n" +
         "store_xyz\n" +
@@ -79,7 +76,7 @@ describe("backend-exact canonical string + HMAC (tinker vector)", () => {
     );
   });
 
-  it("recomputes the backend's sig byte-for-byte", () => {
+  it("recomputes Queek's sig byte-for-byte", () => {
     expect(signProxyQuery(PATH, BACKEND_PARAMS, BACKEND_SECRET)).toBe(BACKEND_SIG);
   });
 
@@ -90,7 +87,7 @@ describe("backend-exact canonical string + HMAC (tinker vector)", () => {
     expect(signProxyQuery(PATH, BACKEND_PARAMS, BACKEND_SECRET)).toBe(expected);
   });
 
-  it("verifies the backend-signed query", () => {
+  it("verifies the Queek-signed query", () => {
     expect(verifyProxyQuery(PATH, BACKEND_QUERY, [BACKEND_SECRET], { nowSeconds: NOW })).toBe(true);
   });
 });
@@ -120,7 +117,7 @@ describe("verifyProxyQuery semantics (mirroring verifyQuery)", () => {
     ).toEqual({ ok: false, reason: "stale_timestamp" });
   });
 
-  it("floors the skew at 60s like the backend's max(60, …)", () => {
+  it("floors the skew at 60s (max(60, …))", () => {
     const params = { ...BACKEND_QUERY, ts: String(NOW - 61) };
     const res = signProxyQuery(PATH, { ...BACKEND_PARAMS, ts: String(NOW - 61) }, BACKEND_SECRET);
     const query = { ...params, sig: res };
@@ -145,7 +142,7 @@ describe("verifyProxyQuery semantics (mirroring verifyQuery)", () => {
     ).toEqual({ ok: false, reason: "missing_params" });
   });
 
-  it("requires a non-empty first secret (backend quirk, mirrored)", () => {
+  it("requires a non-empty first secret (mirrors Queek's verifier)", () => {
     const options = { nowSeconds: NOW };
     expect(verifyProxyQuery(PATH, BACKEND_QUERY, [], options)).toBe(false);
     expect(verifyProxyQuery(PATH, BACKEND_QUERY, ["", BACKEND_SECRET], options)).toBe(false);

@@ -167,8 +167,7 @@ describe("api_base validation (https + allowlist, before any fetch)", () => {
   });
 
   it("accepts the allowed host and normalizes a bare handoff host to the merchant base", async () => {
-    // What the backend really sends: rtrim(config('app.url')) verbatim
-    // (AppInstallService::installPayload, queek_backend) — a bare host.
+    // What Queek really sends in the handoff: a bare host.
     expect(resolveApiBase("https://api.usequeek.com")).toBe("https://api.usequeek.com/api/v1/merchant");
     expect(resolveApiBase("https://api.usequeek.com/")).toBe("https://api.usequeek.com/api/v1/merchant");
     expect(resolveApiBase("https://api.usequeek.com/api/v1/merchant")).toBe(
