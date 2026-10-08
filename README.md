@@ -1,23 +1,27 @@
 # @usequeek/app-sdk
 
-> Pre-1.0: the API can still change; pin the exact version (`npm i @usequeek/app-sdk@<version>`).
-
-## Quick start for AI agents
-
-1. Scaffold: `npm create @usequeek/app my-app` (same as `queek app init`).
-2. Develop: `queek app dev` — tunnel + dev-store install; mints credentials into `.queek/.env.local` on first run.
-3. Deploy: `queek app deploy` — pushes `queek.app.toml` as a new version (secret shown once, also written to `.queek/.env.local`).
-4. Import from the entry table below: `@usequeek/app-sdk` for server code, `@usequeek/app-sdk/browser` (or `/react`) for browser code — never the main entry in a browser bundle.
-5. Serve the install/uninstall/settings handoff (`handleInstallRequest`) and topic webhooks (`handleWebhookRequest`), then call the Merchant API via `createInstallationClient`.
-6. Capabilities: `https://api.usequeek.com/docs/capabilities.json` is not live yet — until it is, read the live list via the queek-ai-toolkit repo (`github.com/usequeek/queek-ai-toolkit`, e.g. the `queek-bridge` skill's `references/bridge-spec.md` for bridge capabilities) and confirm scope/topic names with `queek app deploy`'s validator, never a baked list.
-
 The SDK for building a Queek app on the public Merchant API and signed webhooks. Framework-agnostic Web-standard handlers for the install handoff and topic webhooks (`Request` in, `Response` out — use them from Next.js route handlers, Express, or any runtime), a typed Merchant API client (types generated from the live contract), GitHub-style app credentials (one asymmetric key per app, short-lived per-installation tokens minted on demand), resync recovery, and an encrypted installation store (SQLite for local/test, Postgres in production). Optional Hono wrappers live under `@usequeek/app-sdk/hono`.
+
+Full guide: <https://docs.usequeek.com/docs/apps/sdk>.
+
+> Pre-1.0: the API can still change; pin the exact version (`npm i @usequeek/app-sdk@<version>`).
 
 ```sh
 npm i @usequeek/app-sdk pg
 ```
 
 Requires Node `>=22.14`. `pg` is a regular dependency (the production store). `hono` is an optional peer — install it (`npm i hono`) only if you use the Hono wrappers.
+
+## Quick start for AI agents
+
+Register the app on the Queek Developer page, then use the CLI:
+
+1. Scaffold: `npm create @usequeek/app my-app` (same as `queek app init`).
+2. Develop: `queek app dev` — tunnel + dev-store install; mints credentials into `.queek/.env.local` on first run.
+3. Deploy: `queek app deploy` — pushes `queek.app.toml` as a new version (secret shown once, also written to `.queek/.env.local`). In CI, authenticate with a per-app App Automation Token from the Developer page (`QUEEK_APP_AUTOMATION_TOKEN`).
+4. Import from the entry table below: `@usequeek/app-sdk` for server code, `@usequeek/app-sdk/browser` (or `/react`) for browser code — never the main entry in a browser bundle.
+5. Serve the install/uninstall/settings handoff (`handleInstallRequest`) and topic webhooks (`handleWebhookRequest`), then call the Merchant API via `createInstallationClient`.
+6. Capabilities: the live list of scopes, webhook topics and other platform capabilities is served at `https://api.usequeek.com/docs/capabilities.json`; bridge capabilities are in the `queek-bridge` skill of [queek-ai-toolkit](https://github.com/usequeek/queek-ai-toolkit) (`references/bridge-spec.md`). Confirm scope and topic names with `queek app deploy`'s validator rather than a baked-in list.
 
 ## Which entry do I import?
 
@@ -27,11 +31,9 @@ Requires Node `>=22.14`. `pg` is a regular dependency (the production store). `h
 | `@usequeek/app-sdk/server` | Session-token verifier (`verifySessionToken`) | Server-only (`jose`) — never import in a browser bundle |
 | `@usequeek/app-sdk/hono` | Thin Hono wrappers (`hono` optional peer) | Server-only |
 | `@usequeek/app-sdk/react` | React apps (`<QueekProvider>`, `useQueek()`; `react` optional peer) | Browser-safe (built on the same bridge modules as `/browser`) |
-| `@usequeek/app-sdk/browser` | Plain-browser code: `installAuthFetch` + bridge/theme helpers, no framework | Browser-safe ONLY — importing these helpers from the main entry drags in the whole barrel and breaks Vite/Rollup builds |
+| `@usequeek/app-sdk/browser` | Plain-browser code: `installAuthFetch` + bridge/theme helpers, no framework | Browser-safe ONLY |
 
-Browser rule of thumb: if the code ships to the browser and does not need React, import it from `@usequeek/app-sdk/browser`. `installAuthFetch` is a browser-safe MODULE, but it is not browser-safe FROM THE MAIN ENTRY — the main barrel re-exports server modules (`app-auth` → `node:crypto`, `store` → `pg`), so a bundler resolving `installAuthFetch` from `@usequeek/app-sdk` still parses those Node-only files and fails.
-
-The shape follows [`@shopify/shopify-api`](https://github.com/Shopify/shopify-app-js/blob/main/packages/apps/shopify-api/README.md): the core "doesn't rely on any specific framework, so you can include it alongside your preferred stack" (runtime differences are covered by adapters such as `@shopify/shopify-api/adapters/node`), and framework integrations are separate packages in the [shopify-app-js monorepo](https://github.com/Shopify/shopify-app-js) (e.g. `@shopify/shopify-app-express` and `@shopify/shopify-app-remix` build on `@shopify/shopify-api`).
+Browser rule of thumb: if the code ships to the browser and does not need React, import it from `@usequeek/app-sdk/browser`. `installAuthFetch` is a browser-safe MODULE, but it is not browser-safe FROM THE MAIN ENTRY — the main barrel re-exports server modules (`app-auth` → `node:crypto`, `store` → `pg`), so a bundler resolving `installAuthFetch` from `@usequeek/app-sdk` still parses those Node-only files and fails (Vite/Rollup builds break).
 
 ## Example (any framework)
 
@@ -145,17 +147,15 @@ fastify.post("/api/webhooks", async (req, reply) => {
 
 ### Why the raw body matters
 
-Signature verification covers the exact bytes Queek sent (`{id}.{timestamp}.{body}`), not the parsed JSON value — so the SDK takes the untouched body bytes at every layer. A parsed-then-restringified body has different bytes (spacing, key order) and will NOT verify. A string `rawBody` is used verbatim, so only pass a string when it is already the exact UTF-8 text — otherwise prefer `Buffer`/`Uint8Array` straight from `express.raw`, Fastify's `parseAs: "buffer"`, or `await request.arrayBuffer()`. This is Stripe's model (`stripe.webhooks.constructEvent(rawBody, sigHeader, secret)`): [their docs](https://docs.stripe.com/webhooks) put it bluntly — "Stripe requires the raw body of the request to perform signature verification… Any manipulation to the raw body of the request causes the verification to fail." In practice: Express needs `express.raw(...)` (never `express.json()`) on webhook routes, Fastify needs `addContentTypeParser` with `parseAs: "buffer"`, and in Next.js you read `await request.arrayBuffer()` (the SDK's layer 2 already does) rather than `await request.json()`.
+Signature verification covers the exact bytes Queek sent (`{id}.{timestamp}.{body}`, as defined by the [Standard Webhooks](https://github.com/standard-webhooks/standard-webhooks/blob/main/spec/standard-webhooks.md) spec), not the parsed JSON value — so the SDK takes the untouched body bytes at every layer. A parsed-then-restringified body has different bytes (spacing, key order) and will NOT verify. A string `rawBody` is used verbatim, so only pass a string when it is already the exact UTF-8 text — otherwise prefer `Buffer`/`Uint8Array` straight from `express.raw`, Fastify's `parseAs: "buffer"`, or `await request.arrayBuffer()`. In practice: Express needs `express.raw(...)` (never `express.json()`) on webhook routes, Fastify needs `addContentTypeParser` with `parseAs: "buffer"`, and in Next.js you read `await request.arrayBuffer()` (the SDK's layer 2 already does) rather than `await request.json()`.
 
 ### Body-size posture
 
-The SDK itself imposes no maximum body size (`arrayBuffer` / `TextDecoder` / `JSON.parse` are unbounded) — the cap belongs to the framework parser in front of it, which already rejects oversized bodies before the SDK ever sees them. Queek deliveries are small JSON payloads, so the framework defaults are plenty; if you set them explicitly, `express.raw({ type: "application/json", limit: "1mb" })` and Fastify's default `bodyLimit` of 1 MiB are the recommended ceilings. No SDK option is needed unless Queek ever ships large deliveries.
-
-(If you already run Hono on Node, `@hono/node-server`'s `getRequestListener` bridges serving for you — but the adapters above need no extra dependency.)
+The SDK itself imposes no maximum body size (`arrayBuffer` / `TextDecoder` / `JSON.parse` are unbounded) — the cap belongs to the framework parser in front of it, which already rejects oversized bodies before the SDK ever sees them. Queek deliveries are small JSON payloads, so the framework defaults are plenty; if you set them explicitly, `express.raw({ type: "application/json", limit: "1mb" })` and Fastify's default `bodyLimit` of 1 MiB are the recommended ceilings. The SDK has no body-size option.
 
 ### Hono
 
-Prefer Hono? The thin wrappers under `@usequeek/app-sdk/hono` (same options, same behaviour, same errors/status codes) mount the same core:
+Prefer Hono? The thin wrappers under `@usequeek/app-sdk/hono` (same options, same behaviour, same errors/status codes) mount the same core. (If you already run Hono on Node, `@hono/node-server`'s `getRequestListener` bridges serving for you.)
 
 ```ts
 import { SqliteInstallationStore } from "@usequeek/app-sdk";
@@ -223,13 +223,13 @@ One asymmetric credential per app — no per-installation secrets cross the hand
    `kid` (one shared cache row per installation — restarts never burst). Concurrent callers
    in one process share one in-flight mint; two containers minting at once is harmless by
    design (Queek keeps coexisting tokens valid; a residual race self-heals via re-mint).
-   Merchant refusal table: any 401, or 403 `api_key_revoked` / `api_key_expired` /
+   Token refusals: any 401, or 403 `api_key_revoked` / `api_key_expired` /
    `invalid_client_key` → drop the token, re-mint once, retry once (a second refusal
    propagates); 403 `app_token_revoked` → drop ALL cached tokens and halt minting (kill
    switch / disabled app, no mint); every other 403 (scope, plan, mode) propagates to the
    caller without a mint.
 
-4. **Failures follow the wire contract exactly** (`app-auth.ts` holds each code in one
+4. **Failures are handled by status and code** (`app-auth.ts` holds each code in one
    constant):
    - `401 invalid_client` — fatal for the app: loud log, minting stops, no retry loop.
    - `403 app_token_revoked` (kill switch / disabled app) — drops ALL cached tokens, stops
@@ -258,10 +258,10 @@ One asymmetric credential per app — no per-installation secrets cross the hand
    existing installation idempotently (secret + settings refresh, `installedAt` and the
    cached token kept).
 
-6. **Kill switch behaviour.** One backend operation revokes every token of an app across
-   every store on the next request. The SDK side: cached tokens are dropped, minting halts
-   with a loud log, and every call fails closed until the app is re-enabled and the
-   process restarts (or resumes). Rotation without drama: add a `kid` (both verify) →
+6. **Kill switch behaviour.** One operation on Queek's side (the kill switch) revokes every
+   token of an app across every store on the next request. The SDK side is the
+   `app_token_revoked` row of item 4: every call fails closed until the app is re-enabled
+   and the process restarts (or resumes). Key rotation: add a `kid` (both verify) →
    switch the app to it → wait one token TTL → remove the old `kid`.
 
 ## Data rule + backups
@@ -287,8 +287,8 @@ topics, register explicit handlers for them — an unhandled topic only reports
 
 ## Storefront app-proxy (signed reads)
 
-Queek signs each storefront proxy fetch with the installation's `proxy_secret`
-(`AppProxyService::signQuery`); verify before answering the shopper:
+Queek signs each storefront proxy fetch with the installation's `proxy_secret`;
+verify before answering the shopper:
 
 ```ts
 import { handleProxyRequest } from "@usequeek/app-sdk";
@@ -307,7 +307,7 @@ The canonical string is `path + "\n" + shop + "\n" + ts + "\n" + sorted(k=v&...)
 (`sig` excluded), hex HMAC-SHA256 over the FULL `whsec_…` string — no base64 decode
 step. `kid` routes to the installation whose `proxy_secret` verifies (previous-secret
 grace: pass every active secret to `verifyProxyQuery`); timestamps skew at most 5
-minutes, each `jti` is single-use, and only `GET` is served (phase 1 is read-only).
+minutes, each `jti` is single-use, and only `GET` is served (proxy reads are read-only).
 Hono: mount `createProxyHandler({ store, path, onVerified })` from
 `@usequeek/app-sdk/hono`.
 
@@ -316,32 +316,31 @@ Hono: mount `createProxyHandler({ store, path, onVerified })` from
 - **app-auth** (`app-auth.ts`): `loadAppCredential` (`APP_SLUG`/`APP_KEY_ID`/`APP_PRIVATE_KEY`
   — base64 of the PEM, raw PEM, or `\n`-escaped one-line PEM; RSA validated at boot),
   `signAppJwt` (RS256, `iat` now − 60 s, `exp` window 540 s ≤ 600 s,
-  `kid` header), the wire-contract error codes in one place (`INVALID_CLIENT_CODE`,
+  `kid` header), the error codes in one place (`INVALID_CLIENT_CODE`,
   `APP_TOKEN_REVOKED_CODE`, `APP_INSTALLATION_GONE_CODE`, `APP_INSTALLATION_PENDING_CODE`,
   `RESYNC_COOLDOWN_CODE`, `TOO_MANY_REQUESTS_CODE`), `AppMintHaltedError`.
 - **tokens** (`tokens.ts`): `createAppTokenProvider({ credential, store, … })` —
-  `acquireToken` (cache → sign → mint → persist), single-flight per installation, the exact
-  contract error mapping (409 pending → backoff + bounded retry, marked, never purged);
+  `acquireToken` (cache → sign → mint → persist), single-flight per installation, with the
+  error handling in Credential lifecycle items 3–4;
   `createInstallationClient({ installationId, apiBase, tokens })` — the `QueekClient`
   every app call uses (re-mint once + retry once on token refusals only).
-- **resync** (`resync.ts`): `resyncFromQueek({ apiBase, tokens, store })` — list active
-  only (opaque keyset cursor) → resync each (409 pending → retry then skip + record;
-  429 `resync_cooldown` → skip + record; other 429 → backoff + retry) → drop tokens →
-  purge absent except known-pending. Connectivity scope only.
+- **resync** (`resync.ts`): `resyncFromQueek({ apiBase, tokens, store })` — the flow in
+  Credential lifecycle item 5. Connectivity scope only.
 - **verify** (`signatures.ts`): `verifyQueekSignature` — Standard Webhooks verification (`webhook-id`, `webhook-timestamp`, `webhook-signature` over `{id}.{timestamp}.{body}`, keyed by the decoded `whsec_…` bytes), with timestamp-skew enforcement.
 - **delivery core** (`delivery.ts`): `CoreDelivery` (`rawBody` + `headers`) / `InstallDelivery` (+ `method`/`path`) / `DeliveryResult` (`{ status, body }`) / `CoreHeaders`, plus `readHeader` (case-insensitive, array-tolerant), `decodeBody`, and `toResponse`. Zero request/response types.
 - **install handlers** (`install-handlers.ts`): layer 1 `handleInstallDelivery(input, { appSecret, store, onInstall?, onUninstall?, onSettings? })` serves the signed install/uninstall/settings handoff from raw bytes + headers (routes on the path's trailing segment); layer 2 `handleInstallRequest(request, …)` adapts `Request` → `Response` onto it. Defaults persist the installation (encrypted) in the store; a redelivered install for an existing installation merges idempotently (`saveResyncedInstallation`). The Hono wrapper `createInstallHandlers` lives under `@usequeek/app-sdk/hono` (`hono.ts`).
-- **client** (`client.ts`): `createQueekClient({ apiBase, apiKey })` — the low-level typed fetch client over the Merchant API (`X-Client-Key`), with `Idempotency-Key` on writes, typed `QueekApiError`s, and 429 retry helpers. Both it and `createInstallationClient({ installationId, apiBase, tokens })` are generic (`<AppPaths>`, default: the bundled `merchant-schema.ts` compat shim): pass the app's own codegen output for current types with zero SDK publish. The default does NOT auto-update (re-run codegen in the app; sunset signal at 1.0). `openapi/merchant.json` stays in-repo as `gen:merchant`'s reference input and is not shipped in the published package. Prefer `createInstallationClient` in apps.
+- **client** (`client.ts`): `createQueekClient({ apiBase, apiKey })` — the low-level typed fetch client over the Merchant API (`X-Client-Key`), with `Idempotency-Key` on writes, typed `QueekApiError`s, and 429 retry helpers. Both it and `createInstallationClient({ installationId, apiBase, tokens })` are generic (`<AppPaths>`, default: the bundled `merchant-schema.ts` compat shim): pass the app's own codegen output for current types without waiting for an SDK release. The default does NOT auto-update (re-run codegen in the app; sunset signal at 1.0). `openapi/merchant.json` stays in-repo as `gen:merchant`'s reference input and is not shipped in the published package. Prefer `createInstallationClient` in apps.
 - **webhooks** (`webhooks.ts`): layer 1 `handleWebhookDelivery(input, { store, handlers })` verifies each delivery against the installation's endpoint secret, dedupes on `webhook-id`, and dispatches `topic → handler` at most once; layer 2 `handleWebhookRequest(request, …)` adapts `Request` → `Response` onto it. The Hono wrapper `createWebhookHandler` lives under `@usequeek/app-sdk/hono` (`hono.ts`). Unknown topics answer 200 `unhandled` — see Data deletion before relying on that.
-- **proxy** (`proxy.ts`): `verifyProxyQuery` / `verifyProxyQueryDetailed` — app-proxy query verification byte-exact with the backend (`path\nshop\nts\nsorted(k=v&...)`, hex HMAC-SHA256 over the FULL `whsec_…` string, 5-minute skew floored at 60 s, `timingSafeEqual`, previous-secret grace over the secrets list); layer 1 `verifyProxyDelivery(input, { store, … })` resolves the installation from the store by `kid` and claims single-use `jti`; layer 2 `handleProxyRequest(request, { store, path, … }, onVerified)` serves GET only. The Hono wrapper `createProxyHandler` lives under `@usequeek/app-sdk/hono` (`hono.ts`).
+- **proxy** (`proxy.ts`): `verifyProxyQuery` / `verifyProxyQueryDetailed` — app-proxy query verification byte-exact with Queek's signer (`path\nshop\nts\nsorted(k=v&...)`, hex HMAC-SHA256 over the FULL `whsec_…` string, 5-minute skew floored at 60 s, `timingSafeEqual`, previous-secret grace over the secrets list); layer 1 `verifyProxyDelivery(input, { store, … })` resolves the installation from the store by `kid` and claims single-use `jti`; layer 2 `handleProxyRequest(request, { store, path, … }, onVerified)` serves GET only. The Hono wrapper `createProxyHandler` lives under `@usequeek/app-sdk/hono` (`hono.ts`).
 - **store** (`store.ts`): `SqliteInstallationStore` (local/dev/test) and `PostgresInstallationStore`
   (`pg`, pool max 2, advisory-locked schema + `schema_version` row so two containers boot
   safely) — installations encrypted at rest (AES-GCM via `APP_ENCRYPTION_KEY`), plus the
   persisted 409-pending mark (`pending` column, schema v2, migrated in place) and the
   seen-webhook-id claim table behind dedupe. Pick with `createInstallationStore()`
   (`DATABASE_URL` set → Postgres, else SQLite — which production REFUSES with a clear
-  message). Set once when the app is deployed; installs never change env: each install adds
-  a row to the app's database, with that store's token + webhook secret encrypted using this key.
+  message). `APP_ENCRYPTION_KEY` is set once when the app is deployed; installs never change env:
+  each install adds a row to the app's database, with that store's token + webhook secret
+  encrypted using this key.
 - **background** (`background.ts`): `detach` plus `runInstallationCatchup` — jittered
   per-installation cron (uniform 0–600 s start jitter, per-install error isolation,
   concurrency ≤ pool size, honors 429 once per installation).
@@ -351,12 +350,11 @@ Hono: mount `createProxyHandler({ store, path, onVerified })` from
   `verifySessionToken` — HS256 dashboard session tokens minted per installation
   (`embsec_…` secret, raw UTF-8 key bytes, 20 s clock tolerance, slug audience,
   issuer = the handoff `apiBase` verbatim (`installation.apiBase` — it equals the
-  bare `app.url` the backend signs as `iss`), full installation binding). One token
-  type, exactly Shopify's `id_token`: the dashboard puts the same token in the
-  first-load URL param (`queek_token`, stripped on arrival) and answers bridge
-  `ready` requests with it, so the app's exchange endpoint verifies first-load and
-  refresh tokens with this one verifier — no purpose split, extra claims are
-  ignored. The secret never enters a
+  bare `app.url` Queek signs as `iss`), full installation binding). There is one token
+  type: the dashboard puts the same token in the first-load URL param
+  (`queek_token`, stripped on arrival) and answers bridge `ready` requests with it,
+  so first-load and refresh tokens are verified by this one verifier — no purpose
+  split, extra claims are ignored. The secret never enters a
   browser bundle: the main entry does not export the verifier. The install
   and resync handoffs deliver `embed_secret` + `app_id`; the store keeps
   them on the installation (`embedSecret` encrypted, `appId`), and
@@ -403,8 +401,8 @@ Hono: mount `createProxyHandler({ store, path, onVerified })` from
   after a later dashboard token arrives. Pass the same `capabilities`/
   `sdkVersion` as the provider so its refresh `ready` announces one consistent set. The app's
   token-exchange endpoint receives the first-load token and every 401-refresh
-  token through the same `exchange` callback — one token type, so it verifies
-  both with the single `verifySessionToken` verifier:
+  token through the same `exchange` callback, so it verifies both with the
+  single `verifySessionToken` verifier:
 
   ```ts
   import { verifySessionTokenDetailed } from "@usequeek/app-sdk/server";
@@ -486,26 +484,17 @@ Content-Security-Policy: frame-ancestors https://dashboard.usequeek.com
 ```
 
 Replace the host with the dashboard origin you registered. `frame-ancestors`
-is a docs-only control the dashboard cannot enforce for you: without it any
-site may frame the page, and the token handshake (origin-bound) is your only
-remaining gate. Verify every token server-side before trusting calls that carry one:
-the token-exchange endpoint receives the first-load token and every 401-refresh
-token through the same `installAuthFetch({ exchange })` callback — one token type,
-verified with the single `verifySessionToken` verifier (see the `auth` entry above).
+is a header only your server can set, so the dashboard cannot enforce it for you:
+without it any site may frame the page, and the token handshake (origin-bound) is
+your only remaining gate. Verify every token server-side before trusting calls that carry one
+(see the `auth` entry under API surface).
 
 ## Local development
 
-Point the client at a local backend with `QUEEK_DEV_API_HOSTS` (comma-separated hosts). It is refused when `NODE_ENV=production`, so it can never weaken a live app. See `devApiHostsFromEnv` in `client.ts`.
+Point the client at a local Queek API with `QUEEK_DEV_API_HOSTS` (comma-separated hosts). It is refused when `NODE_ENV=production`, so it can never weaken a live app. See `devApiHostsFromEnv` in `client.ts`.
 
 Postgres locally: any Postgres works — point `DATABASE_URL` at it and the pg suite runs
 (CI always runs it via a service container); without `DATABASE_URL` those tests skip cleanly.
-
-## Registration
-
-Register the app on the Queek Developer page, then ship with the CLI: `queek app dev` for the
-local loop (tunnel + dev-store install, credentials to `.queek/.env.local`) and
-`queek app deploy` to publish `queek.app.toml` as a new version. In CI, authenticate with a
-per-app App Automation Token from the Developer page (`QUEEK_APP_AUTOMATION_TOKEN`).
 
 ## License
 
