@@ -2567,14 +2567,6 @@ export interface components {
                 description?: string | null;
                 /** @enum {string|null} */
                 collection_mode?: "manual" | "smart" | null;
-                /**
-                 * @description Smart collections only. {match: all|any, conditions: [{field, operator, value}], sort?, limit?}.
-                 *     Rule fields: title, price, compare_at_price, on_sale, weight, inventory_quantity, variant_title,
-                 *     date, created_at, tag, published, has_variants, in_stock, num_of_sale, product_rating and
-                 *     collection_id (products already in the given collection(s); operators eq or includes, value =
-                 *     a collection id or a list of ids). The taxonomy_category_id rule field is retired: a rule that
-                 *     carries it answers 422 "The taxonomy_category_id rule is retired - use collection_id."
-                 */
                 collection_rules?: {
                     conditions?: string[] | null;
                 } | null;
@@ -3623,23 +3615,9 @@ export interface components {
             max_qty?: string | null;
             weight?: number | null;
             unit?: string | null;
-            /**
-             * @description Quick stores only (up to 2 ids); a shop store sends collection_category_ids instead.
-             *     Owned-only: each id must be one of the store's own manual collections. A global
-             *     (marketplace) category id answers 422 "The selected category must be in your collections
-             *      before it can be assigned to a product."
-             */
-            categories: string[];
-            /**
-             * @description A taxonomy node sent with no categories resolves to the store's OWNED copy of that
-             *     category (found or created for the store). If the copy cannot be created the product is
-             *     still saved, without categories. Non-empty categories win when both are sent.
-             */
-            taxonomy_node_id?: string | null;
-            /** @description Same resolution as taxonomy_node_id, by node slug. */
-            taxonomy_slug?: string | null;
-            taxonomy_category_id?: string;
-            collection_category_ids?: string[];
+            collection_ids?: string[] | null;
+            categories?: string[] | null;
+            collection_category_ids?: string[] | null;
             variations?: string[] | null;
             has_variants?: boolean;
             variants?: {
@@ -3908,8 +3886,6 @@ export interface components {
         QueekStoreBlogCategory: components["schemas"]["BlogCategoryResource"];
         /** QueekStoreCart */
         QueekStoreCart: components["schemas"]["CartResource"];
-        /** QueekStoreCategory */
-        QueekStoreCategory: components["schemas"]["TaxonomyCategoryResource"];
         /** QueekStoreCollection */
         QueekStoreCollection: components["schemas"]["CollectionResource"];
         /** QueekStoreCustomer */
@@ -4499,20 +4475,6 @@ export interface components {
         StoreVendorLocaleRequest: {
             /** @enum {string} */
             locale: "en" | "fr" | "es" | "pt" | "pt-BR" | "de" | "it" | "nl" | "pl" | "ru" | "uk" | "tr" | "ar" | "ur" | "fa" | "he" | "hi" | "ja" | "ko" | "zh-CN" | "zh-TW" | "id" | "ms" | "vi" | "th" | "tl" | "sw" | "ha" | "yo" | "ig" | "pcm";
-        };
-        /** TaxonomyCategoryResource */
-        TaxonomyCategoryResource: {
-            id: string;
-            name: string;
-            slug: string;
-            image: string;
-            /**
-             * @description Pre-sized copies of the image, resolved from its URL (categories
-             *     and collections store no media id).
-             */
-            image_variants: string | null;
-            products_count: number;
-            children: string[];
         };
         /** TeamDirectoryResource */
         TeamDirectoryResource: {
