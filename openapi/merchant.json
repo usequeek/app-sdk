@@ -3,8 +3,8 @@
   "info": {
     "title": "Queek Merchant API",
     "version": "v1",
-    "description": "Merchant API — Queek.\n\n## Errors\n\nEvery error answers `{\"error\": {\"code\", \"message\", \"field\"?, \"errors\"?, \"doc_url\", \"request_id\"}}`.\nSwitch on `error.code`, never on the message. Codes: `ai_unavailable_in_test_mode`, `api_key_expired`, `api_key_mode_mismatch`, `api_key_revoked`, `app_embed_not_ready`, `app_grant_insufficient`, `app_handoff_failed`, `app_installation_gone`, `app_installation_pending`, `app_ip_not_allowed`, `app_proxy_failed`, `app_proxy_gone`, `app_token_revoked`, `bad_request`, `channel_gateway_unreachable`, `client_key_required`, `conflict`, `custom_domain_provisioning_failed`, `custom_gateway_forbidden`, `custom_gateway_kyc_required`, `custom_gateway_not_configured`, `custom_gateway_not_verified`, `custom_gateway_plan_required`, `custom_gateway_store_ineligible`, `custom_gateway_verification_failed`, `forbidden`, `gone`, `idempotency_key_in_progress`, `idempotency_key_reuse`, `insufficient_scope`, `invalid_client`, `invalid_client_key`, `metafield_definition_missing`, `metafield_filter_unsupported_type`, `metafield_namespace_reserved`, `metafield_value_invalid`, `metaobject_definition_missing`, `metaobject_field_invalid`, `metaobject_reference_invalid`, `metaobject_type_reserved`, `method_not_allowed`, `not_found`, `origin_not_allowed`, `origin_required`, `payload_too_large`, `payment_amount_mismatch`, `plan_inactive`, `private_key_required`, `requires_slot`, `resync_cooldown`, `route_not_available`, `server_error`, `service_unavailable`, `subscription_feature_locked`, `too_many_requests`, `translation_digest_stale`, `translation_locale_is_primary`, `translation_max_published_locales`, `translation_unknown_key`, `translation_unknown_locale`, `unauthenticated`, `unknown_product_ref`, `unknown_service`, `unknown_variant_ref`, `unsupported_media_type`, `validation_failed`, `vendor_access_denied`, `vendor_mail_sender_forbidden`, `vendor_mail_sender_key_unavailable`, `vendor_mail_sender_not_configured`, `vendor_mail_sender_plan_required`, `vendor_mail_sender_verification_failed`.\nEach error carries `doc_url` pointing at its own entry in the error reference, and `request_id` — always a\nstring — matching the `X-Request-Id` response header. Quote it in support.\n\n## Legacy top-level keys\n\nAdditive only, never a second contract: on error bodies the runtime still emits the pre-contract\ntop-level keys shipped clients read. `error_code` and `message` ride top-level on helper-produced refusals\n(the shared controller and ApiError error helpers, plus the client-auth handler branches);\n`request_id` and `doc_url` ride top-level ONLY on non-reissued controller-helper bodies (storefront, client,\ndeveloper and dashboard surfaces) — the Merchant API reissues refusals, so there they live inside `error`.\nThey are documented separately under `QueekLegacyErrorKeys`, which no operation references. New integrations\nswitch on `error.*`.\n\n## Request ids\n\nSend `X-Request-Id` (8–128 chars matching `^[A-Za-z0-9_.:-]+$`) to correlate your trace with ours,\nor read the one we generate — it is echoed on every response, error bodies included, and appears on every log line\nof the request. `X-Queek-Api-Version` carries the API version (`v1`).\n\n## Idempotency\n\nSend `Idempotency-Key` on a write and a retry cannot execute twice. Same key + same body replays the stored\nresponse verbatim with `Idempotent-Replayed: true` for 24h. Same key + a different body is\n`409 idempotency_key_reuse`. A concurrent duplicate waits 15s for the first to finish, then replays;\npast that it is `409 idempotency_key_in_progress`. Responses ≥ 400 are not stored, so a failure stays retryable.\nThe slot is vendor + caller + METHOD:path + key. The body is the fingerprint, not part of the slot. Operations that accept the header document it as a parameter.\n\n## Rate limits\n\n180 requests/min per API key + IP, or storefront origin + IP when no key is sent. On top of that, a private (`sk_live_`) key carries its\nstore's plan quota: `free` 60/min, `social_media` 120/min, `starter` 120/min, `growth` 240/min, `scale` 1200/min, `enterprise` 2400/min. sk_live_ private keys only. A pk_live_ public key is shared by every visitor of the store, so it gets no per-store bucket.\nExceeding either is `too_many_requests` with `Retry-After`.\n\n## Webhooks\n\nSubscribe an endpoint per store and Queek posts the signed event to it. Topics are listed under `webhooks`\nin this document; the body is signed with the Standard Webhooks scheme — HMAC-SHA256 over the base64-decoded secret, value `v1,<base64>` —\nover `{webhook-id}.{webhook-timestamp}.{raw body}`, tolerance 300s. A rotation keeps the previous secret valid for\n24h and sends both signatures, space delimited. Delivery is 8 attempts on a published backoff;\nan endpoint failing for 24h is disabled and the merchant notified. Every operation names the one scope it requires. A write scope also returns, in that write's own response, the record it wrote — listing or reading records needs the matching read scope. A key acts for its whole store, never only for the records one person created. Additive-only under v1: new operations, fields and enum values may be added, but existing operations, fields, values and auth behaviour never change incompatibly. A breaking change ships as v2 alongside v1, never in place.\n\n## Money\n\nEvery amount is a major-unit decimal string (`\"1500.00\"`), never a JSON float, always beside its `currency` code (ISO-4217).\n\n## Dates\n\nEvery `*_at` field is an ISO-8601 timestamp with numeric offset (`format: date-time`); the platform timezone is Africa/Lagos.\n\n## Deletes and creates\n\nDELETE answers `200` with the envelope (`{status, message, data}`), never `204`. Existing creates answer `200` and new creates answer `201` — both statuses are documented per operation and neither will change under you.",
-    "x-queek-spec-sha": "c51b3ae2e5d17dc1e26f4cdb0b1271b46101bc28cd9fa3f404a39104a93684f0"
+    "description": "Merchant API — Queek.\n\n## Errors\n\nEvery error answers `{\"error\": {\"code\", \"message\", \"field\"?, \"errors\"?, \"doc_url\", \"request_id\"}}`.\nSwitch on `error.code`, never on the message. Codes: `ai_unavailable_in_test_mode`, `api_key_expired`, `api_key_mode_mismatch`, `api_key_revoked`, `app_embed_not_ready`, `app_grant_insufficient`, `app_handoff_failed`, `app_installation_gone`, `app_installation_pending`, `app_ip_not_allowed`, `app_proxy_failed`, `app_proxy_gone`, `app_token_revoked`, `bad_request`, `channel_gateway_unreachable`, `client_key_required`, `conflict`, `custom_domain_provisioning_failed`, `custom_gateway_forbidden`, `custom_gateway_kyc_required`, `custom_gateway_not_configured`, `custom_gateway_not_verified`, `custom_gateway_plan_required`, `custom_gateway_store_ineligible`, `custom_gateway_verification_failed`, `forbidden`, `gone`, `idempotency_key_in_progress`, `idempotency_key_reuse`, `insufficient_scope`, `invalid_client`, `invalid_client_key`, `metafield_definition_missing`, `metafield_filter_unsupported_type`, `metafield_namespace_reserved`, `metafield_value_invalid`, `metaobject_definition_missing`, `metaobject_field_invalid`, `metaobject_reference_invalid`, `metaobject_type_reserved`, `method_not_allowed`, `not_found`, `origin_not_allowed`, `origin_required`, `payload_too_large`, `payment_amount_mismatch`, `plan_inactive`, `private_key_required`, `requires_slot`, `resync_cooldown`, `route_not_available`, `server_error`, `service_unavailable`, `subscription_feature_locked`, `too_many_requests`, `translation_digest_stale`, `translation_locale_is_default`, `translation_locale_is_primary`, `translation_locale_not_published`, `translation_max_published_locales`, `translation_unknown_key`, `translation_unknown_locale`, `unauthenticated`, `unknown_product_ref`, `unknown_service`, `unknown_variant_ref`, `unsupported_media_type`, `validation_failed`, `vendor_access_denied`, `vendor_mail_sender_forbidden`, `vendor_mail_sender_key_unavailable`, `vendor_mail_sender_not_configured`, `vendor_mail_sender_plan_required`, `vendor_mail_sender_verification_failed`.\nEach error carries `doc_url` pointing at its own entry in the error reference, and `request_id` — always a\nstring — matching the `X-Request-Id` response header. Quote it in support.\n\n## Legacy top-level keys\n\nAdditive only, never a second contract: on error bodies the runtime still emits the pre-contract\ntop-level keys shipped clients read. `error_code` and `message` ride top-level on helper-produced refusals\n(the shared controller and ApiError error helpers, plus the client-auth handler branches);\n`request_id` and `doc_url` ride top-level ONLY on non-reissued controller-helper bodies (storefront, client,\ndeveloper and dashboard surfaces) — the Merchant API reissues refusals, so there they live inside `error`.\nThey are documented separately under `QueekLegacyErrorKeys`, which no operation references. New integrations\nswitch on `error.*`.\n\n## Request ids\n\nSend `X-Request-Id` (8–128 chars matching `^[A-Za-z0-9_.:-]+$`) to correlate your trace with ours,\nor read the one we generate — it is echoed on every response, error bodies included, and appears on every log line\nof the request. `X-Queek-Api-Version` carries the API version (`v1`).\n\n## Idempotency\n\nSend `Idempotency-Key` on a write and a retry cannot execute twice. Same key + same body replays the stored\nresponse verbatim with `Idempotent-Replayed: true` for 24h. Same key + a different body is\n`409 idempotency_key_reuse`. A concurrent duplicate waits 15s for the first to finish, then replays;\npast that it is `409 idempotency_key_in_progress`. Responses ≥ 400 are not stored, so a failure stays retryable.\nThe slot is vendor + caller + METHOD:path + key. The body is the fingerprint, not part of the slot. Operations that accept the header document it as a parameter.\n\n## Rate limits\n\n180 requests/min per API key + IP, or storefront origin + IP when no key is sent. On top of that, a private (`sk_live_`) key carries its\nstore's plan quota: `free` 60/min, `social_media` 120/min, `starter` 120/min, `growth` 240/min, `scale` 1200/min, `enterprise` 2400/min. sk_live_ private keys only. A pk_live_ public key is shared by every visitor of the store, so it gets no per-store bucket.\nExceeding either is `too_many_requests` with `Retry-After`.\n\n## Webhooks\n\nSubscribe an endpoint per store and Queek posts the signed event to it. Topics are listed under `webhooks`\nin this document; the body is signed with the Standard Webhooks scheme — HMAC-SHA256 over the base64-decoded secret, value `v1,<base64>` —\nover `{webhook-id}.{webhook-timestamp}.{raw body}`, tolerance 300s. A rotation keeps the previous secret valid for\n24h and sends both signatures, space delimited. Delivery is 8 attempts on a published backoff;\nan endpoint failing for 24h is disabled and the merchant notified. Every operation names the one scope it requires. A write scope also returns, in that write's own response, the record it wrote — listing or reading records needs the matching read scope. A key acts for its whole store, never only for the records one person created. Additive-only under v1: new operations, fields and enum values may be added, but existing operations, fields, values and auth behaviour never change incompatibly. A breaking change ships as v2 alongside v1, never in place.\n\n## Money\n\nEvery amount is a major-unit decimal string (`\"1500.00\"`), never a JSON float, always beside its `currency` code (ISO-4217).\n\n## Dates\n\nEvery `*_at` field is an ISO-8601 timestamp with numeric offset (`format: date-time`); the platform timezone is Africa/Lagos.\n\n## Deletes and creates\n\nDELETE answers `200` with the envelope (`{status, message, data}`), never `204`. Existing creates answer `200` and new creates answer `201` — both statuses are documented per operation and neither will change under you.",
+    "x-queek-spec-sha": "3671d681298420b92d73e4ce09b23b857d9449ccc26bafa12504e24bc366b2bd"
   },
   "servers": [
     {
@@ -13531,6 +13531,18 @@
             }
           },
           {
+            "name": "publication",
+            "in": "query",
+            "description": "Only orders attributed to this sales channel: a channel id, or an app key's own channel key. Unknown channel 404, archived 410.",
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "maxLength": 255
+            }
+          },
+          {
             "name": "sort_by",
             "in": "query",
             "schema": {
@@ -16039,6 +16051,7 @@
           {
             "name": "publication",
             "in": "query",
+            "description": "Only products published to this sales channel: a channel id, or an app key's own channel key. Unknown channel 404, archived 410.",
             "schema": {
               "type": [
                 "string",
@@ -16283,6 +16296,7 @@
                           }
                         }
                       ],
+                      "publications": [],
                       "metafields": {},
                       "metadata": {},
                       "created_at": "2026-07-15T11:30:00+01:00",
@@ -16357,6 +16371,13 @@
                               "h": 1200
                             }
                           }
+                        }
+                      ],
+                      "publications": [
+                        {
+                          "id": 1001,
+                          "key": "kiosk-lagos",
+                          "name": "Lagos kiosk"
                         }
                       ],
                       "metafields": {},
@@ -16610,6 +16631,7 @@
                         }
                       }
                     ],
+                    "publications": [],
                     "metafields": {},
                     "metadata": {
                       "erp_id": "ERP-20417"
@@ -17311,6 +17333,13 @@
                         }
                       }
                     ],
+                    "publications": [
+                      {
+                        "id": 1001,
+                        "key": "kiosk-lagos",
+                        "name": "Lagos kiosk"
+                      }
+                    ],
                     "metafields": {},
                     "metadata": {
                       "erp_id": "ERP-20417"
@@ -17559,6 +17588,13 @@
                             "h": 1200
                           }
                         }
+                      }
+                    ],
+                    "publications": [
+                      {
+                        "id": 1001,
+                        "key": "kiosk-lagos",
+                        "name": "Lagos kiosk"
                       }
                     ],
                     "metafields": {},
@@ -20197,7 +20233,7 @@
     "/locales": {
       "get": {
         "operationId": "locales.list",
-        "description": "Requires scope `merchant-locales-read`.\n\nLists the store’s enabled locales with catalogue names, publish state and the primary flag.",
+        "description": "Requires scope `merchant-locales-read`.\n\nLists the store’s enabled locales with catalogue names, publish state and the primary and default flags, default first.",
         "summary": "List locales",
         "tags": [
           "Translations"
@@ -20266,6 +20302,9 @@
                           },
                           "is_primary": {
                             "type": "boolean"
+                          },
+                          "is_default": {
+                            "type": "boolean"
                           }
                         },
                         "required": [
@@ -20275,7 +20314,8 @@
                           "html_lang",
                           "dir",
                           "published",
-                          "is_primary"
+                          "is_primary",
+                          "is_default"
                         ]
                       }
                     }
@@ -20297,7 +20337,8 @@
                       "html_lang": "en",
                       "dir": "ltr",
                       "published": true,
-                      "is_primary": true
+                      "is_primary": true,
+                      "is_default": true
                     },
                     {
                       "locale": "fr",
@@ -20306,7 +20347,8 @@
                       "html_lang": "fr",
                       "dir": "ltr",
                       "published": true,
-                      "is_primary": false
+                      "is_primary": false,
+                      "is_default": false
                     },
                     {
                       "locale": "de",
@@ -20315,7 +20357,8 @@
                       "html_lang": "de",
                       "dir": "ltr",
                       "published": false,
-                      "is_primary": false
+                      "is_primary": false,
+                      "is_default": false
                     }
                   ]
                 }
@@ -20468,6 +20511,9 @@
                         },
                         "is_primary": {
                           "type": "boolean"
+                        },
+                        "is_default": {
+                          "type": "boolean"
                         }
                       },
                       "required": [
@@ -20477,7 +20523,8 @@
                         "html_lang",
                         "dir",
                         "published",
-                        "is_primary"
+                        "is_primary",
+                        "is_default"
                       ]
                     }
                   },
@@ -20497,7 +20544,8 @@
                     "html_lang": "fr",
                     "dir": "ltr",
                     "published": false,
-                    "is_primary": false
+                    "is_primary": false,
+                    "is_default": false
                   }
                 }
               }
@@ -20702,6 +20750,9 @@
                         },
                         "is_primary": {
                           "type": "boolean"
+                        },
+                        "is_default": {
+                          "type": "boolean"
                         }
                       },
                       "required": [
@@ -20711,7 +20762,8 @@
                         "html_lang",
                         "dir",
                         "published",
-                        "is_primary"
+                        "is_primary",
+                        "is_default"
                       ]
                     }
                   },
@@ -20731,7 +20783,8 @@
                     "html_lang": "fr",
                     "dir": "ltr",
                     "published": true,
-                    "is_primary": false
+                    "is_primary": false,
+                    "is_default": false
                   }
                 }
               }
@@ -20942,6 +20995,256 @@
                   "data": {
                     "locale": "de",
                     "deleted": true
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueekError"
+                },
+                "example": {
+                  "error": {
+                    "code": "invalid_client_key",
+                    "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                    "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
+                    "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden — the key cannot call this operation. Switch on `error.code`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueekError"
+                },
+                "example": {
+                  "error": {
+                    "code": "insufficient_scope",
+                    "message": "This API key does not carry the 'merchant-locales-write' scope it was called with.",
+                    "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
+                    "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found — the addressed record does not exist at this store. Switch on `error.code`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueekError"
+                },
+                "example": {
+                  "error": {
+                    "code": "not_found",
+                    "message": "Locale not found.",
+                    "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#not_found",
+                    "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Idempotency conflict — `idempotency_key_reuse` or `idempotency_key_in_progress`. Switch on `error.code`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueekError"
+                },
+                "example": {
+                  "error": {
+                    "code": "idempotency_key_reuse",
+                    "message": "This Idempotency-Key was already used for a different request body. Use a new key for a new request.",
+                    "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#idempotency_key_reuse",
+                    "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests — slow down and retry. Switch on `error.code`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueekError"
+                },
+                "example": {
+                  "error": {
+                    "code": "too_many_requests",
+                    "message": "Too Many Attempts.",
+                    "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
+                    "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/locales/{locale}/default": {
+      "post": {
+        "operationId": "locales.set_default",
+        "description": "Requires scope `merchant-locales-write`.\n\nMakes a published locale the language the store root address serves; the primary clears the choice. Answers the full locales list with the change.",
+        "summary": "Change the default language",
+        "tags": [
+          "Translations"
+        ],
+        "parameters": [
+          {
+            "name": "locale",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "fr"
+          },
+          {
+            "name": "X-Client-Key",
+            "in": "header",
+            "required": true,
+            "description": "A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "{{merchantKey}}"
+          },
+          {
+            "name": "X-Request-Id",
+            "in": "header",
+            "description": "Your own correlation id (8–128 chars, `^[A-Za-z0-9_.:-]+$`). Echoed back on the response and on every log line of the request; one is generated when you omit it.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "Retry-safe write key. The same key with the same body replays the stored response for 24h with `Idempotent-Replayed: true`; with a different body it is `409 idempotency_key_reuse`; while the first call is still running it is `409 idempotency_key_in_progress`.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "locale": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "native_name": {
+                            "type": "string"
+                          },
+                          "html_lang": {
+                            "type": "string"
+                          },
+                          "dir": {
+                            "type": "string"
+                          },
+                          "published": {
+                            "type": "boolean"
+                          },
+                          "is_primary": {
+                            "type": "boolean"
+                          },
+                          "is_default": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "locale",
+                          "name",
+                          "native_name",
+                          "html_lang",
+                          "dir",
+                          "published",
+                          "is_primary",
+                          "is_default"
+                        ]
+                      }
+                    },
+                    "meta": {
+                      "type": "object",
+                      "properties": {
+                        "previous_default": {
+                          "type": "string"
+                        },
+                        "new_default": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "previous_default",
+                        "new_default"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "status",
+                    "message",
+                    "data",
+                    "meta"
+                  ]
+                },
+                "example": {
+                  "status": "success",
+                  "message": "Default language updated",
+                  "data": [
+                    {
+                      "locale": "fr",
+                      "name": "French",
+                      "native_name": "Français",
+                      "html_lang": "fr",
+                      "dir": "ltr",
+                      "published": true,
+                      "is_primary": false,
+                      "is_default": true
+                    },
+                    {
+                      "locale": "en",
+                      "name": "English",
+                      "native_name": "English",
+                      "html_lang": "en",
+                      "dir": "ltr",
+                      "published": true,
+                      "is_primary": true,
+                      "is_default": false
+                    }
+                  ],
+                  "meta": {
+                    "previous_default": "en",
+                    "new_default": "fr"
                   }
                 }
               }
@@ -23549,7 +23852,7 @@
                 "type": "number"
               },
               "discount_price": {
-                "type": "number"
+                "type": "string"
               },
               "compare_at_price": {
                 "type": [
@@ -23647,8 +23950,7 @@
                 ]
               },
               "discounts": {
-                "type": "array",
-                "items": {}
+                "type": "string"
               },
               "media": {
                 "type": "object",
@@ -28888,36 +29190,38 @@
               "null"
             ]
           },
-          "categories": {
-            "type": "array",
+          "collection_ids": {
+            "type": [
+              "array",
+              "null"
+            ],
             "items": {
               "type": "string",
               "format": "uuid"
             },
-            "minItems": 1,
-            "maxItems": 2
+            "maxItems": 50
           },
-          "taxonomy_node_id": {
+          "categories": {
             "type": [
-              "string",
+              "array",
               "null"
             ],
-            "description": "A node with no categories input resolves to the category write;\ncategories win when both are sent."
-          },
-          "taxonomy_slug": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "taxonomy_category_id": {
-            "type": "string"
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "maxItems": 50
           },
           "collection_category_ids": {
-            "type": "array",
+            "type": [
+              "array",
+              "null"
+            ],
             "items": {
-              "type": "string"
-            }
+              "type": "string",
+              "format": "uuid"
+            },
+            "maxItems": 50
           },
           "variations": {
             "type": [
@@ -29230,7 +29534,6 @@
         },
         "required": [
           "title",
-          "categories",
           "price"
         ],
         "title": "Product input"
@@ -29379,6 +29682,30 @@
               "null"
             ],
             "format": "date-time"
+          },
+          "publications": {
+            "type": "array",
+            "description": "The sales channels this product is published to, as the calling key sees them: an app key sees only its own channels, a store key sees them all. Archived channels are left out. Present on product list, retrieve and write responses; webhook deliveries do not include it.",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "key",
+                "name"
+              ],
+              "properties": {
+                "id": {
+                  "type": "integer",
+                  "description": "The channel id."
+                },
+                "key": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                }
+              }
+            }
           }
         },
         "required": [
@@ -29415,6 +29742,7 @@
           "updated_at",
           "deleted_at"
         ],
+        "additionalProperties": {},
         "title": "ProductResource"
       },
       "ProductReviewResource": {
@@ -29809,7 +30137,9 @@
                   "subscription_feature_locked",
                   "too_many_requests",
                   "translation_digest_stale",
+                  "translation_locale_is_default",
                   "translation_locale_is_primary",
+                  "translation_locale_not_published",
                   "translation_max_published_locales",
                   "translation_unknown_key",
                   "translation_unknown_locale",
@@ -29910,10 +30240,6 @@
       "QueekStoreCart": {
         "$ref": "#/components/schemas/CartResource",
         "title": "QueekStoreCart"
-      },
-      "QueekStoreCategory": {
-        "$ref": "#/components/schemas/TaxonomyCategoryResource",
-        "title": "QueekStoreCategory"
       },
       "QueekStoreCollection": {
         "$ref": "#/components/schemas/CollectionResource",
@@ -30784,8 +31110,16 @@
             ]
           },
           "discount_value": {
-            "type": "number",
-            "minimum": 0
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 99999999.99
+              },
+              {
+                "type": "number",
+                "minimum": 0
+              }
+            ]
           },
           "minimum_order_amount": {
             "type": [
@@ -30879,8 +31213,15 @@
             ]
           },
           "value": {
-            "type": "number",
-            "minimum": 0
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number",
+                "minimum": 0
+              }
+            ]
           },
           "priority": {
             "type": [
@@ -30994,8 +31335,15 @@
                 ]
               },
               "value": {
-                "type": "number",
-                "minimum": 0
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "number",
+                    "minimum": 0
+                  }
+                ]
               },
               "min_final_price": {
                 "type": [
@@ -31111,6 +31459,9 @@
           "is_primary": {
             "type": "boolean"
           },
+          "is_default": {
+            "type": "boolean"
+          },
           "path_prefix": {
             "type": "string"
           },
@@ -31129,6 +31480,7 @@
           "name",
           "native_name",
           "is_primary",
+          "is_default",
           "path_prefix",
           "hreflang",
           "html_lang",
@@ -31760,51 +32112,6 @@
           "locale"
         ],
         "title": "Store vendor locale input"
-      },
-      "TaxonomyCategoryResource": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          },
-          "slug": {
-            "type": "string"
-          },
-          "image": {
-            "type": "string"
-          },
-          "image_variants": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "Pre-sized copies of the image, resolved from its URL (categories\nand collections store no media id)."
-          },
-          "products_count": {
-            "type": "integer"
-          },
-          "children": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            },
-            "minItems": 0,
-            "maxItems": 0
-          }
-        },
-        "required": [
-          "id",
-          "name",
-          "slug",
-          "image",
-          "image_variants",
-          "products_count",
-          "children"
-        ],
-        "title": "TaxonomyCategoryResource"
       },
       "TeamDirectoryResource": {
         "type": "object",
@@ -34405,7 +34712,9 @@
       "subscription_feature_locked",
       "too_many_requests",
       "translation_digest_stale",
+      "translation_locale_is_default",
       "translation_locale_is_primary",
+      "translation_locale_not_published",
       "translation_max_published_locales",
       "translation_unknown_key",
       "translation_unknown_locale",

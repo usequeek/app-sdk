@@ -1484,7 +1484,7 @@ export interface paths {
          * List locales
          * @description Requires scope `merchant-locales-read`.
          *
-         *     Lists the store’s enabled locales with catalogue names, publish state and the primary flag.
+         *     Lists the store’s enabled locales with catalogue names, publish state and the primary and default flags, default first.
          */
         get: operations["locales.list"];
         put?: never;
@@ -1527,6 +1527,28 @@ export interface paths {
          *     Publishes or unpublishes an enabled locale. {locale} is a catalogue code of this store.
          */
         patch: operations["locales.update"];
+        trace?: never;
+    };
+    "/locales/{locale}/default": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Change the default language
+         * @description Requires scope `merchant-locales-write`.
+         *
+         *     Makes a published locale the language the store root address serves; the primary clears the choice. Answers the full locales list with the change.
+         */
+        post: operations["locales.set_default"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/translatable-resources": {
@@ -2166,7 +2188,7 @@ export interface components {
             commerce_mode: string;
             currency: string;
             price: number;
-            discount_price: number;
+            discount_price: string;
             compare_at_price: number | null;
             is_price_from: boolean;
             price_range: {
@@ -2185,7 +2207,7 @@ export interface components {
                 final_price: number | null;
                 image_url: string | null;
             } | null;
-            discounts: unknown[];
+            discounts: string;
             media: {
                 thumbnail: string | null;
                 image: string | null;
@@ -3593,15 +3615,9 @@ export interface components {
             max_qty?: string | null;
             weight?: number | null;
             unit?: string | null;
-            categories: string[];
-            /**
-             * @description A node with no categories input resolves to the category write;
-             *     categories win when both are sent.
-             */
-            taxonomy_node_id?: string | null;
-            taxonomy_slug?: string | null;
-            taxonomy_category_id?: string;
-            collection_category_ids?: string[];
+            collection_ids?: string[] | null;
+            categories?: string[] | null;
+            collection_category_ids?: string[] | null;
             variations?: string[] | null;
             has_variants?: boolean;
             variants?: {
@@ -3733,6 +3749,15 @@ export interface components {
             updated_at: string | null;
             /** Format: date-time */
             deleted_at: string | null;
+            /** @description The sales channels this product is published to, as the calling key sees them: an app key sees only its own channels, a store key sees them all. Archived channels are left out. Present on product list, retrieve and write responses; webhook deliveries do not include it. */
+            publications?: {
+                /** @description The channel id. */
+                id: number;
+                key: string;
+                name: string;
+            }[];
+        } & {
+            [key: string]: unknown;
         };
         /** ProductReviewResource */
         ProductReviewResource: {
@@ -3827,7 +3852,7 @@ export interface components {
                  * @description Stable identifier a client switches on. A new failure mode gets a new code; an existing code never changes meaning.
                  * @enum {string}
                  */
-                code: "ai_unavailable_in_test_mode" | "api_key_expired" | "api_key_mode_mismatch" | "api_key_revoked" | "app_embed_not_ready" | "app_grant_insufficient" | "app_handoff_failed" | "app_installation_gone" | "app_installation_pending" | "app_ip_not_allowed" | "app_proxy_failed" | "app_proxy_gone" | "app_token_revoked" | "bad_request" | "channel_gateway_unreachable" | "client_key_required" | "conflict" | "custom_domain_provisioning_failed" | "custom_gateway_forbidden" | "custom_gateway_kyc_required" | "custom_gateway_not_configured" | "custom_gateway_not_verified" | "custom_gateway_plan_required" | "custom_gateway_store_ineligible" | "custom_gateway_verification_failed" | "forbidden" | "gone" | "idempotency_key_in_progress" | "idempotency_key_reuse" | "insufficient_scope" | "invalid_client" | "invalid_client_key" | "metafield_definition_missing" | "metafield_filter_unsupported_type" | "metafield_namespace_reserved" | "metafield_value_invalid" | "metaobject_definition_missing" | "metaobject_field_invalid" | "metaobject_reference_invalid" | "metaobject_type_reserved" | "method_not_allowed" | "not_found" | "origin_not_allowed" | "origin_required" | "payload_too_large" | "payment_amount_mismatch" | "plan_inactive" | "private_key_required" | "requires_slot" | "resync_cooldown" | "route_not_available" | "server_error" | "service_unavailable" | "subscription_feature_locked" | "too_many_requests" | "translation_digest_stale" | "translation_locale_is_primary" | "translation_max_published_locales" | "translation_unknown_key" | "translation_unknown_locale" | "unauthenticated" | "unknown_product_ref" | "unknown_service" | "unknown_variant_ref" | "unsupported_media_type" | "validation_failed" | "vendor_access_denied" | "vendor_mail_sender_forbidden" | "vendor_mail_sender_key_unavailable" | "vendor_mail_sender_not_configured" | "vendor_mail_sender_plan_required" | "vendor_mail_sender_verification_failed";
+                code: "ai_unavailable_in_test_mode" | "api_key_expired" | "api_key_mode_mismatch" | "api_key_revoked" | "app_embed_not_ready" | "app_grant_insufficient" | "app_handoff_failed" | "app_installation_gone" | "app_installation_pending" | "app_ip_not_allowed" | "app_proxy_failed" | "app_proxy_gone" | "app_token_revoked" | "bad_request" | "channel_gateway_unreachable" | "client_key_required" | "conflict" | "custom_domain_provisioning_failed" | "custom_gateway_forbidden" | "custom_gateway_kyc_required" | "custom_gateway_not_configured" | "custom_gateway_not_verified" | "custom_gateway_plan_required" | "custom_gateway_store_ineligible" | "custom_gateway_verification_failed" | "forbidden" | "gone" | "idempotency_key_in_progress" | "idempotency_key_reuse" | "insufficient_scope" | "invalid_client" | "invalid_client_key" | "metafield_definition_missing" | "metafield_filter_unsupported_type" | "metafield_namespace_reserved" | "metafield_value_invalid" | "metaobject_definition_missing" | "metaobject_field_invalid" | "metaobject_reference_invalid" | "metaobject_type_reserved" | "method_not_allowed" | "not_found" | "origin_not_allowed" | "origin_required" | "payload_too_large" | "payment_amount_mismatch" | "plan_inactive" | "private_key_required" | "requires_slot" | "resync_cooldown" | "route_not_available" | "server_error" | "service_unavailable" | "subscription_feature_locked" | "too_many_requests" | "translation_digest_stale" | "translation_locale_is_default" | "translation_locale_is_primary" | "translation_locale_not_published" | "translation_max_published_locales" | "translation_unknown_key" | "translation_unknown_locale" | "unauthenticated" | "unknown_product_ref" | "unknown_service" | "unknown_variant_ref" | "unsupported_media_type" | "validation_failed" | "vendor_access_denied" | "vendor_mail_sender_forbidden" | "vendor_mail_sender_key_unavailable" | "vendor_mail_sender_not_configured" | "vendor_mail_sender_plan_required" | "vendor_mail_sender_verification_failed";
                 /** @description Human-readable explanation. Not stable — never switch on it. */
                 message: string;
                 /** @description First offending field, on validation failures only. */
@@ -3861,8 +3886,6 @@ export interface components {
         QueekStoreBlogCategory: components["schemas"]["BlogCategoryResource"];
         /** QueekStoreCart */
         QueekStoreCart: components["schemas"]["CartResource"];
-        /** QueekStoreCategory */
-        QueekStoreCategory: components["schemas"]["TaxonomyCategoryResource"];
         /** QueekStoreCollection */
         QueekStoreCollection: components["schemas"]["CollectionResource"];
         /** QueekStoreCustomer */
@@ -4252,6 +4275,7 @@ export interface components {
             name: string;
             native_name: string;
             is_primary: boolean;
+            is_default: boolean;
             path_prefix: string;
             hreflang: string;
             html_lang: string;
@@ -4451,20 +4475,6 @@ export interface components {
         StoreVendorLocaleRequest: {
             /** @enum {string} */
             locale: "en" | "fr" | "es" | "pt" | "pt-BR" | "de" | "it" | "nl" | "pl" | "ru" | "uk" | "tr" | "ar" | "ur" | "fa" | "he" | "hi" | "ja" | "ko" | "zh-CN" | "zh-TW" | "id" | "ms" | "vi" | "th" | "tl" | "sw" | "ha" | "yo" | "ig" | "pcm";
-        };
-        /** TaxonomyCategoryResource */
-        TaxonomyCategoryResource: {
-            id: string;
-            name: string;
-            slug: string;
-            image: string;
-            /**
-             * @description Pre-sized copies of the image, resolved from its URL (categories
-             *     and collections store no media id).
-             */
-            image_variants: string | null;
-            products_count: number;
-            children: string[];
         };
         /** TeamDirectoryResource */
         TeamDirectoryResource: {
@@ -15797,6 +15807,8 @@ export interface operations {
                 delivery_method?: "delivery" | "pickup" | "instore" | "shipping" | null;
                 registry_id?: string | null;
                 "metafield[]"?: string[] | null;
+                /** @description Only orders attributed to this sales channel: a channel id, or an app key's own channel key. Unknown channel 404, archived 410. */
+                publication?: string | null;
                 sort_by?: "created_at" | "updated_at" | "status" | "payment_status" | "total" | null;
                 sort_order?: "asc" | "desc" | null;
                 /** @example 2 */
@@ -17806,6 +17818,7 @@ export interface operations {
                 import_id?: string | null;
                 batch_id?: string | null;
                 channel?: string | null;
+                /** @description Only products published to this sales channel: a channel id, or an app key's own channel key. Unknown channel 404, archived 410. */
                 publication?: string | null;
                 is_marketplace?: "0" | "1" | "true" | "false" | null;
                 is_wholesale?: "0" | "1" | "true" | "false" | null;
@@ -17965,6 +17978,7 @@ export interface operations {
                      *               }
                      *             }
                      *           ],
+                     *           "publications": [],
                      *           "metafields": {},
                      *           "metadata": {},
                      *           "created_at": "2026-07-15T11:30:00+01:00",
@@ -18039,6 +18053,13 @@ export interface operations {
                      *                   "h": 1200
                      *                 }
                      *               }
+                     *             }
+                     *           ],
+                     *           "publications": [
+                     *             {
+                     *               "id": 1001,
+                     *               "key": "kiosk-lagos",
+                     *               "name": "Lagos kiosk"
                      *             }
                      *           ],
                      *           "metafields": {},
@@ -18262,6 +18283,7 @@ export interface operations {
                      *             }
                      *           }
                      *         ],
+                     *         "publications": [],
                      *         "metafields": {},
                      *         "metadata": {
                      *           "erp_id": "ERP-20417"
@@ -18833,6 +18855,13 @@ export interface operations {
                      *             }
                      *           }
                      *         ],
+                     *         "publications": [
+                     *           {
+                     *             "id": 1001,
+                     *             "key": "kiosk-lagos",
+                     *             "name": "Lagos kiosk"
+                     *           }
+                     *         ],
                      *         "metafields": {},
                      *         "metadata": {
                      *           "erp_id": "ERP-20417"
@@ -19048,6 +19077,13 @@ export interface operations {
                      *                 "h": 1200
                      *               }
                      *             }
+                     *           }
+                     *         ],
+                     *         "publications": [
+                     *           {
+                     *             "id": 1001,
+                     *             "key": "kiosk-lagos",
+                     *             "name": "Lagos kiosk"
                      *           }
                      *         ],
                      *         "metafields": {},
@@ -21262,7 +21298,8 @@ export interface operations {
                      *           "html_lang": "en",
                      *           "dir": "ltr",
                      *           "published": true,
-                     *           "is_primary": true
+                     *           "is_primary": true,
+                     *           "is_default": true
                      *         },
                      *         {
                      *           "locale": "fr",
@@ -21271,7 +21308,8 @@ export interface operations {
                      *           "html_lang": "fr",
                      *           "dir": "ltr",
                      *           "published": true,
-                     *           "is_primary": false
+                     *           "is_primary": false,
+                     *           "is_default": false
                      *         },
                      *         {
                      *           "locale": "de",
@@ -21280,7 +21318,8 @@ export interface operations {
                      *           "html_lang": "de",
                      *           "dir": "ltr",
                      *           "published": false,
-                     *           "is_primary": false
+                     *           "is_primary": false,
+                     *           "is_default": false
                      *         }
                      *       ]
                      *     }
@@ -21298,6 +21337,7 @@ export interface operations {
                             dir: "ltr" | "rtl";
                             published: boolean;
                             is_primary: boolean;
+                            is_default: boolean;
                         }[];
                     };
                 };
@@ -21405,7 +21445,8 @@ export interface operations {
                      *         "html_lang": "fr",
                      *         "dir": "ltr",
                      *         "published": false,
-                     *         "is_primary": false
+                     *         "is_primary": false,
+                     *         "is_default": false
                      *       }
                      *     }
                      */
@@ -21422,6 +21463,7 @@ export interface operations {
                             dir: "ltr" | "rtl";
                             published: boolean;
                             is_primary: boolean;
+                            is_default: boolean;
                         };
                     };
                 };
@@ -21723,7 +21765,8 @@ export interface operations {
                      *         "html_lang": "fr",
                      *         "dir": "ltr",
                      *         "published": true,
-                     *         "is_primary": false
+                     *         "is_primary": false,
+                     *         "is_default": false
                      *       }
                      *     }
                      */
@@ -21740,6 +21783,7 @@ export interface operations {
                             dir: "ltr" | "rtl";
                             published: boolean;
                             is_primary: boolean;
+                            is_default: boolean;
                         };
                     };
                 };
@@ -21838,6 +21882,182 @@ export interface operations {
                      *           ]
                      *         },
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Too many requests — slow down and retry. Switch on `error.code`. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "too_many_requests",
+                     *         "message": "Too Many Attempts.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+        };
+    };
+    "locales.set_default": {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @example {{merchantKey}}
+                 */
+                "X-Client-Key": string;
+                /** @description Your own correlation id (8–128 chars, `^[A-Za-z0-9_.:-]+$`). Echoed back on the response and on every log line of the request; one is generated when you omit it. */
+                "X-Request-Id"?: string;
+                /** @description Retry-safe write key. The same key with the same body replays the stored response for 24h with `Idempotent-Replayed: true`; with a different body it is `409 idempotency_key_reuse`; while the first call is still running it is `409 idempotency_key_in_progress`. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                /** @example fr */
+                locale: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "status": "success",
+                     *       "message": "Default language updated",
+                     *       "data": [
+                     *         {
+                     *           "locale": "fr",
+                     *           "name": "French",
+                     *           "native_name": "Français",
+                     *           "html_lang": "fr",
+                     *           "dir": "ltr",
+                     *           "published": true,
+                     *           "is_primary": false,
+                     *           "is_default": true
+                     *         },
+                     *         {
+                     *           "locale": "en",
+                     *           "name": "English",
+                     *           "native_name": "English",
+                     *           "html_lang": "en",
+                     *           "dir": "ltr",
+                     *           "published": true,
+                     *           "is_primary": true,
+                     *           "is_default": false
+                     *         }
+                     *       ],
+                     *       "meta": {
+                     *         "previous_default": "en",
+                     *         "new_default": "fr"
+                     *       }
+                     *     }
+                     */
+                    "application/json": {
+                        status: string;
+                        message: string;
+                        data: {
+                            locale: string;
+                            name: string;
+                            native_name: string;
+                            html_lang: string;
+                            dir: string;
+                            published: boolean;
+                            is_primary: boolean;
+                            is_default: boolean;
+                        }[];
+                        meta: {
+                            previous_default: string;
+                            new_default: string;
+                        };
+                    };
+                };
+            };
+            /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "invalid_client_key",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Forbidden — the key cannot call this operation. Switch on `error.code`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "insufficient_scope",
+                     *         "message": "This API key does not carry the 'merchant-locales-write' scope it was called with.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Not found — the addressed record does not exist at this store. Switch on `error.code`. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "not_found",
+                     *         "message": "Locale not found.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#not_found",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Idempotency conflict — `idempotency_key_reuse` or `idempotency_key_in_progress`. Switch on `error.code`. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "idempotency_key_reuse",
+                     *         "message": "This Idempotency-Key was already used for a different request body. Use a new key for a new request.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#idempotency_key_reuse",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
                      *     }
