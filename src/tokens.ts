@@ -410,7 +410,7 @@ export class AppTokenProvider implements AppTokens {
     }
     if (response.status !== 201) {
       throw new Error(
-        `Unexpected mint status ${response.status} for installation ${installationPid} (expected 201).`,
+        `Unexpected mint status ${response.status} for installation ${installationPid} (expected 201). Check that apiBase is the Queek API host and retry; if it persists, report it with the request id.`,
       );
     }
     return parseMintBody(parseSuccessBody<unknown>(response, text), installationPid, this.credential.keyId);
@@ -423,7 +423,7 @@ function parseMintBody(body: unknown, installationPid: string, kid: string): Min
   const expiresAt = typeof record.expires_at === "string" ? record.expires_at : null;
   if (token === null || expiresAt === null || Number.isNaN(Date.parse(expiresAt))) {
     throw new Error(
-      `Malformed mint response for installation ${installationPid}: expected {token, expires_at}.`,
+      `Malformed mint response for installation ${installationPid}: expected {token, expires_at}. Retry; if it persists, report it to Queek.`,
     );
   }
   return { token, expiresAt, kid };

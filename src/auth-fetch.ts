@@ -131,7 +131,9 @@ export function installAuthFetch(options: AuthFetchOptions): InstalledAuth {
   const replaceUrl = options.replaceUrl ?? ((url: string) => win?.history.replaceState(null, "", url));
   const fetchImpl = options.fetchImpl ?? (globalThis as unknown as { fetch?: typeof fetch }).fetch ?? null;
   if (fetchImpl === null) {
-    throw new Error("installAuthFetch needs a fetch implementation");
+    throw new Error(
+      "installAuthFetch needs a fetch implementation: pass `fetchImpl`, or run where a global `fetch` exists.",
+    );
   }
   const fetchFn: typeof fetch = fetchImpl;
   const listenTarget = options.listenTarget ?? (win as unknown as EmbedEventTarget | null) ?? undefined;

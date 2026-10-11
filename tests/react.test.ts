@@ -642,6 +642,8 @@ describe("useQueek", () => {
       return null;
     };
     await render(createElement(Boundary, null, createElement(Bad)));
-    expect(errors).toEqual(["useQueek must be used inside <QueekProvider>"]);
+    expect(errors).toEqual([
+      "useQueek must be called inside <QueekProvider>. Wrap the app root in <QueekProvider>.",
+    ]);
   });
 });

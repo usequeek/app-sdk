@@ -368,7 +368,7 @@ export function QueekProvider(props: QueekProviderProps): ReactNode {
 function useBridge(): BridgeState {
   const bridge = useContext(QueekBridgeContext);
   if (bridge === null) {
-    throw new Error("useQueek must be used inside <QueekProvider>");
+    throw new Error("useQueek must be called inside <QueekProvider>. Wrap the app root in <QueekProvider>.");
   }
   return bridge;
 }

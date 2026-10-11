@@ -388,7 +388,9 @@ function parseRevokeBody(body: unknown): string[] {
   const record = (typeof body === "object" && body !== null ? body : {}) as Record<string, unknown>;
   const scopes = record.scopes;
   if (!Array.isArray(scopes) || !scopes.every((scope) => typeof scope === "string")) {
-    throw new Error("Malformed revoke response: expected {scopes: string[]}.");
+    throw new Error(
+      "Malformed revoke response: expected {scopes: string[]}. The grant was not refreshed; call queryScopes() after Queek delivers the scopes update, or retry.",
+    );
   }
   return [...scopes];
 }
