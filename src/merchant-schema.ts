@@ -320,7 +320,7 @@ export interface paths {
          * List collections
          * @description Requires scope `merchant-collections-read`.
          *
-         *     Lists the store’s collections. `publication` scopes the list to one of the calling installation’s channel publications (p_id or key; human keys use p_id): the walk returns published collections as roots with published descendants in `children`; a published child of an unpublished parent is a root — re-list to reconcile removals. The product ∩ contract (`collection_category_id` with `GET products?publication=`) covers MANUAL collections only — a smart collection’s rule-computed membership is not listable through the Merchant API.
+         *     Lists the store’s collections. `publication` scopes the list to one of the calling installation’s channel publications (p_id or key; human keys use p_id and need the publications-read permission, without it the filter answers 404): the walk returns published collections as roots with published descendants in `children`; a published child of an unpublished parent is a root — re-list to reconcile removals. The product ∩ contract (`collection_category_id` with `GET products?publication=`) covers MANUAL collections only — a smart collection’s rule-computed membership is not listable through the Merchant API.
          */
         get: operations["collections.list"];
         put?: never;
@@ -1008,7 +1008,7 @@ export interface paths {
          * List orders
          * @description Requires scope `merchant-orders-read`.
          *
-         *     Lists the store’s orders using the same base object as orders/* webhooks; recorded payment transactions and Queek wallet-refund rows are present only with merchant-orders-read (webhooks include them only for active installations granted that scope). Order status, shipment, import, rider-assignment and patch responses do not include those finance arrays. Same filtering and search as the dashboard table with cursor pagination (`limit` + `starting_after`, `has_more`/`next_cursor`). Optional `updated_after` walks order rows changed after a timestamp, oldest change first; start each poll five minutes before the previous poll start, deduplicate ids, keep filters fixed and walk sequentially. With `updated_after`, `sort_by`, `sort_order`, `page` and `per_page` return 422; a cursor is bound to the same timestamp and filters. Item/property, shipment, metafield or customer-profile changes and deleted orders may be missed; long-running changes may appear late. The filter time is not returned and may differ from `updated_at`; this is not a snapshot or deletion feed. Provider-side, vendor-collected, offline and manual-review refunds without a recorded Queek refund row are omitted.
+         *     Lists the store’s orders using the same base object as orders/* webhooks; recorded payment transactions and Queek wallet-refund rows are present only with merchant-orders-read (webhooks include them only for active installations granted that scope). Order status, shipment, import, rider-assignment and patch responses do not include those finance arrays. Same filtering and search as the dashboard table with cursor pagination (`limit` + `starting_after`, `has_more`/`next_cursor`). `publication` scopes the list to one of the calling installation’s channel publications (p_id or key; human keys use p_id and need the publications-read permission, without it the filter answers 404). `custom_channel` scopes the list to one hand-recorded or third-party channel name (e.g. glovo, chowdeck, instagram) and combines with the other filters. Optional `updated_after` walks order rows changed after a timestamp, oldest change first; start each poll five minutes before the previous poll start, deduplicate ids, keep filters fixed and walk sequentially. With `updated_after`, `sort_by`, `sort_order`, `page` and `per_page` return 422; a cursor is bound to the same timestamp and filters. Item/property, shipment, metafield or customer-profile changes and deleted orders may be missed; long-running changes may appear late. The filter time is not returned and may differ from `updated_at`; this is not a snapshot or deletion feed. Provider-side, vendor-collected, offline and manual-review refunds without a recorded Queek refund row are omitted.
          */
         get: operations["orders.list"];
         put?: never;
@@ -1190,7 +1190,7 @@ export interface paths {
          * List products
          * @description Requires scope `merchant-items-read`.
          *
-         *     Lists the store’s products — the same object products/* webhooks send, with variants, images, the canonical URL and the storefront price. Same filtering as the dashboard table with cursor pagination (`limit` + `starting_after`, `has_more`/`next_cursor`); sorts limited to public fields. Optional `updated_after` walks product rows changed after a timestamp, oldest change first; start each poll five minutes before the previous poll start, deduplicate ids, keep filters fixed and walk sequentially. With `updated_after`, `sort_by`, `sort_order`, `page` and `per_page` return 422; a cursor is bound to the same timestamp and filters. Variant, image, metafield, stock, region, price, discount, bulk publish, unpublish, archive status or inventory-tracking changes and deleted products may be missed; long-running changes may appear late. The filter time is not returned and may differ from `updated_at`; this is not a snapshot or deletion feed. `publication` scopes the list to one of the calling installation channel publications (p_id or key; human keys use p_id): with `updated_after` it returns additions and content changes, while a removed product surfaces only in the full reconcile walk, never as a delta.
+         *     Lists the store’s products — the same object products/* webhooks send, with variants, images, the canonical URL and the storefront price. Same filtering as the dashboard table with cursor pagination (`limit` + `starting_after`, `has_more`/`next_cursor`); sorts limited to public fields. Optional `updated_after` walks product rows changed after a timestamp, oldest change first; start each poll five minutes before the previous poll start, deduplicate ids, keep filters fixed and walk sequentially. With `updated_after`, `sort_by`, `sort_order`, `page` and `per_page` return 422; a cursor is bound to the same timestamp and filters. Variant, image, metafield, stock, region, price, discount, bulk publish, unpublish, archive status or inventory-tracking changes and deleted products may be missed; long-running changes may appear late. The filter time is not returned and may differ from `updated_at`; this is not a snapshot or deletion feed. `publication` scopes the list to one of the calling installation channel publications (p_id or key; human keys use p_id and need the publications-read permission, without it the filter answers 404): with `updated_after` it returns additions and content changes, while a removed product surfaces only in the full reconcile walk, never as a delta.
          */
         get: operations["products.list"];
         put?: never;
@@ -2567,6 +2567,14 @@ export interface components {
                 description?: string | null;
                 /** @enum {string|null} */
                 collection_mode?: "manual" | "smart" | null;
+                /**
+                 * @description Smart collections only. {match: all|any, conditions: [{field, operator, value}], sort?, limit?}.
+                 *     Rule fields: title, price, compare_at_price, on_sale, weight, inventory_quantity, variant_title,
+                 *     date, created_at, tag, published, has_variants, in_stock, num_of_sale, product_rating and
+                 *     collection_id (products already in the given collection(s); operators eq or includes, value =
+                 *     the id or a list of ids of the store's OWN collections). The taxonomy_category_id rule field is
+                 *     retired: a rule that carries it answers 422 "The taxonomy_category_id rule is retired — use collection_id."
+                 */
                 collection_rules?: {
                     conditions?: string[] | null;
                 } | null;
@@ -3749,7 +3757,7 @@ export interface components {
             updated_at: string | null;
             /** Format: date-time */
             deleted_at: string | null;
-            /** @description The sales channels this product is published to, as the calling key sees them: an app key sees only its own channels, a store key sees them all. Archived channels are left out. Present on product list, retrieve and write responses; webhook deliveries do not include it. */
+            /** @description The sales channels this product is published to, as the calling key sees them: an app key sees only its own channels, a store key sees every channel when it holds the publications-read permission — otherwise the property is omitted. Archived channels are left out. Present on product list, retrieve and write responses; webhook deliveries do not include it. */
             publications?: {
                 /** @description The channel id. */
                 id: number;
@@ -15809,6 +15817,13 @@ export interface operations {
                 "metafield[]"?: string[] | null;
                 /** @description Only orders attributed to this sales channel: a channel id, or an app key's own channel key. Unknown channel 404, archived 410. */
                 publication?: string | null;
+                /**
+                 * @description One hand-recorded or third-party channel name (CustomOrderChannel);
+                 *     ANDs with ?channel= (e.g. channel=third_party narrows the
+                 *     platform, this picks the name). Shared with the Merchant API
+                 *     list, which pages the same rows — see its spec entry.
+                 */
+                custom_channel?: "physical_sale" | "instagram" | "whatsapp" | "facebook" | "flutterwave" | "jiji" | "jumia" | "konga" | "tiktok" | "glovo" | "chowdeck" | "paystack" | "snapchat" | "x_twitter" | "others" | null;
                 sort_by?: "created_at" | "updated_at" | "status" | "payment_status" | "total" | null;
                 sort_order?: "asc" | "desc" | null;
                 /** @example 2 */
@@ -18183,7 +18198,7 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody: {
+        requestBody?: {
             content: {
                 /**
                  * @example {
@@ -18200,7 +18215,20 @@ export interface operations {
                  *       "image_url": "https://adeyemifoods.com/images/jollof-rice-party-pack.jpg"
                  *     }
                  */
-                "multipart/form-data": components["schemas"]["ProductRequest"];
+                "multipart/form-data": components["schemas"]["ProductRequest"] & {
+                    /** @description The vendor's own collection ids (max 50), the same for every store type; optional on create. On update omit or send null to keep the current collections, send [] to clear them. Each id must be one of your own active manual collections: a global, another store's, trashed or smart collection is a 422. */
+                    collection_ids?: string[];
+                    /** @description DEPRECATED alias of collection_ids, accepted for a limited window and ignored when collection_ids is sent. Validated under its own key. */
+                    categories?: string[];
+                    /** @description DEPRECATED alias of collection_ids, accepted for a limited window and ignored when collection_ids is sent. Validated under its own key. */
+                    collection_category_ids?: string[];
+                    /** @description Accepted and ignored: the marketplace taxonomy is never vendor-facing, so this key has no effect (marketplace placement is assigned automatically). Any value is accepted so older clients keep working. */
+                    taxonomy_category_id?: string;
+                    /** @description Accepted and ignored: the marketplace taxonomy is never vendor-facing, so this key has no effect (marketplace placement is assigned automatically). Any value is accepted so older clients keep working. */
+                    taxonomy_node_id?: string;
+                    /** @description Accepted and ignored: the marketplace taxonomy is never vendor-facing, so this key has no effect (marketplace placement is assigned automatically). Any value is accepted so older clients keep working. */
+                    taxonomy_slug?: string;
+                };
             };
         };
         responses: {
@@ -18980,7 +19008,7 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody: {
+        requestBody?: {
             content: {
                 /**
                  * @example {
@@ -18996,7 +19024,20 @@ export interface operations {
                  *       }
                  *     }
                  */
-                "multipart/form-data": components["schemas"]["ProductRequest"];
+                "multipart/form-data": components["schemas"]["ProductRequest"] & {
+                    /** @description The vendor's own collection ids (max 50), the same for every store type; optional on create. On update omit or send null to keep the current collections, send [] to clear them. Each id must be one of your own active manual collections: a global, another store's, trashed or smart collection is a 422. */
+                    collection_ids?: string[];
+                    /** @description DEPRECATED alias of collection_ids, accepted for a limited window and ignored when collection_ids is sent. Validated under its own key. */
+                    categories?: string[];
+                    /** @description DEPRECATED alias of collection_ids, accepted for a limited window and ignored when collection_ids is sent. Validated under its own key. */
+                    collection_category_ids?: string[];
+                    /** @description Accepted and ignored: the marketplace taxonomy is never vendor-facing, so this key has no effect (marketplace placement is assigned automatically). Any value is accepted so older clients keep working. */
+                    taxonomy_category_id?: string;
+                    /** @description Accepted and ignored: the marketplace taxonomy is never vendor-facing, so this key has no effect (marketplace placement is assigned automatically). Any value is accepted so older clients keep working. */
+                    taxonomy_node_id?: string;
+                    /** @description Accepted and ignored: the marketplace taxonomy is never vendor-facing, so this key has no effect (marketplace placement is assigned automatically). Any value is accepted so older clients keep working. */
+                    taxonomy_slug?: string;
+                };
             };
         };
         responses: {
