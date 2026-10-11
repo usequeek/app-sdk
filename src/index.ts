@@ -65,8 +65,11 @@ export {
 } from "./background.js";
 export {
   apiHostsFromEnv,
+  type CursorPage,
   createQueekClient,
   DEFAULT_API_HOSTS,
+  DEFAULT_MAX_RETRY_AFTER_MS,
+  DEFAULT_REQUEST_TIMEOUT_MS,
   devApiHostsFromEnv,
   InvalidApiBaseError,
   isWriteMethod,
@@ -74,6 +77,8 @@ export {
   type MerchantPaths,
   newIdempotencyKey,
   type OperationResponse,
+  type PaginateOptions,
+  paginate,
   QueekApiError,
   type QueekClient,
   type QueekClientOptions,

@@ -4,9 +4,11 @@ import {
   createQueekClient,
   devApiHostsFromEnv,
   InvalidApiBaseError,
+  paginate,
   QueekApiError,
   resolveApiBase,
 } from "../src/client.js";
+import { createInstallationClient } from "../src/tokens.js";
 import { fakeApiKey } from "./helpers.js";
 
 const API_BASE = "https://api.usequeek.com/api/v1/merchant";
@@ -273,12 +275,107 @@ describe("requestWithRetry (same Idempotency-Key, honours Retry-After)", () => {
     await client.requestWithRetry("POST", "/orders", {
       body: {},
       baseDelayMs: 100,
+      random: () => 1,
       sleep: async (ms: number) => {
         sleeps.push(ms);
       },
     });
     expect(attempts).toBe(3);
     expect(sleeps).toEqual([100, 200]);
+  });
+
+  it("jitters the backoff between half the ceiling and the ceiling", async () => {
+    const fetchImpl = mockFetch(() => {
+      throw new TypeError("fetch failed");
+    });
+    const sleeps: number[] = [];
+    const client = createQueekClient({ apiBase: API_BASE, apiKey: API_KEY, fetchImpl });
+    await expect(
+      client.requestWithRetry("GET", "/store", {
+        maxAttempts: 3,
+        baseDelayMs: 100,
+        random: () => 0,
+        sleep: async (ms: number) => {
+          sleeps.push(ms);
+        },
+      }),
+    ).rejects.toMatchObject({ code: "network_error" });
+    expect(sleeps).toEqual([50, 100]);
+  });
+
+  it("retries 503 with the same key, but not 400", async () => {
+    const keys: (string | null)[] = [];
+    const fetchImpl = mockFetch((_url, init) => {
+      keys.push(new Headers(init.headers).get("Idempotency-Key"));
+      return keys.length === 1
+        ? jsonResponse(503, { error: { code: "service_unavailable", message: "Try later." } })
+        : jsonResponse(201, { data: { id: "order-2" } });
+    });
+    const client = createQueekClient({ apiBase: API_BASE, apiKey: API_KEY, fetchImpl });
+    await client.requestWithRetry("POST", "/orders", { body: {}, sleep: async () => {} });
+    expect(keys).toHaveLength(2);
+    expect(keys[1]).toBe(keys[0]);
+
+    const bad = mockFetch(() => jsonResponse(400, { error: { code: "bad_request", message: "No." } }));
+    const client2 = createQueekClient({ apiBase: API_BASE, apiKey: API_KEY, fetchImpl: bad });
+    await expect(client2.requestWithRetry("GET", "/store", { sleep: async () => {} })).rejects.toMatchObject({
+      code: "bad_request",
+    });
+    expect(bad).toHaveBeenCalledTimes(1);
+  });
+
+  it("throws at once when Retry-After exceeds maxRetryAfterMs", async () => {
+    const fetchImpl = mockFetch(() =>
+      jsonResponse(
+        429,
+        { error: { code: "too_many_requests", message: "Slow." } },
+        { "Retry-After": "3600" },
+      ),
+    );
+    const sleep = vi.fn(async () => {});
+    const client = createQueekClient({ apiBase: API_BASE, apiKey: API_KEY, fetchImpl });
+    await expect(client.requestWithRetry("GET", "/store", { sleep })).rejects.toMatchObject({
+      code: "too_many_requests",
+      retryAfterMs: 3_600_000,
+    });
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(sleep).not.toHaveBeenCalled();
+  });
+
+  it("never retries a call the caller aborted", async () => {
+    const controller = new AbortController();
+    const fetchImpl = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+      controller.abort();
+      throw init?.signal?.reason;
+    });
+    const client = createQueekClient({ apiBase: API_BASE, apiKey: API_KEY, fetchImpl });
+    await expect(
+      client.requestWithRetry("GET", "/store", { signal: controller.signal, sleep: async () => {} }),
+    ).rejects.toMatchObject({ code: "request_aborted", status: 0 });
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it("installation client reuses ONE Idempotency-Key across retried writes", async () => {
+    const keys: (string | null)[] = [];
+    const fetchImpl = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+      keys.push(new Headers(init?.headers).get("Idempotency-Key"));
+      if (keys.length < 3) throw new TypeError("fetch failed");
+      return jsonResponse(201, { data: { id: "order-3" } });
+    });
+    const client = createInstallationClient({
+      installationId: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+      apiBase: API_BASE,
+      tokens: {
+        acquireToken: async () => "tok_app_owned",
+        dropCachedToken: async () => undefined,
+        revokeAppAccess: async () => undefined,
+      },
+      fetchImpl,
+    });
+    await client.requestWithRetry("POST", "/orders", { body: {}, sleep: async () => {} });
+    expect(keys).toHaveLength(3);
+    expect(new Set(keys).size).toBe(1);
+    expect(keys[0]).toMatch(/^[0-9a-f-]{36}$/);
   });
 
   it("does not retry auth failures and stops after maxAttempts", async () => {
@@ -295,5 +392,89 @@ describe("requestWithRetry (same Idempotency-Key, honours Retry-After)", () => {
       client2.requestWithRetry("GET", "/store", { maxAttempts: 2, baseDelayMs: 1, sleep: async () => {} }),
     ).rejects.toMatchObject({ code: "too_many_requests" });
     expect(always429).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("transport and response failures", () => {
+  it("keeps the original error as cause on a network failure", async () => {
+    const original = new TypeError("fetch failed");
+    const client = createQueekClient({
+      apiBase: API_BASE,
+      apiKey: API_KEY,
+      fetchImpl: mockFetch(() => {
+        throw original;
+      }),
+    });
+    const error = await client.request("GET", "/store").catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(QueekApiError);
+    expect((error as QueekApiError).cause).toBe(original);
+    expect((error as QueekApiError).message).toContain("Check the network connection");
+  });
+
+  it("maps the client timeout to request_timeout and sends a signal", async () => {
+    let seen: AbortSignal | null | undefined;
+    const fetchImpl = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+      seen = init?.signal;
+      return new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener("abort", () => reject(init.signal?.reason));
+      });
+    });
+    const client = createQueekClient({ apiBase: API_BASE, apiKey: API_KEY, fetchImpl, timeoutMs: 20 });
+    await expect(client.request("GET", "/store")).rejects.toMatchObject({
+      code: "request_timeout",
+      status: 0,
+    });
+    expect(seen).toBeInstanceOf(AbortSignal);
+  });
+
+  it("rejects an HTTP success whose body is not JSON instead of returning a mistyped value", async () => {
+    const client = createQueekClient({
+      apiBase: API_BASE,
+      apiKey: API_KEY,
+      fetchImpl: mockFetch(
+        () => new Response("<html>gateway</html>", { status: 200, headers: { "x-request-id": "req_1" } }),
+      ),
+    });
+    await expect(client.request("GET", "/store")).rejects.toMatchObject({
+      code: "invalid_response",
+      status: 200,
+      requestId: "req_1",
+    });
+  });
+});
+
+describe("paginate", () => {
+  it("follows next_cursor with starting_after until has_more is false", async () => {
+    const urls: string[] = [];
+    const fetchImpl = mockFetch((url) => {
+      urls.push(url);
+      const after = new URL(url).searchParams.get("starting_after");
+      if (after === null) return jsonResponse(200, { data: [1, 2], has_more: true, next_cursor: "c1" });
+      if (after === "c1") return jsonResponse(200, { data: [3], has_more: false, next_cursor: null });
+      throw new Error("unexpected cursor");
+    });
+    const client = createQueekClient({ apiBase: API_BASE, apiKey: API_KEY, fetchImpl });
+    const rows: number[] = [];
+    for await (const row of paginate<number>(client, "/orders", {
+      limit: 2,
+      query: { sort_by: "created_at" },
+    })) {
+      rows.push(row);
+    }
+    expect(rows).toEqual([1, 2, 3]);
+    expect(urls).toHaveLength(2);
+    expect(new URL(urls[0] as string).searchParams.get("limit")).toBe("2");
+    expect(new URL(urls[0] as string).searchParams.get("sort_by")).toBe("created_at");
+  });
+
+  it("fails loudly when has_more is true but the cursor does not advance", async () => {
+    const fetchImpl = mockFetch(() => jsonResponse(200, { data: [1], has_more: true, next_cursor: null }));
+    const client = createQueekClient({ apiBase: API_BASE, apiKey: API_KEY, fetchImpl });
+    const drain = async () => {
+      for await (const _row of paginate<number>(client, "/orders")) {
+        // drain
+      }
+    };
+    await expect(drain()).rejects.toMatchObject({ code: "invalid_response" });
   });
 });

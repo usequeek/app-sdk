@@ -4,7 +4,14 @@ import {
   isResyncCooldown,
   RETRY_JITTER_MAX_MS,
 } from "./app-auth.js";
-import { QueekApiError, queekApiErrorFromResponse } from "./client.js";
+import {
+  DEFAULT_REQUEST_TIMEOUT_MS,
+  QueekApiError,
+  queekApiErrorFromResponse,
+  requestSignal,
+  transportError,
+  tryParseJson,
+} from "./client.js";
 import { createLogger, type Logger } from "./logger.js";
 import type { InstallationStore } from "./store.js";
 import { type AppTokenProvider, resolveAppApiBase } from "./tokens.js";
@@ -116,14 +123,13 @@ export async function resyncFromQueek(options: ResyncOptions): Promise<ResyncRes
     headers.set("User-Agent", userAgent);
     let response: Response;
     try {
-      response = await fetchImpl(`${appBase}${path}`, { method: init.method, headers });
-    } catch (cause) {
-      throw new QueekApiError({
-        status: 0,
-        code: "network_error",
-        message:
-          cause instanceof Error ? `Could not reach Queek: ${cause.message}` : "Could not reach Queek.",
+      response = await fetchImpl(`${appBase}${path}`, {
+        method: init.method,
+        headers,
+        signal: requestSignal(undefined, DEFAULT_REQUEST_TIMEOUT_MS),
       });
+    } catch (cause) {
+      throw transportError(cause);
     }
     return response;
   }
@@ -282,12 +288,4 @@ export async function resyncFromQueek(options: ResyncOptions): Promise<ResyncRes
     }
   }
   return result;
-}
-
-function tryParseJson(text: string): unknown {
-  try {
-    return JSON.parse(text) as unknown;
-  } catch {
-    return { message: text.slice(0, 500) };
-  }
 }

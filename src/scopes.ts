@@ -1,5 +1,13 @@
 import { isInstallationGone, UnknownInstallationError } from "./app-auth.js";
-import { newIdempotencyKey, QueekApiError, queekApiErrorFromResponse } from "./client.js";
+import {
+  DEFAULT_REQUEST_TIMEOUT_MS,
+  newIdempotencyKey,
+  QueekApiError,
+  queekApiErrorFromResponse,
+  requestSignal,
+  transportError,
+  tryParseJson,
+} from "./client.js";
 import { isAllowedOpenTarget } from "./frame.js";
 import { installationScopesEqual } from "./install-handlers.js";
 import type { InstallationStore } from "./store.js";
@@ -345,15 +353,10 @@ export function createInstallationScopesClient(
         method: "POST",
         headers,
         body: JSON.stringify({ scopes: requested }),
-        signal: revokeOptions.signal,
+        signal: requestSignal(revokeOptions.signal, DEFAULT_REQUEST_TIMEOUT_MS),
       });
     } catch (cause) {
-      throw new QueekApiError({
-        status: 0,
-        code: "network_error",
-        message:
-          cause instanceof Error ? `Could not reach Queek: ${cause.message}` : "Could not reach Queek.",
-      });
+      throw transportError(cause, revokeOptions.signal);
     }
     const text = await response.text();
     const parsed: unknown = text === "" ? null : tryParseJson(text);
@@ -388,12 +391,4 @@ function parseRevokeBody(body: unknown): string[] {
     throw new Error("Malformed revoke response: expected {scopes: string[]}.");
   }
   return [...scopes];
-}
-
-function tryParseJson(text: string): unknown {
-  try {
-    return JSON.parse(text) as unknown;
-  } catch {
-    return { message: text.slice(0, 500) };
-  }
 }

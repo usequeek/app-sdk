@@ -25,7 +25,12 @@ import type { paths } from "./merchant-schema.js";
  *   is additive, so both are read). Switch on `code`, never on `message`.
  * - 429s expose `retryAfterMs` parsed from `Retry-After` (seconds or
  *   HTTP-date). Plain `request()` never retries; `requestWithRetry()`
- *   retries 429s and network errors with the SAME idempotency key.
+ *   retries 429s, 502/503/504, timeouts and network errors with jittered
+ *   exponential backoff and the SAME idempotency key on every attempt.
+ * - Every request has a timeout (`timeoutMs`, default 30 s) and accepts an
+ *   `AbortSignal`. Failures that never produced an HTTP answer are thrown as
+ *   `QueekApiError` with status 0 and the code `network_error`,
+ *   `request_timeout` or `request_aborted`, and the original error as `cause`.
  *
  * Typed surface: `getStore()` is typed from the app's Merchant API
  * paths. Pass the app's own codegen output as the type argument
@@ -178,11 +183,20 @@ export function resolveApiBase(raw: string, allowedApiHosts: string[] = []): str
   return `https://${host}${url.port !== "" ? `:${url.port}` : ""}${merchantPath}`;
 }
 
+/** Default time a single HTTP attempt may take before it fails with `request_timeout`. */
+export const DEFAULT_REQUEST_TIMEOUT_MS = 30_000;
+
+/** Default ceiling for honouring a 429 `Retry-After` inside `requestWithRetry()`. */
+export const DEFAULT_MAX_RETRY_AFTER_MS = 30_000;
+
 export interface QueekClientOptions {
   /** Handoff `api_base` (bare store host or full merchant base). Validated at construction. */
   apiBase: string;
+  /** The installation credential, sent as `X-Client-Key`. Never logged and never put in an error message. */
   apiKey: string;
   fetchImpl?: typeof fetch;
+  /** Time one attempt may take, in ms (default 30000). `0` disables the client timeout. */
+  timeoutMs?: number;
   /** Sent as User-Agent. Defaults to `queek-app/1.0`. */
   userAgent?: string;
   /** Extra allowed `apiBase` hosts (test/local API hosts). Production default always applies. */
@@ -190,12 +204,18 @@ export interface QueekClientOptions {
 }
 
 export interface RequestOptions {
+  /** Query string values. `undefined` entries are skipped; everything else is URL-encoded for you. */
   query?: Record<string, string | number | boolean | undefined>;
+  /** JSON-serialisable request body. */
   body?: unknown;
   /** Write idempotency (POST/PUT/PATCH/DELETE). Generated when omitted. */
   idempotencyKey?: string;
+  /** Correlation id sent as `X-Request-Id` (8 to 128 characters of `A-Za-z0-9_.:-`). Generated when omitted. */
   requestId?: string;
+  /** Aborts the call. An aborted call fails with code `request_aborted` and is never retried. */
   signal?: AbortSignal;
+  /** Overrides the client's per-attempt timeout for this call, in ms. `0` disables it. */
+  timeoutMs?: number;
 }
 
 const WRITE_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
@@ -205,6 +225,7 @@ export function isWriteMethod(method: string): boolean {
   return WRITE_METHODS.has(method.toUpperCase());
 }
 
+/** A fresh `Idempotency-Key` value (a random UUID). */
 export function newIdempotencyKey(): string {
   return randomUUID();
 }
@@ -232,8 +253,32 @@ export interface QueekErrorDetails {
   docUrl?: string;
   requestId?: string;
   retryAfterMs?: number;
+  /** The underlying error, when this one wraps another (a failed `fetch`, for example). */
+  cause?: unknown;
 }
 
+/**
+ * The one error every Queek HTTP call throws. Switch on `code`, never on
+ * `message`.
+ *
+ * Codes that come from Queek are the API's own (`validation_failed`,
+ * `insufficient_scope`, `too_many_requests`, ...). Codes the SDK raises when
+ * no usable HTTP answer arrived (`status` is 0 for the first three):
+ * `network_error`, `request_timeout`, `request_aborted`, and
+ * `invalid_response` (an HTTP success whose body was not JSON).
+ *
+ * `requestId` matches the `X-Request-Id` response header: quote it to Queek
+ * support.
+ *
+ * @example
+ * try {
+ *   await client.request("POST", "/orders", { body });
+ * } catch (error) {
+ *   if (error instanceof QueekApiError && error.code === "validation_failed") {
+ *     console.error(error.field, error.errors, error.requestId);
+ *   }
+ * }
+ */
 export class QueekApiError extends Error {
   readonly status: number;
   readonly code: string;
@@ -245,7 +290,7 @@ export class QueekApiError extends Error {
   readonly retryAfterMs?: number;
 
   constructor(details: QueekErrorDetails) {
-    super(details.message);
+    super(details.message, details.cause === undefined ? undefined : { cause: details.cause });
     this.name = "QueekApiError";
     this.status = details.status;
     this.code = details.code;
@@ -263,6 +308,67 @@ export class QueekApiError extends Error {
   get isAuthFailure(): boolean {
     return this.status === 401 || this.status === 403;
   }
+
+  /**
+   * True when sending the same call again can succeed without any change:
+   * rate limits, gateway failures (502, 503, 504), timeouts and network
+   * errors. `requestWithRetry()` retries exactly these. A caller abort is
+   * never retryable.
+   */
+  get isRetryable(): boolean {
+    return (
+      this.status === 429 ||
+      this.status === 502 ||
+      this.status === 503 ||
+      this.status === 504 ||
+      this.code === "network_error" ||
+      this.code === "request_timeout"
+    );
+  }
+}
+
+/**
+ * The error for a call that never produced an HTTP answer. A caller abort is
+ * `request_aborted`, the client timeout is `request_timeout`, everything else
+ * (DNS, refused or reset connection, TLS) is `network_error`. The original
+ * error stays on `cause`.
+ */
+export function transportError(cause: unknown, signal?: AbortSignal): QueekApiError {
+  const name = cause instanceof Error ? cause.name : "";
+  const reason = cause instanceof Error && cause.message !== "" ? ` (${cause.message})` : "";
+  if (name === "TimeoutError") {
+    return new QueekApiError({
+      status: 0,
+      code: "request_timeout",
+      message:
+        "Queek did not answer before the request timeout. Retry, raise `timeoutMs`, or use requestWithRetry().",
+      cause,
+    });
+  }
+  if (signal?.aborted === true) {
+    return new QueekApiError({
+      status: 0,
+      code: "request_aborted",
+      message: "The request was aborted by its AbortSignal before Queek answered.",
+      cause,
+    });
+  }
+  return new QueekApiError({
+    status: 0,
+    code: "network_error",
+    message: `Could not reach Queek${reason}. Check the network connection and the api_base host, then retry; requestWithRetry() does this for you.`,
+    cause,
+  });
+}
+
+/**
+ * Combine a caller signal with the per-attempt timeout. Returns the caller
+ * signal untouched when `timeoutMs` is 0 or negative.
+ */
+export function requestSignal(signal: AbortSignal | undefined, timeoutMs: number): AbortSignal | undefined {
+  if (!(timeoutMs > 0)) return signal;
+  const timeout = AbortSignal.timeout(timeoutMs);
+  return signal === undefined ? timeout : AbortSignal.any([signal, timeout]);
 }
 
 /**
@@ -284,7 +390,9 @@ export function queekApiErrorFromResponse(status: number, body: unknown, headers
   };
   const code =
     firstString(envelope.code, record.error_code) ?? (status === 429 ? "too_many_requests" : "server_error");
-  const message = firstString(envelope.message, record.message) ?? `Queek API error ${status}`;
+  const message =
+    firstString(envelope.message, record.message) ??
+    `Queek answered HTTP ${status} without an error message. Retry, and quote the request id if it persists.`;
   const details: QueekErrorDetails = {
     status,
     code,
@@ -310,10 +418,17 @@ export interface RetryOptions {
   maxAttempts?: number;
   /** Base backoff between attempts in ms (default 250); doubles per attempt. */
   baseDelayMs?: number;
-  /** Backoff ceiling in ms (default 5000). A 429 `Retry-After` can exceed it. */
+  /** Backoff ceiling in ms (default 5000). */
   maxDelayMs?: number;
+  /**
+   * Longest `Retry-After` the call will wait out, in ms (default 30000). A
+   * 429 that asks for more is thrown at once instead of holding the caller.
+   */
+  maxRetryAfterMs?: number;
   /** Injectable clock for tests. Defaults to a real setTimeout sleep. */
   sleep?: (ms: number) => Promise<void>;
+  /** Injectable randomness for the backoff jitter, in [0, 1). Defaults to `Math.random`. */
+  random?: () => number;
 }
 
 export interface QueekClient<TPaths = paths> {
@@ -322,10 +437,12 @@ export interface QueekClient<TPaths = paths> {
   /** Generic typed escape hatch: `request<T>("GET", "/orders", { query })`. Never retries. */
   request<T>(method: string, path: string, options?: RequestOptions): Promise<T>;
   /**
-   * `request()` with bounded retries on 429s and network errors. The SAME
-   * idempotency key is reused across attempts (generated once when the
-   * caller does not supply one), so a retry can never duplicate a write;
-   * a 429 `Retry-After` is honoured over the backoff schedule.
+   * `request()` with bounded retries on 429s, 502/503/504, timeouts and
+   * network errors, with jittered exponential backoff. The SAME idempotency
+   * key is reused across attempts (generated once when the caller does not
+   * supply one), so a retry can never duplicate a write; a 429
+   * `Retry-After` is honoured over the backoff schedule. A caller abort is
+   * never retried.
    */
   requestWithRetry<T>(method: string, path: string, options?: RequestOptions & RetryOptions): Promise<T>;
 }
@@ -334,20 +451,58 @@ function defaultSleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function isRetryable(error: unknown): boolean {
-  return error instanceof QueekApiError && (error.isRateLimited || error.code === "network_error");
+/**
+ * Milliseconds to wait before the next attempt, or `null` when the error
+ * must be thrown instead of retried (not retryable, or a `Retry-After`
+ * longer than `maxRetryAfterMs`). Backoff is exponential with equal jitter
+ * (half fixed, half random) so many clients do not retry in lockstep.
+ */
+function retryDelayMs(error: QueekApiError, attempt: number, options: RetryOptions): number | null {
+  if (!error.isRetryable) return null;
+  if (error.isRateLimited && error.retryAfterMs !== undefined) {
+    return error.retryAfterMs <= (options.maxRetryAfterMs ?? DEFAULT_MAX_RETRY_AFTER_MS)
+      ? error.retryAfterMs
+      : null;
+  }
+  const ceiling = Math.min(options.maxDelayMs ?? 5000, (options.baseDelayMs ?? 250) * 2 ** attempt);
+  const random = options.random ?? Math.random;
+  return Math.floor(ceiling / 2 + (random() * ceiling) / 2);
 }
 
-function retryDelayMs(
-  error: QueekApiError,
-  attempt: number,
-  baseDelayMs: number,
-  maxDelayMs: number,
-): number {
-  if (error.isRateLimited && error.retryAfterMs !== undefined) return error.retryAfterMs;
-  return Math.min(maxDelayMs, baseDelayMs * 2 ** attempt);
+/**
+ * The retry loop both clients share. `run` receives the idempotency key to
+ * send (generated ONCE for writes when the caller gave none), so every
+ * attempt of one write carries the same key.
+ */
+export async function runWithRetry<T>(
+  method: string,
+  options: RetryOptions & { idempotencyKey?: string },
+  run: (idempotencyKey: string | undefined) => Promise<T>,
+): Promise<T> {
+  const maxAttempts = Math.max(1, Math.floor(options.maxAttempts ?? 3));
+  const sleep = options.sleep ?? defaultSleep;
+  const idempotencyKey = options.idempotencyKey ?? (isWriteMethod(method) ? newIdempotencyKey() : undefined);
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await run(idempotencyKey);
+    } catch (error) {
+      if (!(error instanceof QueekApiError) || attempt >= maxAttempts - 1) throw error;
+      const delay = retryDelayMs(error, attempt, options);
+      if (delay === null) throw error;
+      await sleep(delay);
+    }
+  }
 }
 
+/**
+ * Create a client for the Merchant API with one static installation key.
+ * Most apps want `createInstallationClient()` instead, which mints and
+ * refreshes the key for you.
+ *
+ * @example
+ * const client = createQueekClient({ apiBase: install.api_base, apiKey: process.env.QUEEK_KEY ?? "" });
+ * const store = await client.getStore();
+ */
 export function createQueekClient<TPaths = paths>(
   clientOptions: QueekClientOptions,
 ): QueekClient<ResolvedPaths<TPaths>> {
@@ -377,24 +532,27 @@ export function createQueekClient<TPaths = paths>(
       headers.set("Idempotency-Key", options.idempotencyKey ?? newIdempotencyKey());
     }
 
+    const signal = requestSignal(
+      options.signal,
+      options.timeoutMs ?? clientOptions.timeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS,
+    );
     let response: Response;
+    let text: string;
     try {
-      response = await fetchImpl(url.toString(), { method: upper, headers, body, signal: options.signal });
+      response = await fetchImpl(url.toString(), { method: upper, headers, body, signal });
+      text = await response.text();
     } catch (cause) {
-      throw new QueekApiError({
-        status: 0,
-        code: "network_error",
-        message:
-          cause instanceof Error ? `Could not reach Queek: ${cause.message}` : "Could not reach Queek.",
-      });
+      throw transportError(cause, options.signal);
     }
 
-    const text = await response.text();
-    const parsed: unknown = text === "" ? null : tryParseJson(text);
     if (!response.ok) {
-      throw queekApiErrorFromResponse(response.status, parsed, response.headers);
+      throw queekApiErrorFromResponse(
+        response.status,
+        text === "" ? null : tryParseJson(text),
+        response.headers,
+      );
     }
-    return parsed as T;
+    return parseSuccessBody<T>(response, text);
   }
 
   async function requestWithRetry<T>(
@@ -402,26 +560,9 @@ export function createQueekClient<TPaths = paths>(
     path: string,
     options: RequestOptions & RetryOptions = {},
   ): Promise<T> {
-    const maxAttempts = Math.max(1, Math.floor(options.maxAttempts ?? 3));
-    const baseDelayMs = options.baseDelayMs ?? 250;
-    const maxDelayMs = options.maxDelayMs ?? 5000;
-    const sleep = options.sleep ?? defaultSleep;
-    // One key for every attempt: Queek replays same-key+same-body writes
-    // instead of duplicating them, so retrying a write is safe.
-    const idempotencyKey =
-      options.idempotencyKey ?? (isWriteMethod(method) ? newIdempotencyKey() : undefined);
-    let lastError: unknown;
-    for (let attempt = 0; attempt < maxAttempts; attempt++) {
-      try {
-        return await request<T>(method, path, { ...options, idempotencyKey });
-      } catch (error) {
-        lastError = error;
-        const retryable = error instanceof QueekApiError && isRetryable(error);
-        if (!retryable || attempt === maxAttempts - 1) throw error;
-        await sleep(retryDelayMs(error as QueekApiError, attempt, baseDelayMs, maxDelayMs));
-      }
-    }
-    throw lastError;
+    return runWithRetry(method, options, (idempotencyKey) =>
+      request<T>(method, path, { ...options, idempotencyKey }),
+    );
   }
 
   return {
@@ -432,10 +573,85 @@ export function createQueekClient<TPaths = paths>(
   };
 }
 
-function tryParseJson(text: string): unknown {
+/**
+ * Parse a non-JSON-safe error body: JSON when it parses, otherwise the first
+ * 500 characters as the error `message`.
+ */
+export function tryParseJson(text: string): unknown {
   try {
     return JSON.parse(text) as unknown;
   } catch {
     return { message: text.slice(0, 500) };
+  }
+}
+
+/**
+ * Parse an HTTP success body. An empty body is `null`; a body that is not
+ * JSON is an `invalid_response` error, never a silently mistyped value.
+ */
+export function parseSuccessBody<T>(response: Response, text: string): T {
+  if (text === "") return null as T;
+  try {
+    return JSON.parse(text) as T;
+  } catch (cause) {
+    throw new QueekApiError({
+      status: response.status,
+      code: "invalid_response",
+      message: `Queek answered HTTP ${response.status} with a body that is not JSON. Retry; if it persists, quote the request id to Queek support.`,
+      requestId: response.headers.get("x-request-id") ?? undefined,
+      cause,
+    });
+  }
+}
+
+/** One page of a cursor-paginated Merchant API list. */
+export interface CursorPage<T> {
+  data: T[];
+  has_more: boolean;
+  next_cursor?: string | null;
+}
+
+export interface PaginateOptions {
+  /** Extra query parameters (filters, sort). `limit` and `starting_after` are managed for you. */
+  query?: Record<string, string | number | boolean | undefined>;
+  /** Rows per page. Each endpoint documents its own maximum. */
+  limit?: number;
+  signal?: AbortSignal;
+  /** Retry tuning for each page fetch. */
+  retry?: RetryOptions;
+}
+
+/**
+ * Iterate every row of a cursor-paginated list (`data`, `has_more`,
+ * `next_cursor`, driven by `starting_after`), fetching one page at a time
+ * with `requestWithRetry()`. Stops when `has_more` is false.
+ *
+ * @example
+ * for await (const order of paginate<{ p_id: string }>(client, "/orders", { limit: 50 })) {
+ *   console.log(order.p_id);
+ * }
+ */
+export async function* paginate<T>(
+  client: Pick<QueekClient<unknown>, "requestWithRetry">,
+  path: string,
+  options: PaginateOptions = {},
+): AsyncGenerator<T, void, undefined> {
+  let cursor: string | undefined;
+  while (true) {
+    const page: CursorPage<T> = await client.requestWithRetry<CursorPage<T>>("GET", path, {
+      ...options.retry,
+      query: { ...options.query, limit: options.limit, starting_after: cursor },
+      signal: options.signal,
+    });
+    yield* page.data;
+    if (!page.has_more) return;
+    if (typeof page.next_cursor !== "string" || page.next_cursor === "" || page.next_cursor === cursor) {
+      throw new QueekApiError({
+        status: 200,
+        code: "invalid_response",
+        message: `Queek reported more rows for ${path} but sent no new next_cursor, so paging stopped. Retry; if it persists, quote the request id to Queek support.`,
+      });
+    }
+    cursor = page.next_cursor;
   }
 }

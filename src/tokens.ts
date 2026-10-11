@@ -18,18 +18,24 @@ import {
 } from "./app-auth.js";
 import {
   createQueekClient,
+  DEFAULT_REQUEST_TIMEOUT_MS,
   isWriteMethod,
   MERCHANT_API_PATH,
   type MerchantPaths,
   newIdempotencyKey,
+  parseSuccessBody,
   QueekApiError,
   type QueekClient,
   queekApiErrorFromResponse,
   type RequestOptions,
   type ResolvedPaths,
   type RetryOptions,
+  requestSignal,
   resolveApiBase,
+  runWithRetry,
   type StoreProfile,
+  transportError,
+  tryParseJson,
 } from "./client.js";
 import { createLogger, type Logger } from "./logger.js";
 import { defaultClearCachedTokenIfMatches, type InstallationStore } from "./store.js";
@@ -359,7 +365,7 @@ export class AppTokenProvider implements AppTokens {
           await this.sleep(this.jittered(error.retryAfterMs ?? MINT_BACKOFF_BASE_MS));
           continue;
         }
-        if (error.status >= 500 || error.code === "network_error") {
+        if (error.status >= 500 || error.code === "network_error" || error.code === "request_timeout") {
           const backoff = Math.min(MINT_BACKOFF_MAX_MS, MINT_BACKOFF_BASE_MS * 2 ** attempt);
           await this.sleep(this.jittered(backoff));
           continue;
@@ -386,28 +392,28 @@ export class AppTokenProvider implements AppTokens {
     headers.set("Authorization", `Bearer ${jwt}`);
     headers.set("Accept", "application/json");
     headers.set("User-Agent", this.userAgent);
+    const signal = requestSignal(undefined, DEFAULT_REQUEST_TIMEOUT_MS);
     let response: Response;
+    let text: string;
     try {
-      response = await this.fetchImpl(url, { method: "POST", headers });
+      response = await this.fetchImpl(url, { method: "POST", headers, signal });
+      text = await response.text();
     } catch (cause) {
-      throw new QueekApiError({
-        status: 0,
-        code: "network_error",
-        message:
-          cause instanceof Error ? `Could not reach Queek: ${cause.message}` : "Could not reach Queek.",
-      });
+      throw transportError(cause);
     }
-    const text = await response.text();
-    const parsed: unknown = text === "" ? null : tryParseJson(text);
     if (!response.ok) {
-      throw queekApiErrorFromResponse(response.status, parsed, response.headers);
+      throw queekApiErrorFromResponse(
+        response.status,
+        text === "" ? null : tryParseJson(text),
+        response.headers,
+      );
     }
     if (response.status !== 201) {
       throw new Error(
         `Unexpected mint status ${response.status} for installation ${installationPid} (expected 201).`,
       );
     }
-    return parseMintBody(parsed, installationPid, this.credential.keyId);
+    return parseMintBody(parseSuccessBody<unknown>(response, text), installationPid, this.credential.keyId);
   }
 }
 
@@ -438,6 +444,8 @@ export interface InstallationClientOptions {
   userAgent?: string;
   /** Extra allowed `apiBase` hosts (test/local API hosts). */
   allowedApiHosts?: string[];
+  /** Time one attempt may take, in ms (default 30000). `0` disables the client timeout. */
+  timeoutMs?: number;
 }
 
 /**
@@ -463,8 +471,7 @@ export function createInstallationClient<TPaths = MerchantPaths>(
   options: InstallationClientOptions,
 ): QueekClient<ResolvedPaths<TPaths>> {
   // Validated here, once, before any fetch — same rules as the static client.
-  const probe = resolveApiBase(options.apiBase, options.allowedApiHosts ?? []);
-  void probe;
+  resolveApiBase(options.apiBase, options.allowedApiHosts ?? []);
   const fetchImpl = options.fetchImpl ?? fetch;
   const userAgent = options.userAgent ?? "queek-app/1.0";
   const allowedApiHosts = options.allowedApiHosts ?? [];
@@ -480,6 +487,7 @@ export function createInstallationClient<TPaths = MerchantPaths>(
           fetchImpl,
           userAgent,
           allowedApiHosts,
+          timeoutMs: options.timeoutMs,
         }),
       };
     }
@@ -538,28 +546,11 @@ export function createInstallationClient<TPaths = MerchantPaths>(
     path: string,
     retryOptions: RequestOptions & RetryOptions = {},
   ): Promise<T> {
-    const maxAttempts = Math.max(1, Math.floor(retryOptions.maxAttempts ?? 3));
-    const baseDelayMs = retryOptions.baseDelayMs ?? 250;
-    const maxDelayMs = retryOptions.maxDelayMs ?? 5000;
-    const sleep = retryOptions.sleep ?? defaultSleep;
-    const idempotencyKey = retryOptions.idempotencyKey;
-    let lastError: unknown;
-    for (let attempt = 0; attempt < maxAttempts; attempt++) {
-      try {
-        return await request<T>(method, path, { ...retryOptions, idempotencyKey });
-      } catch (error) {
-        lastError = error;
-        const retryable =
-          error instanceof QueekApiError && (error.isRateLimited || error.code === "network_error");
-        if (!retryable || attempt === maxAttempts - 1) throw error;
-        const delay =
-          error instanceof QueekApiError && error.isRateLimited && error.retryAfterMs !== undefined
-            ? error.retryAfterMs
-            : Math.min(maxDelayMs, baseDelayMs * 2 ** attempt);
-        await sleep(delay);
-      }
-    }
-    throw lastError;
+    // One key for every attempt: without it each `request()` would mint its
+    // own and a retried write could run twice.
+    return runWithRetry(method, retryOptions, (idempotencyKey) =>
+      request<T>(method, path, { ...retryOptions, idempotencyKey }),
+    );
   }
 
   return {
@@ -568,12 +559,4 @@ export function createInstallationClient<TPaths = MerchantPaths>(
     request,
     requestWithRetry,
   };
-}
-
-function tryParseJson(text: string): unknown {
-  try {
-    return JSON.parse(text) as unknown;
-  } catch {
-    return { message: text.slice(0, 500) };
-  }
 }
