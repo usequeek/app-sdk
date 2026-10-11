@@ -1,9 +1,11 @@
 import {
   type CoreHeaders,
+  type DeliveryErrorHandler,
   type DeliveryResult,
   decodeBody,
   type InstallDelivery,
   readHeader,
+  reportDeliveryFailure,
   toResponse,
 } from "./delivery.js";
 import {
@@ -87,6 +89,11 @@ export interface InstallHandlerOptions extends InstallCallbacks {
   store: InstallationStore;
   nowSeconds?: number;
   maxSkewSeconds?: number;
+  /**
+   * Called with the error a callback or store write threw, before the 500
+   * goes back. Without it the error is logged to stderr (secrets redacted).
+   */
+  onError?: DeliveryErrorHandler;
 }
 
 /**
@@ -208,6 +215,18 @@ export function saveResyncedInstallation(
  * `uninstall`, or `settings`, taken from the input path's last segment)
  * from plain data — no `Request`, no framework. Same options, same
  * behaviour, same errors/status codes at every layer.
+ *
+ * Answers 401 for a missing header, stale timestamp or bad signature, 400
+ * for a body that is not the expected envelope, 409 for a repeated
+ * `webhook-id`, 404 for an unknown route, and 500 when your callback or the
+ * store write throws (Queek then retries).
+ *
+ * @example
+ * const result = await handleInstallDelivery(
+ *   { rawBody, headers, method: "POST", path: "/queek/install" },
+ *   { appSecret: process.env.APP_SIGNING_SECRET ?? "", store },
+ * );
+ * // reply with result.status and result.body
  */
 export async function handleInstallDelivery(
   input: InstallDelivery,
@@ -236,6 +255,9 @@ function trailingSegment(path: string): string {
  * Layer 2: the Web-standard wrapper, built ONLY on layer 1 — reads
  * `await request.arrayBuffer()` + headers, calls the core, builds the
  * `Response`.
+ *
+ * @example
+ * export const POST = (request: Request) => handleInstallRequest(request, { appSecret, store });
  */
 export async function handleInstallRequest(
   request: Request,
@@ -287,6 +309,14 @@ function parseEnvelope(rawBody: string): HandoffEnvelopeAny | null {
   } catch {
     return null;
   }
+}
+
+function hasInstallationId(data: unknown): boolean {
+  return (
+    typeof data === "object" &&
+    data !== null &&
+    typeof (data as { installation?: { id?: unknown } }).installation?.id === "string"
+  );
 }
 
 function isInstallPayload(data: unknown): data is InstallData {
@@ -374,8 +404,9 @@ async function scopesDelivery(
         return applied;
       }
     }
-  } catch {
+  } catch (error) {
     await options.store.releaseWebhookId(checked.id);
+    reportDeliveryFailure(options.onError, error, { stage: "scopes_update", eventId: checked.id });
     return { status: 500, body: { ok: false, error: "scopes_update_failed" } };
   }
   return { status: 200, body: { ok: true } };
@@ -425,10 +456,11 @@ async function installDelivery(
       // token unless the grant changed) instead of resetting the row.
       await applyResync(options.store, (envelope as ResyncEnvelope).data);
     }
-  } catch {
+  } catch (error) {
     // Non-2xx on purpose: Queek revokes the key and the merchant retries
     // as a fresh install. The claim is released so the retry can land.
     await options.store.releaseWebhookId(checked.id);
+    reportDeliveryFailure(options.onError, error, { stage: "install", eventId: checked.id });
     return { status: 500, body: { ok: false, error: "install_failed" } };
   }
   return { status: 200, body: { ok: true } };
@@ -447,6 +479,9 @@ async function uninstallDelivery(
   if (envelope.type !== UNINSTALL_EVENT) {
     return { status: 400, body: { ok: false, error: "unexpected event type" } };
   }
+  if (!hasInstallationId((envelope as UninstallEnvelope).data)) {
+    return { status: 400, body: { ok: false, error: "invalid uninstall payload" } };
+  }
 
   if (!(await options.store.claimWebhookId(checked.id))) {
     return { status: 409, body: { ok: false, error: "duplicate delivery" } };
@@ -457,8 +492,9 @@ async function uninstallDelivery(
     } else {
       await options.store.deleteInstallation((envelope as UninstallEnvelope).data.installation.id);
     }
-  } catch {
+  } catch (error) {
     await options.store.releaseWebhookId(checked.id);
+    reportDeliveryFailure(options.onError, error, { stage: "uninstall", eventId: checked.id });
     return { status: 500, body: { ok: false, error: "uninstall_failed" } };
   }
   return { status: 200, body: { ok: true } };
@@ -496,13 +532,17 @@ async function settingsDelivery(
     }
     try {
       await applyResync(options.store, (envelope as ResyncEnvelope).data);
-    } catch {
+    } catch (error) {
       await options.store.releaseWebhookId(checked.id);
+      reportDeliveryFailure(options.onError, error, { stage: "settings", eventId: checked.id });
       return { status: 500, body: { ok: false, error: "settings_failed" } };
     }
     return { status: 200, body: { ok: true } };
   }
 
+  if (!hasInstallationId((envelope as SettingsEnvelope).data)) {
+    return { status: 400, body: { ok: false, error: "invalid settings payload" } };
+  }
   if (!(await options.store.claimWebhookId(checked.id))) {
     return { status: 409, body: { ok: false, error: "duplicate delivery" } };
   }
@@ -522,8 +562,9 @@ async function settingsDelivery(
         updatedAt: new Date().toISOString(),
       });
     }
-  } catch {
+  } catch (error) {
     await options.store.releaseWebhookId(checked.id);
+    reportDeliveryFailure(options.onError, error, { stage: "settings", eventId: checked.id });
     return { status: 500, body: { ok: false, error: "settings_failed" } };
   }
   return { status: 200, body: { ok: true } };

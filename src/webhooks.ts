@@ -1,5 +1,14 @@
-import { type CoreDelivery, type DeliveryResult, decodeBody, readHeader, toResponse } from "./delivery.js";
 import {
+  type CoreDelivery,
+  type DeliveryErrorHandler,
+  type DeliveryResult,
+  decodeBody,
+  readHeader,
+  reportDeliveryFailure,
+  toResponse,
+} from "./delivery.js";
+import {
+  isFreshTimestamp,
   MAX_TIMESTAMP_SKEW_SECONDS,
   verifyQueekSignature,
   WEBHOOK_ID_HEADER,
@@ -30,7 +39,7 @@ import type { InstallationRecord, InstallationStore } from "./store.js";
  * installations per app are few). Apps that carry their own routing hint
  * may pass `resolveSecret` instead.
  *
- * Dedupe: Queek retries a delivery for ~4h until it sees 2xx, so every
+ * Dedupe: Queek retries a delivery until it sees 2xx, so every
  * `webhook-id` is processed AT MOST once — the header id is claimed
  * atomically up front (exactly one concurrent same-id delivery runs the
  * handler) and a repeat answers 200 WITHOUT re-running it. A throwing
@@ -78,6 +87,11 @@ export interface WebhookHandlerOptions {
   ) => Promise<SecretResolution | null>;
   nowSeconds?: number;
   maxSkewSeconds?: number;
+  /**
+   * Called with the error a handler threw, before the 500 goes back. Without
+   * it the error is logged to stderr (secrets redacted).
+   */
+  onError?: DeliveryErrorHandler;
 }
 
 async function defaultResolveSecret(
@@ -123,6 +137,25 @@ async function defaultResolveSecret(
  * Layer 1: handle one signed Queek topic delivery from plain data — no
  * `Request`, no framework. Same options, same behaviour, same
  * errors/status codes at every layer.
+ *
+ * Answers 401 for a missing header, an unknown installation, a stale
+ * timestamp or a bad signature; 400 for a body that is not a JSON envelope;
+ * 200 for a handled, repeated or unhandled-topic delivery; 500 when your
+ * handler throws (the claim is released so Queek's retry can land).
+ *
+ * @example
+ * const result = await handleWebhookDelivery(
+ *   { rawBody, headers },
+ *   {
+ *     store,
+ *     handlers: {
+ *       "orders/updated": async (envelope, { installation }) => {
+ *         await syncOrder(installation.installationId, envelope.data);
+ *       },
+ *     },
+ *   },
+ * );
+ * // reply with result.status and result.body
  */
 export async function handleWebhookDelivery(
   input: CoreDelivery,
@@ -160,8 +193,7 @@ export async function handleWebhookDelivery(
   // lookup above deliberately skips it so a stale delivery cannot be
   // misattributed before it is rejected.
   const now = options.nowSeconds ?? Math.floor(Date.now() / 1000);
-  const ts = Number(timestamp);
-  if (!Number.isFinite(ts) || Math.abs(now - ts) > maxSkew) {
+  if (!isFreshTimestamp(timestamp, now, maxSkew)) {
     return { status: 401, body: { ok: false, error: "stale timestamp" } };
   }
   // Freshness was enforced above; this re-checks the MAC only, so a
@@ -197,8 +229,9 @@ export async function handleWebhookDelivery(
 
   try {
     await handler(envelope, { installation, topic, eventId: id });
-  } catch {
+  } catch (error) {
     await options.store.releaseWebhookId(id);
+    reportDeliveryFailure(options.onError, error, { stage: "webhook", eventId: id, topic });
     return { status: 500, body: { ok: false, error: "handler_failed" } };
   }
   return { status: 200, body: { ok: true } };

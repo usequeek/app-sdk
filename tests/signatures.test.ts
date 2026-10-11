@@ -108,3 +108,33 @@ describe("verification semantics", () => {
     expect(verifyQueekSignature({ ...input, signatureHeader: "" }, { nowSeconds: now })).toBe(false);
   });
 });
+
+describe("timestamp freshness", () => {
+  const secret = fakeSecret("freshness");
+  const NOW = 1758685600;
+  const verifyAt = (timestamp: string) =>
+    verifyQueekSignature(
+      {
+        id: "evt_1",
+        timestamp,
+        body: "{}",
+        signatureHeader: signQueekPayload("evt_1", timestamp, "{}", secret),
+        secret,
+      },
+      { nowSeconds: NOW },
+    );
+
+  it("accepts a plain integer inside the window, early or late", () => {
+    expect(verifyAt(String(NOW))).toBe(true);
+    expect(verifyAt(String(NOW - 299))).toBe(true);
+    expect(verifyAt(String(NOW + 299))).toBe(true);
+  });
+
+  it("rejects outside the window, and any timestamp that is not a plain integer", () => {
+    expect(verifyAt(String(NOW - 301))).toBe(false);
+    expect(verifyAt(String(NOW + 301))).toBe(false);
+    for (const odd of ["1e3", "0x10", "1758685600.5", " 1758685600", "-1758685600", "NaN"]) {
+      expect(verifyAt(odd)).toBe(false);
+    }
+  });
+});

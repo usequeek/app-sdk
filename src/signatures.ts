@@ -48,6 +48,16 @@ export interface VerifyOptions {
   skipFreshnessCheck?: boolean;
 }
 
+/**
+ * True when `timestamp` is a plain unix-seconds integer within `maxSkewSeconds`
+ * of `nowSeconds`, in either direction. Anything else (`""`, `"1e3"`,
+ * `"0x10"`, `"12.5"`) is stale: the signed header must be what Queek sent.
+ */
+export function isFreshTimestamp(timestamp: string, nowSeconds: number, maxSkewSeconds: number): boolean {
+  return /^\d{1,15}$/.test(timestamp) && Math.abs(nowSeconds - Number(timestamp)) <= maxSkewSeconds;
+}
+
+/** The decoded MAC key for a `whsec_` secret (a secret that is not valid base64 is used as raw text). */
 export function secretKeyBytes(secret: string): Buffer {
   const encoded = secret.startsWith(SECRET_PREFIX) ? secret.slice(SECRET_PREFIX.length) : secret;
   try {
@@ -79,10 +89,29 @@ export function signQueekPayload(
 /** Failure reason when verification rejects a delivery. */
 export type SignatureFailure = "missing_headers" | "stale_timestamp" | "signature_mismatch";
 
+/**
+ * True when one of the signatures in the header matches the body, and the
+ * timestamp is within the skew window. The compare is constant-time and
+ * covers every signature in the header (a secret rotation sends two).
+ *
+ * @example
+ * const ok = verifyQueekSignature({
+ *   id: request.headers.get("webhook-id") ?? "",
+ *   timestamp: request.headers.get("webhook-timestamp") ?? "",
+ *   signatureHeader: request.headers.get("webhook-signature") ?? "",
+ *   body: await request.text(), // the raw text, before any JSON.parse
+ *   secret: installation.webhookSecret,
+ * });
+ */
 export function verifyQueekSignature(input: SignatureInput, options: VerifyOptions = {}): boolean {
   return verifyQueekSignatureDetailed(input, options).ok;
 }
 
+/**
+ * Like {@link verifyQueekSignature}, but says why a delivery was rejected:
+ * `missing_headers`, `stale_timestamp` or `signature_mismatch`. Log the
+ * reason; answer 401 either way.
+ */
 export function verifyQueekSignatureDetailed(
   input: SignatureInput,
   options: VerifyOptions = {},
@@ -93,10 +122,9 @@ export function verifyQueekSignatureDetailed(
   }
 
   if (!options.skipFreshnessCheck) {
-    const ts = Number(timestamp);
     const now = options.nowSeconds ?? Math.floor(Date.now() / 1000);
     const maxSkew = options.maxSkewSeconds ?? MAX_TIMESTAMP_SKEW_SECONDS;
-    if (!Number.isFinite(ts) || Math.abs(now - ts) > maxSkew) {
+    if (!isFreshTimestamp(timestamp, now, maxSkew)) {
       return { ok: false, reason: "stale_timestamp" };
     }
   }

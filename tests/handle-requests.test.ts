@@ -122,6 +122,43 @@ describe("handleInstallRequest (framework-agnostic core)", () => {
     expect(await store.hasSeenWebhookId("evt-install-1")).toBe(false);
   });
 
+  it("hands the callback error to onError (and never lets onError change the answer)", async () => {
+    const store = new SqliteInstallationStore({ path: ":memory:", storeKey: STORE_KEY });
+    const boom = new Error("disk on fire");
+    const seen: Array<{ error: unknown; stage: string; eventId: string }> = [];
+    const options = installOptions(store, {
+      onInstall: async () => {
+        throw boom;
+      },
+      onError: (error, failure) => {
+        seen.push({ error, ...failure });
+        throw new Error("a broken error reporter");
+      },
+    });
+    const body = installBody();
+    const response = await handleInstallRequest(
+      webRequest("/install", body, signedHeaders("evt-install-err", NOW, body, APP_SECRET)),
+      options,
+    );
+    expect(response.status).toBe(500);
+    expect(seen).toEqual([{ error: boom, stage: "install", eventId: "evt-install-err" }]);
+  });
+
+  it("answers 400, not 500, when an uninstall or settings payload names no installation", async () => {
+    const store = new SqliteInstallationStore({ path: ":memory:", storeKey: STORE_KEY });
+    for (const [route, type] of [
+      ["/uninstall", "app/uninstalled"],
+      ["/settings", "app/settings_updated"],
+    ] as const) {
+      const body = JSON.stringify({ id: "evt-n", type, api_version: "v1", created_at: "x", data: {} });
+      const response = await handleInstallRequest(
+        webRequest(route, body, signedHeaders(`evt-n${route}`, NOW, body, APP_SECRET)),
+        installOptions(store),
+      );
+      expect(response.status).toBe(400);
+    }
+  });
+
   it("answers 400 when the event type does not belong on the route", async () => {
     const store = new SqliteInstallationStore({ path: ":memory:", storeKey: STORE_KEY });
     const body = JSON.stringify({

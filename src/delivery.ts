@@ -1,3 +1,5 @@
+import { createLogger } from "./logger.js";
+
 /**
  * Shared plumbing for the framework-free delivery core (layer 1).
  *
@@ -59,6 +61,48 @@ export function readHeader(headers: CoreHeaders, name: string): string | undefin
 export function decodeBody(rawBody: Uint8Array | Buffer | string): string {
   if (typeof rawBody === "string") return rawBody;
   return new TextDecoder("utf-8").decode(rawBody);
+}
+
+/** Where a callback failed, passed to `onError`. */
+export interface DeliveryFailure {
+  /** `install`, `uninstall`, `settings`, `scopes_update` or `webhook`. */
+  stage: string;
+  /** The `webhook-id` header of the delivery that failed. */
+  eventId: string;
+  /** The topic, for webhook deliveries. */
+  topic?: string;
+}
+
+/** Receives the error a callback threw. The delivery still answers 500 so Queek retries. */
+export type DeliveryErrorHandler = (error: unknown, failure: DeliveryFailure) => void;
+
+const defaultLogger = createLogger({ service: "queek-app-sdk" });
+
+/**
+ * Surface the error a callback threw, so a 500 is never a mystery. Calls the
+ * app's `onError` when given, otherwise logs the error name and message
+ * (secrets redacted) to stderr. A throwing `onError` cannot change the
+ * response.
+ */
+export function reportDeliveryFailure(
+  onError: DeliveryErrorHandler | undefined,
+  error: unknown,
+  failure: DeliveryFailure,
+): void {
+  try {
+    if (onError) {
+      onError(error, failure);
+      return;
+    }
+    defaultLogger.error("queek delivery callback failed; answering 500 so Queek retries", {
+      stage: failure.stage,
+      event_id: failure.eventId,
+      topic: failure.topic,
+      error: error instanceof Error ? `${error.name}: ${error.message}` : String(error),
+    });
+  } catch {
+    // Reporting must never change the HTTP answer.
+  }
 }
 
 /** Build the layer-2 `Response` from a layer-1 result. */
