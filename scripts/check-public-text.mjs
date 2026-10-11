@@ -29,6 +29,7 @@ export const RULES = [
   { id: "rendering-bug", re: /\[object Objec[t]\]/i },
   { id: "plan-id", re: /plan T[0-9]/i },
   { id: "decision-id", re: /decision [0-9]+/i },
+  { id: "named-platform", re: /\b(Shopif[y]|WooCommerc[e]|BigCommerc[e]|Magent[o]|Squarespac[e]|Webflo[w]|Salesforc[e]|Medus[a]|Saleo[r]|Ets[y]|Amazo[n]|Twili[o]|Verce[l]|Wi[x])\b/i },
   { id: "secret-key", re: /sk_(live|test)_[A-Za-z0-9]{10,}/i, secret: true },
   { id: "github-token", re: /ghp_[A-Za-z0-9]{20,}/i, secret: true },
   { id: "private-key", re: /BEGIN [A-Z ]*PRIVATE KEY/i, secret: true },

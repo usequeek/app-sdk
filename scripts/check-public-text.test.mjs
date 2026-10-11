@@ -19,6 +19,7 @@ const LEAKS = {
   "rendering-bug": word("[object ", "Object]"),
   "plan-id": word("plan ", "T2"),
   "decision-id": word("decision ", "4"),
+  "named-platform": word("works like ", "Shop", "ify"),
 };
 const FAKE_KEY = word("sk", "_", "test", "_", "A1b2C3d4E5f6G7h8");
 
