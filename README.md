@@ -474,7 +474,7 @@ Every export has JSDoc in its type definitions. By module:
 | `resync`, `background` | `resyncFromQueek`, `runInstallationCatchup`, `detach` |
 | `scopes` | `createInstallationScopesClient`, `AppScopeRequiredError` |
 | `session` (`/server`) | `verifySessionToken`, `verifySessionTokenDetailed` |
-| `frame`, `theme`, `auth-fetch` (`/browser`) | The embedded-app bridge, `installAuthFetch`, theme helpers |
+| `frame`, `theme`, `auth-fetch` (`/browser`) | The embedded-page bridge, `installAuthFetch`, theme helpers |
 | `react` (`/react`) | `QueekProvider`, `useQueek` |
 | `logger` | `createLogger`, with secret redaction for keys, `whsec_` secrets, bearer tokens, JWTs and PEM blocks |
 

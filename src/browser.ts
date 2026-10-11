@@ -1,5 +1,5 @@
 /**
- * Plain-browser entry for `@usequeek/app-sdk`: the embedded-app bridge plus
+ * Plain-browser entry for `@usequeek/app-sdk`: the embedded-page bridge plus
  * `installAuthFetch`, with ZERO Node-only modules.
  *
  * Import from `@usequeek/app-sdk/browser` in any browser bundle (Vite,
