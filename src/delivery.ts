@@ -1,4 +1,4 @@
-import { createLogger } from "./logger.js";
+import { createLogger, type Logger } from "./logger.js";
 
 /**
  * Shared plumbing for the framework-free delivery core (layer 1).
@@ -76,7 +76,7 @@ export interface DeliveryFailure {
 /** Receives the error a callback threw. The delivery still answers 500 so Queek retries. */
 export type DeliveryErrorHandler = (error: unknown, failure: DeliveryFailure) => void;
 
-const defaultLogger = createLogger({ service: "queek-app-sdk" });
+let defaultLogger: Logger | null = null;
 
 /**
  * Surface the error a callback threw, so a 500 is never a mystery. Calls the
@@ -94,6 +94,7 @@ export function reportDeliveryFailure(
       onError(error, failure);
       return;
     }
+    defaultLogger ??= createLogger({ service: "queek-app-sdk" });
     defaultLogger.error("queek delivery callback failed; answering 500 so Queek retries", {
       stage: failure.stage,
       event_id: failure.eventId,

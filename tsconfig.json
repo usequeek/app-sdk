@@ -16,8 +16,6 @@
     "resolveJsonModule": true,
     "composite": true,
     "declaration": true,
-    "declarationMap": true,
-    "sourceMap": true,
     "outDir": "dist",
     "rootDir": "src",
     "types": ["node"]

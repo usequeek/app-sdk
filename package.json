@@ -3,15 +3,31 @@
   "version": "0.6.2",
   "private": false,
   "license": "MIT",
-  "description": "SDK for Queek installable apps: webhook signature verification, install handlers, typed Merchant API client, webhook dispatch, encrypted installation store.",
+  "author": "Queekx Technology LTD",
+  "description": "SDK for Queek apps: signed install and webhook handlers, a typed Merchant API client with retries and pagination, installation tokens and an encrypted installation store.",
+  "keywords": [
+    "queek",
+    "queek-app",
+    "merchant-api",
+    "webhooks",
+    "webhook-signature",
+    "commerce",
+    "sdk",
+    "typescript"
+  ],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/usequeek/app-sdk.git"
   },
+  "bugs": {
+    "url": "https://github.com/usequeek/app-sdk/issues"
+  },
+  "homepage": "https://docs.usequeek.com/docs/apps/sdk",
   "publishConfig": {
     "access": "public"
   },
   "type": "module",
+  "sideEffects": false,
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
