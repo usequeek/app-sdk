@@ -124,6 +124,18 @@ export function stripLaunchToken(href: string, param: string = LAUNCH_TOKEN_PARA
   }
 }
 
+/**
+ * Install same-origin session carriage for an embedded page. Reads and strips
+ * the first-load token, exchanges it once, and returns a `fetch` that adds
+ * `Authorization: Bearer <session>` to same-origin requests.
+ *
+ * @example
+ * const auth = installAuthFetch({
+ *   dashboardOrigin: "https://dashboard.usequeek.com",
+ *   exchange: async (token) => (await fetch("/api/session", { method: "POST", body: token })).text(),
+ * });
+ * const response = await auth.fetch("/api/orders");
+ */
 export function installAuthFetch(options: AuthFetchOptions): InstalledAuth {
   const param = options.param ?? LAUNCH_TOKEN_PARAM;
   const win = globalWindow();

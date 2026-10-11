@@ -19,6 +19,14 @@ export interface DetachOptions {
   onError: (error: unknown) => void;
 }
 
+/**
+ * Run a promise in the background without leaving it unhandled: a rejection
+ * goes to `options.onError` with the `label`, never to an unhandled-rejection
+ * crash. Use it to answer a delivery fast and finish the work after.
+ *
+ * @example
+ * detach(syncCatalogue(installationId), { label: "catalogue sync", onError: (e) => logger.error("sync failed", { e: String(e) }) });
+ */
 export function detach(promise: Promise<unknown>, options: DetachOptions): void {
   inFlight.add(promise);
   promise
@@ -90,6 +98,7 @@ function defaultSleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/** Run `forInstallation` for every stored installation on a jittered schedule. See the notes above for the guarantees. */
 export async function runInstallationCatchup(options: CatchupOptions): Promise<CatchupResult> {
   const sleep = options.sleep ?? defaultSleep;
   const random = options.random ?? Math.random;

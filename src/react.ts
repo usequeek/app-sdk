@@ -166,6 +166,15 @@ function resolveConfig(props: QueekProviderProps, win: GlobalWindow | null) {
   };
 }
 
+/**
+ * Owns the one bridge subscription for the embedded merchant page. Wrap the
+ * app root in it, then call `useQueek()` anywhere below.
+ *
+ * @example
+ * <QueekProvider dashboardOrigin="https://dashboard.usequeek.com" capabilities={["toast"]}>
+ *   <App />
+ * </QueekProvider>
+ */
 export function QueekProvider(props: QueekProviderProps): ReactNode {
   const { dashboardOrigin, children, sdkVersion } = props;
   const win = useMemo(() => globalWindow(), []);

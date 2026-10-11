@@ -105,6 +105,17 @@ function defaultSleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/**
+ * Recover connectivity after a database loss or a long outage: list the
+ * app's active installations and ask Queek to redeliver each one's secrets
+ * and settings over the signed install channel. A refusal for one
+ * installation never aborts the run; read `cooldownSkipped`,
+ * `pendingSkipped` and `purged` on the result.
+ *
+ * @example
+ * const result = await resyncFromQueek({ apiBase: "https://api.usequeek.com", tokens, store });
+ * console.log(result.resyncRequested.length, "installations asked to redeliver");
+ */
 export async function resyncFromQueek(options: ResyncOptions): Promise<ResyncResult> {
   const fetchImpl = options.fetchImpl ?? fetch;
   const userAgent = options.userAgent ?? "queek-app/1.0";

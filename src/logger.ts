@@ -62,6 +62,13 @@ export interface Logger {
   error(message: string, fields?: LogFields): void;
 }
 
+/**
+ * A JSON-lines logger with secret redaction built in.
+ *
+ * @example
+ * const logger = createLogger({ service: "my-app" });
+ * logger.info("order synced", { order: "ord_123" });
+ */
 export function createLogger(options: LoggerOptions): Logger {
   const threshold = LEVELS[options.level ?? (process.env.LOG_LEVEL as LogLevel | undefined) ?? "info"] ?? 1;
   const sink =

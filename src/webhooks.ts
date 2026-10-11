@@ -51,6 +51,7 @@ import type { InstallationRecord, InstallationStore } from "./store.js";
 
 export const QUEEK_TOPIC_HEADER = "X-Queek-Topic";
 
+/** The signed envelope of one topic delivery. `data` is the topic payload. */
 export interface QueekWebhookEnvelope<TData = unknown> {
   id: string;
   topic: string;
@@ -75,6 +76,7 @@ export interface SecretResolution {
   secret: string;
 }
 
+/** Options for the topic webhook receiver. `store` and `handlers` are required. */
 export interface WebhookHandlerOptions {
   store: InstallationStore;
   /** `topic → handler`, e.g. `{ "orders/updated": onOrderUpdated }`. */

@@ -83,6 +83,7 @@ export interface InstallCallbacks {
   onScopesUpdate?: (envelope: ScopesUpdateEnvelope) => Promise<void>;
 }
 
+/** Options for the install handoff handlers. `appSecret` and `store` are required; every callback has a safe default. */
 export interface InstallHandlerOptions extends InstallCallbacks {
   /** The app signing secret (`whsec_…`) from Queek registration. */
   appSecret: string;

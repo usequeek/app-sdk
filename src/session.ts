@@ -77,6 +77,11 @@ export interface VerifySessionTokenOptions {
   clockToleranceSeconds?: number;
 }
 
+/**
+ * True when `token` is a valid dashboard session token for the installation
+ * in `options.expected`. See {@link verifySessionTokenDetailed} for the
+ * reason a token was refused.
+ */
 export async function verifySessionToken(
   token: string,
   options: VerifySessionTokenOptions,
@@ -85,6 +90,21 @@ export async function verifySessionToken(
   return result.ok;
 }
 
+/**
+ * Verify a dashboard session token: algorithm pin, signature, audience,
+ * issuer, expiry (20 s clock tolerance), then the installation binding.
+ * Returns the claims on success and a stable `reason` on failure. Answer 401
+ * for every failure.
+ *
+ * @example
+ * const checked = await verifySessionTokenDetailed(token, {
+ *   secret: installation.embedSecret ?? "",
+ *   audience: "my-app",
+ *   issuer: installation.apiBase,
+ *   expected: { installationId, vendorId, appSlug: "my-app", appId },
+ * });
+ * if (!checked.ok) return new Response(checked.reason, { status: 401 });
+ */
 export async function verifySessionTokenDetailed(
   token: string,
   options: VerifySessionTokenOptions,

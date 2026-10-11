@@ -131,10 +131,17 @@ export function resolveAppApiBase(raw: string, allowedApiHosts: string[] = []): 
   return `${merchant.slice(0, merchant.length - MERCHANT_API_PATH.length)}${APP_API_PATH}`;
 }
 
+/** The app-API path that mints a token for one installation. */
 export function mintPath(installationId: string): string {
   return `/installations/${encodeURIComponent(installationId)}/access_tokens`;
 }
 
+/**
+ * Mints, caches and refreshes installation tokens for one app. Tokens are
+ * minted with the app's RSA key, cached encrypted in the installation store,
+ * and shared by concurrent callers in one process. Build one with
+ * {@link createAppTokenProvider} and pass it to `createInstallationClient`.
+ */
 export class AppTokenProvider implements AppTokens {
   private readonly credential: AppCredential;
   private readonly store: InstallationStore;

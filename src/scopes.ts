@@ -272,6 +272,20 @@ export interface InstallationScopesClient {
   revokeScopes(scopes: string[], options?: RevokeScopesOptions): Promise<string[]>;
 }
 
+/**
+ * Build the optional-scopes session for one installation: read the cached
+ * grant, build the dashboard consent link, and revoke optional scopes.
+ *
+ * @example
+ * const scopes = createInstallationScopesClient({
+ *   installationId,
+ *   store,
+ *   signJwt: () => tokens.signJwt(),
+ *   appSlug: "my-app",
+ *   optionalScopes: ["merchant-orders-read"],
+ * });
+ * const { granted } = await scopes.queryScopes();
+ */
 export function createInstallationScopesClient(
   options: InstallationScopesClientOptions,
 ): InstallationScopesClient {

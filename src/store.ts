@@ -80,6 +80,12 @@ export interface WebhookSecretCandidate {
   secret: string;
 }
 
+/**
+ * Where installations live. The SDK ships `SqliteInstallationStore` (local
+ * and test) and `PostgresInstallationStore` (production); both encrypt
+ * secrets at rest. Implement this interface to use another database, and
+ * keep `claimWebhookId` atomic: handlers rely on it to run each delivery once.
+ */
 export interface InstallationStore {
   saveInstallation(record: InstallationRecord): Promise<void> | void;
   getInstallation(installationId: string): Promise<InstallationRecord | null> | InstallationRecord | null;
