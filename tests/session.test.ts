@@ -94,7 +94,7 @@ describe("verifySessionToken", () => {
     for (const [name, claims] of [
       ["app_id", { app_id: "app-uuid-other" }],
       ["vendor_id", { vendor_id: "vendor-uuid-other" }],
-      ["app_slug", { app_slug: "glovo" }],
+      ["app_slug", { app_slug: "sample-app" }],
       ["installation_id", { installation_id: "install-uuid-other" }],
     ] as const) {
       const token = await signValid(claims as Record<string, unknown>);
@@ -125,7 +125,7 @@ describe("verifySessionToken", () => {
     expect((await verifySessionTokenDetailed(early, OPTIONS)).reason).toBe("not_yet_valid");
 
     const valid = await signValid();
-    expect((await verifySessionTokenDetailed(valid, { ...OPTIONS, audience: "glovo" })).reason).toBe(
+    expect((await verifySessionTokenDetailed(valid, { ...OPTIONS, audience: "sample-app" })).reason).toBe(
       "wrong_audience",
     );
     expect(

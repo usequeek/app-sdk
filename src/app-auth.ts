@@ -111,7 +111,7 @@ export function isInsufficientScope(status: number, code: string | undefined): b
 // Timing bounds (all in the open, all injectable in tests).
 // ---------------------------------------------------------------------------
 
-/** App-JWT `iat` is backdated this far (clock skew, GitHub's recommendation). */
+/** App-JWT `iat` is backdated this far, so a small clock skew between the app and Queek cannot make a fresh token look not-yet-valid. */
 export const APP_JWT_SKEW_SECONDS = 60;
 /** App-JWT lifetime: `exp = iat + 540`, so `exp − iat` (540 s) stays ≤ the 600 s wire bound. */
 export const APP_JWT_TTL_SECONDS = 540;

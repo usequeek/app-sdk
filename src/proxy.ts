@@ -13,7 +13,7 @@ import { type InstallationRecord, type InstallationStore, normalisePid } from ".
  *   sig = hex HMAC-SHA256 over
  *     path + "\n" + shop + "\n" + ts + "\n" + sorted(k=v&...) (sig excluded),
  *
- * where each pair is `rawurlencode(key)=rawurlencode(value)` and keys sort
+ * where each pair is `encode(key)=encode(value)` (RFC 3986 percent-encoding) and keys sort
  * byte-wise. The HMAC key is the FULL `whsec_…` string — no base64 decode
  * step (the single most common integration bug cannot happen here).
  *
@@ -50,14 +50,14 @@ export type ProxyFailure =
   | "unknown_installation"
   | "replayed";
 
-/** RFC 3986 percent-encoding (PHP's `rawurlencode`): everything except `[A-Za-z0-9-_.~]` is `%XX` (upper-case hex). */
+/** RFC 3986 percent-encoding: everything except `[A-Za-z0-9-_.~]` is `%XX` (upper-case hex), the encoding Queek signs with. */
 function proxyEncode(value: string): string {
   return encodeURIComponent(value).replace(/[!'()*]/g, (ch) => {
     return `%${ch.charCodeAt(0).toString(16).toUpperCase().padStart(2, "0")}`;
   });
 }
 
-/** Scalar query values as strings (PHP `strval` semantics): null/undefined become `""`, everything else stringifies. */
+/** Scalar query values as strings, as Queek's signer reads them: null becomes `""`, an array contributes its first value, everything else stringifies. `undefined` means absent. */
 function proxyString(value: string | string[] | null | undefined): string | undefined {
   if (value === undefined) return undefined;
   if (value === null) return "";
@@ -76,7 +76,7 @@ function normalizeQuery(query: ProxyQuery): Record<string, string> {
 
 /**
  * The canonical string the MAC covers, exactly as Queek builds it (sig
- * excluded, keys byte-sorted, rawurlencoded pairs).
+ * excluded, keys byte-sorted, percent-encoded pairs).
  */
 export function buildProxyCanonicalString(path: string, params: Record<string, string>): string {
   const sorted = { ...params };

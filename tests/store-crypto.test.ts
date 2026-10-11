@@ -11,7 +11,7 @@ const KEY_B64 = Buffer.alloc(32, 3).toString("base64");
 const KEY_HEX = Buffer.alloc(32, 3).toString("hex");
 const WEBHOOK_SECRET = fakeSecret("super-secret-webhook-material");
 const PROXY_SECRET = fakeSecret("super-secret-proxy-material");
-const MERCHANT_KEY_VALUE = "fake-chowdeck-merchant-key-value";
+const MERCHANT_KEY_VALUE = "fake-courier-merchant-key-value";
 
 function record(): InstallationRecord {
   return {
@@ -26,7 +26,7 @@ function record(): InstallationRecord {
     tokenKid: "kid-1",
     pending: false,
     scopes: ["merchant-orders-read"],
-    settings: { greeting: "hello", chowdeck_api_key: MERCHANT_KEY_VALUE },
+    settings: { greeting: "hello", courier_api_key: MERCHANT_KEY_VALUE },
     webhookSecret: WEBHOOK_SECRET,
     proxySecret: PROXY_SECRET,
     webhookUrl: "https://hello.apps.usequeek.com/webhooks",
@@ -97,7 +97,7 @@ describe("SqliteInstallationStore", () => {
       tokenKid: "kid-1",
       webhookSecret: WEBHOOK_SECRET,
       proxySecret: PROXY_SECRET,
-      settings: { greeting: "hello", chowdeck_api_key: MERCHANT_KEY_VALUE },
+      settings: { greeting: "hello", courier_api_key: MERCHANT_KEY_VALUE },
     });
     expect(loaded?.tokenExpiresAt).toContain("20");
     expect(store.getInstallation("missing")).toBeNull();
@@ -137,7 +137,7 @@ describe("SqliteInstallationStore", () => {
     );
     expect(
       (JSON.parse(decryptSecret(row.settings_json, parseStoreKey(KEY_B64))) as Record<string, unknown>)
-        .chowdeck_api_key,
+        .courier_api_key,
     ).toBe(MERCHANT_KEY_VALUE);
   });
 
