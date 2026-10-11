@@ -2,8 +2,8 @@ name: Publish
 
 # Tags are the release: `git tag vX.Y.Z && git push origin main --tags`.
 # The workflow re-runs every gate, then publishes the exact source it verified.
-# Requires the NPM_TOKEN repository secret (an npm access token with
-# publish rights on @usequeek/app-sdk).
+# Publishes through npm trusted publishing (OIDC): no token is stored.
+# The package's Trusted Publisher on npmjs.com names this workflow file.
 
 on:
   push:
@@ -23,7 +23,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '24'
           cache: npm
           registry-url: 'https://registry.npmjs.org'
 
@@ -62,5 +62,3 @@ jobs:
 
       - name: Publish
         run: npm publish --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
