@@ -3624,8 +3624,6 @@ export interface components {
             weight?: number | null;
             unit?: string | null;
             collection_ids?: string[] | null;
-            categories?: string[] | null;
-            collection_category_ids?: string[] | null;
             variations?: string[] | null;
             has_variants?: boolean;
             variants?: {
@@ -18218,10 +18216,6 @@ export interface operations {
                 "multipart/form-data": components["schemas"]["ProductRequest"] & {
                     /** @description The vendor's own collection ids (max 50), the same for every store type; optional on create. On update omit or send null to keep the current collections, send [] to clear them. Each id must be one of your own active manual collections: a global, another store's, trashed or smart collection is a 422. */
                     collection_ids?: string[];
-                    /** @description DEPRECATED alias of collection_ids, accepted for a limited window and ignored when collection_ids is sent. Validated under its own key. */
-                    categories?: string[];
-                    /** @description DEPRECATED alias of collection_ids, accepted for a limited window and ignored when collection_ids is sent. Validated under its own key. */
-                    collection_category_ids?: string[];
                     /** @description Accepted and ignored: the marketplace taxonomy is never vendor-facing, so this key has no effect (marketplace placement is assigned automatically). Any value is accepted so older clients keep working. */
                     taxonomy_category_id?: string;
                     /** @description Accepted and ignored: the marketplace taxonomy is never vendor-facing, so this key has no effect (marketplace placement is assigned automatically). Any value is accepted so older clients keep working. */
@@ -19027,10 +19021,6 @@ export interface operations {
                 "multipart/form-data": components["schemas"]["ProductRequest"] & {
                     /** @description The vendor's own collection ids (max 50), the same for every store type; optional on create. On update omit or send null to keep the current collections, send [] to clear them. Each id must be one of your own active manual collections: a global, another store's, trashed or smart collection is a 422. */
                     collection_ids?: string[];
-                    /** @description DEPRECATED alias of collection_ids, accepted for a limited window and ignored when collection_ids is sent. Validated under its own key. */
-                    categories?: string[];
-                    /** @description DEPRECATED alias of collection_ids, accepted for a limited window and ignored when collection_ids is sent. Validated under its own key. */
-                    collection_category_ids?: string[];
                     /** @description Accepted and ignored: the marketplace taxonomy is never vendor-facing, so this key has no effect (marketplace placement is assigned automatically). Any value is accepted so older clients keep working. */
                     taxonomy_category_id?: string;
                     /** @description Accepted and ignored: the marketplace taxonomy is never vendor-facing, so this key has no effect (marketplace placement is assigned automatically). Any value is accepted so older clients keep working. */
