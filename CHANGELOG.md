@@ -2,7 +2,7 @@
 
 All notable changes to `@usequeek/app-sdk`. Releases before this file are listed on the [GitHub releases page](https://github.com/usequeek/app-sdk/releases).
 
-## Unreleased
+## 0.7.0 - 2026-10-12
 
 ### Fixed
 
