@@ -26,3 +26,4 @@ All notable changes to `@usequeek/app-sdk`. Releases before this file are listed
 - Backoff between retries is now jittered between half and the full ceiling.
 - Error messages for decryption, minting, revoking and missing `fetch` say what to do next. `useQueek()` outside `<QueekProvider>` now throws "useQueek must be called inside <QueekProvider>. Wrap the app root in <QueekProvider>."
 - The README is rewritten, and every TypeScript sample in it is typechecked.
+- The bundled Merchant API types match production. Product responses no longer carry `collection_category_ids`; read `collections[].id`. Product writes and bulk update take `collection_ids`.
