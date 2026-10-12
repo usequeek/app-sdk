@@ -1008,7 +1008,7 @@ export interface paths {
          * List orders
          * @description Requires scope `merchant-orders-read`.
          *
-         *     Lists the store’s orders using the same base object as orders/* webhooks; recorded payment transactions and Queek wallet-refund rows are present only with merchant-orders-read (webhooks include them only for active installations granted that scope). Order status, shipment, import, rider-assignment and patch responses do not include those finance arrays. Same filtering and search as the dashboard table with cursor pagination (`limit` + `starting_after`, `has_more`/`next_cursor`). `publication` scopes the list to one of the calling installation’s channel publications (p_id or key; human keys use p_id and need the publications-read permission, without it the filter answers 404). `custom_channel` scopes the list to one hand-recorded or third-party channel name (e.g. glovo, chowdeck, instagram) and combines with the other filters. Optional `updated_after` walks order rows changed after a timestamp, oldest change first; start each poll five minutes before the previous poll start, deduplicate ids, keep filters fixed and walk sequentially. With `updated_after`, `sort_by`, `sort_order`, `page` and `per_page` return 422; a cursor is bound to the same timestamp and filters. Item/property, shipment, metafield or customer-profile changes and deleted orders may be missed; long-running changes may appear late. The filter time is not returned and may differ from `updated_at`; this is not a snapshot or deletion feed. Provider-side, vendor-collected, offline and manual-review refunds without a recorded Queek refund row are omitted.
+         *     Lists the store’s orders using the same base object as orders/* webhooks; recorded payment transactions and Queek wallet-refund rows are present only with merchant-orders-read (webhooks include them only for active installations granted that scope). Order status, shipment, import, rider-assignment and patch responses do not include those finance arrays. Same filtering and search as the dashboard table with cursor pagination (`limit` + `starting_after`, `has_more`/`next_cursor`). `publication` scopes the list to one of the calling installation’s channel publications (p_id or key; human keys use p_id and need the publications-read permission, without it the filter answers 404). `custom_channel` scopes the list to one hand-recorded or third-party channel name (for example `physical_sale` or `others`) and combines with the other filters. Optional `updated_after` walks order rows changed after a timestamp, oldest change first; start each poll five minutes before the previous poll start, deduplicate ids, keep filters fixed and walk sequentially. With `updated_after`, `sort_by`, `sort_order`, `page` and `per_page` return 422; a cursor is bound to the same timestamp and filters. Item/property, shipment, metafield or customer-profile changes and deleted orders may be missed; long-running changes may appear late. The filter time is not returned and may differ from `updated_at`; this is not a snapshot or deletion feed. Provider-side, vendor-collected, offline and manual-review refunds without a recorded Queek refund row are omitted.
          */
         get: operations["orders.list"];
         put?: never;
@@ -1060,7 +1060,7 @@ export interface paths {
          * Import an order from a sales channel
          * @description Requires scope `merchant-orders-import`.
          *
-         *     Records an order already charged by an outside platform: each item names its `product` (p_id, UUID or slug of this store) and, for a variant, its `variant` (p_id or UUID of a variant belonging to that product) — the old single `ref` is refused; totals are stored as charged with no commission, and a re-sent order returns the same record. The authenticated app installation supplies source attribution; apps other than the established Chowdeck and Glovo integrations omit `channel`, which is rejected if supplied. Chowdeck and Glovo keep their existing `channel` request contract. The customer (name + phone) becomes the order’s `shipping_address` recipient, readable only with merchant-customers-contact-read like every contact — never `metadata`. Answers the order object orders/* webhooks send. Generic app installations derive source from the authenticated installation and omit `channel`; supplying it is a 422. An installed app with slug `chowdeck` or `glovo` must send its matching legacy `channel`; mismatches are 422. Human-key legacy imports still require `channel` and may choose either slug. Those slugs are not reserved.
+         *     Records an order already charged by an outside platform: each item names its `product` (p_id, UUID or slug of this store) and, for a variant, its `variant` (p_id or UUID of a variant belonging to that product) — the old single `ref` is refused; totals are stored as charged with no commission, and a re-sent order returns the same record. The authenticated app installation supplies source attribution; only an installed legacy marketplace app sends `channel`, and it must match its own app slug; any other app omits it, and a supplied value is rejected. The customer (name + phone) becomes the order’s `shipping_address` recipient, readable only with merchant-customers-contact-read like every contact — never `metadata`. Answers the order object orders/* webhooks send. Generic app installations derive source from the authenticated installation and omit `channel`; supplying it is a 422. An installed legacy marketplace app must send the `channel` slug matching its own app slug; mismatches are 422. Human-key legacy imports still require `channel` and may choose either slug. Those slugs are not reserved.
          */
         post: operations["orders.import"];
         delete?: never;
@@ -2082,8 +2082,10 @@ export interface components {
     schemas: {
         /** AddonGroupResource */
         AddonGroupResource: {
+            /** @description Unique identifier of this object. */
             id: number;
             uid: string;
+            /** @description Display title. */
             title: string;
             type: string;
             required: boolean;
@@ -2098,9 +2100,13 @@ export interface components {
         };
         /** AddonItemResource */
         AddonItemResource: {
+            /** @description Unique identifier of this object. */
             id: number;
             uid: string;
+            /** @description Display name. */
             name: string;
+            /** @description ISO-4217 currency code of the amounts on this object. */
+            currency: string;
             price: string;
             in_stock: boolean;
             is_pack: boolean;
@@ -2118,28 +2124,41 @@ export interface components {
         };
         /** Collection */
         "App.Http.Resources.Api.CollectionResource": {
+            /** @description Unique identifier of this object. */
             id: number;
             uid: string;
+            /** @description Display name. */
             name: string;
+            /** @description URL-safe handle of this object. */
             slug: string;
+            /** @description Descriptive text. */
             description: string;
             image: string;
             logo: string;
             featured: boolean;
+            /** @description Sort position within the parent list. */
             position: number | null;
             collection_mode: string | null;
             parent_uid: string | null;
             products_count: number | null;
             children: unknown[];
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description When this object was created (ISO-8601 timestamp).
+             */
             created_at: string | null;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description When this object was last changed (ISO-8601 timestamp).
+             */
             updated_at: string | null;
         };
         /** OrderItem */
         "App.Http.Resources.Customer.OrderItemResource": {
+            /** @description Unique identifier of this object. */
             id: string;
             quantity: string;
+            /** @description Display title. */
             title: string;
             variant_id: string;
             variant_title: string;
@@ -2148,21 +2167,26 @@ export interface components {
             };
             variant_media: {
                 image: string | null;
+                /** @description URL of the video. */
                 video_url: string | null;
                 /** @enum {string} */
                 source: "variant" | "product";
             } | null;
+            /** @description ISO-4217 currency code of the amounts on this object. */
             currency: string;
-            total_price: number | null;
-            sale_price: number | null;
-            unit_price: number | null;
-            base_unit_price: number | null;
+            total_price: string | null;
+            sale_price: string | null;
+            unit_price: string | null;
+            base_unit_price: string | null;
             is_backorder: boolean;
             backorder_ready_date: string | null;
-            discounted_amount?: number | null;
-            /** Format: date-time */
+            discounted_amount?: string | null;
+            /**
+             * Format: date-time
+             * @description When this object was created (ISO-8601 timestamp).
+             */
             created_at: string;
-            addons: unknown;
+            addons: unknown[] | null;
             /**
              * @description Per-line checkout properties. Always present as an object so
              *     dashboard chips and the shopper page never branch on absence.
@@ -2174,40 +2198,51 @@ export interface components {
         /** Product */
         "App.Http.Resources.Customer.ProductResource": unknown[] | {
             shop_id: string;
+            /** @description Unique identifier of this object. */
             id: string;
+            /** @description Short, stable integer identifier of this object, the human-readable counterpart of its UUID. */
             p_id: string;
+            /** @description Display title. */
             title: string | null;
+            /** @description URL-safe handle of this object. */
             slug: string;
+            /** @description Short summary text. */
             excerpt: string | null;
+            /** @description Descriptive text. */
             description: string | null;
             image: string | null;
             thumbnail_image: string | null;
+            /** @description URL of the video. */
             video_url: string | null;
             video_poster_url: string | null;
             type: unknown;
             commerce_mode: string;
+            /** @description ISO-4217 currency code of the amounts on this object. */
             currency: string;
-            price: number;
-            discount_price: string;
-            compare_at_price: number | null;
+            price: string | null;
+            discount_price: string | null;
+            compare_at_price: string | null;
             is_price_from: boolean;
             price_range: {
-                min: number;
-                max: number;
+                min: string;
+                max: string;
             } | null;
             has_variants: boolean;
             has_addons: string;
             tax_inclusive: boolean;
             discount: {
+                /** @description Unique identifier of this object. */
                 id: string | null;
+                /** @description Display title. */
                 title: string | null;
                 type: string | null;
-                value: number | null;
-                amount: number | null;
-                final_price: number | null;
+                value: string | null;
+                amount: string | null;
+                final_price: string | null;
+                /** @description URL of the image. */
                 image_url: string | null;
             } | null;
-            discounts: string;
+            discounts: unknown[];
             media: {
                 thumbnail: string | null;
                 image: string | null;
@@ -2230,19 +2265,25 @@ export interface components {
                     [key: string]: unknown;
                 } | null;
                 images: ({
+                    /** @description Unique identifier of this object. */
                     id: number;
+                    /** @description Public URL. */
                     url: string;
                     alt: unknown;
                     variants: string;
                 } | null | {
+                    /** @description Unique identifier of this object. */
                     id: number | null;
+                    /** @description Public URL. */
                     url: string | null;
                     alt: unknown;
                     variants: null;
                 })[] | null;
             };
             inventory: unknown[];
-            variant_summary: string | null;
+            variant_summary: {
+                [key: string]: unknown;
+            } | null;
             variants_count: unknown;
             rating: number;
             review_count: number;
@@ -2254,29 +2295,39 @@ export interface components {
             };
             /**
              * @description Vendor-defined typed fields, keyed `namespace.key`. `{}` for a store
-             *     that has defined none, which costs no query (MetafieldPresenter).
+             *     that has defined none, which costs no query.
              *     Free-form `metadata` is deliberately NOT here: it is an
              *     integrator's private bookkeeping and stays on the merchant API.
              *     Client surface: draft entries and storefront-hidden definitions
-             *     are omitted from reference values (MetafieldPresenter).
+             *     are omitted from reference values.
              */
             metafields: string;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description When this object was created (ISO-8601 timestamp).
+             */
             created_at: string | null;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description When this object was last changed (ISO-8601 timestamp).
+             */
             updated_at: string | null;
             shop: unknown[];
+            /** @description Barcode of the item, when set. */
             barcode: string;
         };
         /** Order */
         "App.Http.Resources.OrderResource": {
             0: Record<string, never>;
+            /** @description Unique identifier of this object. */
             id: string;
+            /** @description Display title. */
             title: string | null;
+            /** @description ISO-4217 currency code of the amounts on this object. */
             currency: string;
-            total_price: number | null;
-            delivery_fee: number | null;
-            grand_total: number | null;
+            total_price: string | null;
+            delivery_fee: string | null;
+            grand_total: string | null;
             payment_status: string;
             transaction_id: string | null;
             is_verified: boolean | null;
@@ -2296,7 +2347,9 @@ export interface components {
              *     id, name and section, as shown in the table picker.
              */
             table: {
+                /** @description Unique identifier of this object. */
                 id: string;
+                /** @description Display name. */
                 name: string;
                 section: string | null;
             } | Record<string, never>;
@@ -2306,11 +2359,15 @@ export interface components {
             ready_window: {
                 from: string | null;
                 to: string | null;
+                /** @description Display label. */
                 label: string;
             } | null | Record<string, never>;
             vendor: {
+                /** @description Unique identifier of this object. */
                 id: string;
+                /** @description Display name. */
                 name: string;
+                /** @description URL-safe handle of this object. */
                 slug: string;
                 logo: string | null;
                 /**
@@ -2320,7 +2377,9 @@ export interface components {
                  *     also show them on rider/dispatch flows.
                  */
                 address: string | null;
+                /** @description Phone number. */
                 phone: string | null;
+                /** @description Email address. */
                 email: string | null;
                 map_lat: string | null;
                 map_lng: string | null;
@@ -2330,8 +2389,8 @@ export interface components {
             vendor_timeline: unknown[];
             vendor_note: string | null;
             rider_note: string | null;
-            shopforme_fee: number | null;
-            service_fee: number | null;
+            shopforme_fee: string | null;
+            service_fee: string | null;
             delivery_pin: string | null | Record<string, never>;
             delivery_pins: unknown[] | null | Record<string, never>;
             is_confirmed: boolean;
@@ -2344,9 +2403,15 @@ export interface components {
             started_at: string | null;
             /** Format: date-time */
             completed_at: string | null;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description When this object was created (ISO-8601 timestamp).
+             */
             created_at: string;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description When this object was last changed (ISO-8601 timestamp).
+             */
             updated_at: string;
             status_label: string;
             status_img: string;
@@ -2359,10 +2424,14 @@ export interface components {
              */
             items: components["schemas"]["OrderItemResource"][] | Record<string, never>;
             created_by: {
+                /** @description Unique identifier of this object. */
                 id: string;
+                /** @description Display name. */
                 name: string;
                 avatar: string | null;
+                /** @description Phone number. */
                 phone: string;
+                /** @description Email address. */
                 email: string;
             } | Record<string, never>;
             rider: components["schemas"]["UserItemResource"];
@@ -2376,7 +2445,10 @@ export interface components {
             /** @enum {string} */
             viewer_type: "customer" | "vendor" | "rider" | "admin";
             amount_summary: {
-                /** @constant */
+                /**
+                 * @description Display title.
+                 * @constant
+                 */
                 title: "Order Summary";
                 /** @constant */
                 view: "rider";
@@ -2384,21 +2456,30 @@ export interface components {
                     {
                         /** @constant */
                         key: "rider_fee";
-                        /** @constant */
+                        /**
+                         * @description Display label.
+                         * @constant
+                         */
                         label: "Rider Fee";
                         /** @constant */
                         type: "total";
-                        amount: number | null;
+                        amount: string | null;
                     }
                 ];
             } | {
-                /** @constant */
+                /**
+                 * @description Display title.
+                 * @constant
+                 */
                 title: "Order Summary";
                 /** @constant */
                 view: "vendor";
                 items: unknown[];
             } | {
-                /** @constant */
+                /**
+                 * @description Display title.
+                 * @constant
+                 */
                 title: "Order Summary";
                 /** @constant */
                 view: "customer";
@@ -2411,12 +2492,15 @@ export interface components {
              *     Every other surface keeps reading it exactly as before.
              */
             0: Record<string, never>;
+            /** @description Unique identifier of this object. */
             id: string;
+            /** @description Display title. */
             title: string | null;
+            /** @description ISO-4217 currency code of the amounts on this object. */
             currency: string;
-            total_price: number | null;
-            delivery_fee: number | null;
-            grand_total: number | null;
+            total_price: string | null;
+            delivery_fee: string | null;
+            grand_total: string | null;
             payment_status: string;
             transaction_id: string | null;
             is_verified: boolean | null;
@@ -2436,7 +2520,9 @@ export interface components {
              *     id, name and section, as shown in the table picker.
              */
             table: {
+                /** @description Unique identifier of this object. */
                 id: string;
+                /** @description Display name. */
                 name: string;
                 section: string | null;
             } | Record<string, never>;
@@ -2446,11 +2532,15 @@ export interface components {
             ready_window: {
                 from: string | null;
                 to: string | null;
+                /** @description Display label. */
                 label: string;
             } | null | Record<string, never>;
             vendor: {
+                /** @description Unique identifier of this object. */
                 id: string;
+                /** @description Display name. */
                 name: string;
+                /** @description URL-safe handle of this object. */
                 slug: string;
                 logo: string | null;
                 /**
@@ -2460,7 +2550,9 @@ export interface components {
                  *     also show them on rider/dispatch flows.
                  */
                 address: string | null;
+                /** @description Phone number. */
                 phone: string | null;
+                /** @description Email address. */
                 email: string | null;
                 map_lat: string | null;
                 map_lng: string | null;
@@ -2470,8 +2562,8 @@ export interface components {
             vendor_timeline: unknown[];
             vendor_note: string | null;
             rider_note: string | null;
-            shopforme_fee: number | null;
-            service_fee: number | null;
+            shopforme_fee: string | null;
+            service_fee: string | null;
             delivery_pin: string | null | Record<string, never>;
             delivery_pins: unknown[] | null | Record<string, never>;
             is_confirmed: boolean;
@@ -2484,9 +2576,15 @@ export interface components {
             started_at: string | null;
             /** Format: date-time */
             completed_at: string | null;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description When this object was created (ISO-8601 timestamp).
+             */
             created_at: string;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description When this object was last changed (ISO-8601 timestamp).
+             */
             updated_at: string;
         };
         /** App collected record update input */
@@ -2499,15 +2597,22 @@ export interface components {
         };
         /** AppMediaResource */
         AppMediaResource: {
+            /** @description Unique identifier of this object. */
             id: number;
+            /** @description Public URL. */
             url: string;
             thumbnail_url: string;
             variants: string;
             mime_type: string;
             size: number;
+            /** @description Width in pixels. */
             width: number | null;
+            /** @description Height in pixels. */
             height: number | null;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description When this object was created (ISO-8601 timestamp).
+             */
             created_at: string;
         };
         /**
@@ -2544,6 +2649,7 @@ export interface components {
         };
         /** BankResource */
         BankResource: {
+            /** @description Unique identifier of this object. */
             id: string;
             account_number: string;
             account_name: string;
@@ -2552,9 +2658,13 @@ export interface components {
         };
         /** BlogCategoryResource */
         BlogCategoryResource: {
+            /** @description Unique identifier of this object. */
             id: string;
+            /** @description Display name. */
             name: string;
+            /** @description URL-safe handle of this object. */
             slug: string;
+            /** @description Sort position within the parent list. */
             position: number;
             posts_count?: number;
         };
@@ -2563,7 +2673,9 @@ export interface components {
             /** Format: uuid */
             vendor_id: string;
             collections: {
+                /** @description Display name. */
                 name: string;
+                /** @description Descriptive text. */
                 description?: string | null;
                 /** @enum {string|null} */
                 collection_mode?: "manual" | "smart" | null;
@@ -2587,20 +2699,36 @@ export interface components {
         };
         /** CartResource */
         CartResource: {
+            /** @description Unique identifier of this object. */
             id: string;
             cart_id: string;
             item_id: string;
+            /** @description Display title. */
             title: string;
             variant_id: string | null;
-            price: number | null;
+            /** @description ISO-4217 currency code of the amounts on this object. */
+            currency: string;
+            price: string | null;
             quantity: string;
-            selectedAddons: string | string[];
-            subtotal: number | null;
+            selectedAddons: string | {
+                [key: string]: ({
+                    price: string | null;
+                } & {
+                    [key: string]: unknown;
+                }) | string;
+            };
+            subtotal: string | null;
             product: components["schemas"]["App.Http.Resources.Customer.ProductResource"];
             vendor: components["schemas"]["VendorItemResource"];
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description When this object was created (ISO-8601 timestamp).
+             */
             created_at: string;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description When this object was last changed (ISO-8601 timestamp).
+             */
             updated_at: string;
         } | {
             /**
@@ -2610,43 +2738,57 @@ export interface components {
              *     that is the token the storefront can adopt.
              */
             0: Record<string, never>;
+            /** @description Unique identifier of this object. */
             id: string;
             vendor_id: string;
             vendor: components["schemas"]["VendorItemResource"];
+            /** @description ISO-4217 currency code of the amounts on this object. */
+            currency: string;
             cart_items: unknown[];
-            total_price: number | null;
+            total_price: string | null;
             source: string;
             promo_codes: string | string[];
             is_valid: string;
             validation_errors: string | string[];
             /** Format: date-time */
             last_validated_at: string | null;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description When this object was created (ISO-8601 timestamp).
+             */
             created_at: string | null;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description When this object was last changed (ISO-8601 timestamp).
+             */
             updated_at: string | null;
             discounts: {
                 [key: string]: {
-                    amount_applied: number | null;
+                    amount_applied: string | null;
                 } & {
                     [key: string]: unknown;
                 };
             };
-            subtotal: number | null;
-            discount_total: number | null;
-            total_after_discounts: number | null;
+            subtotal: string | null;
+            discount_total: string | null;
+            total_after_discounts: string | null;
         };
         /** ClientAuthUserResource */
         ClientAuthUserResource: {
+            /** @description Unique identifier of this object. */
             id: string;
+            /** @description Display name. */
             name: string;
+            /** @description Email address. */
             email: string | null;
+            /** @description Phone number. */
             phone: string | null;
             avatar: string | null;
             country: string | null;
             state: string | null;
             region: string | null;
             city: string | null;
+            /** @description Postal address. */
             address: string | null;
             map_lat: string | null;
             map_lng: string | null;
@@ -2654,7 +2796,7 @@ export interface components {
             /**
              * @description Whether this rider may actually open the storefront rider console —
              *     is_rider alone is not enough, a vendor approval path must have
-             *     stamped rider_approved_at (see EnsureClientRider). The storefront
+             *     stamped rider_approved_at. The storefront
              *     shows a "pending approval" state when is_rider && ! rider_approved.
              */
             rider_approved: boolean;
@@ -2676,7 +2818,9 @@ export interface components {
          */
         CollectedDefinitionRequest: {
             type: string;
+            /** @description Display name. */
             name: string;
+            /** @description Descriptive text. */
             description?: string | null;
             display_field: string;
             storefront_visible?: boolean | null;
@@ -2688,6 +2832,7 @@ export interface components {
             has_pages?: boolean | null;
             fields: {
                 key?: string;
+                /** @description Display name. */
                 name?: string;
                 /** @enum {string} */
                 type?: "single_line_text" | "multi_line_text" | "integer" | "decimal" | "boolean" | "date" | "url" | "json" | "media_id" | "list.single_line_text" | "list.multi_line_text" | "list.integer" | "list.decimal" | "list.boolean" | "list.date" | "list.url" | "list.media_id";
@@ -2703,17 +2848,27 @@ export interface components {
         };
         /** CollectedRecordResource */
         CollectedRecordResource: {
+            /** @description Short, stable integer identifier of this object, the human-readable counterpart of its UUID. */
             p_id: number;
             definition_p_id?: number;
             type?: string | null;
             status: string | "new";
             source: string | null;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description When this was submitted (ISO-8601 timestamp).
+             */
             submitted_at: string;
             values: string;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description When this object was created (ISO-8601 timestamp).
+             */
             created_at: string;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description When this object was last changed (ISO-8601 timestamp).
+             */
             updated_at: string;
         };
         /**
@@ -2745,9 +2900,13 @@ export interface components {
         };
         /** CollectionResource */
         CollectionResource: {
+            /** @description Unique identifier of this object. */
             id: string;
+            /** @description Display name. */
             name: string;
+            /** @description URL-safe handle of this object. */
             slug: string;
+            /** @description Descriptive text. */
             description: string | null;
             image: string;
             /**
@@ -2771,11 +2930,16 @@ export interface components {
         };
         /** CouponResource */
         CouponResource: {
+            /** @description Unique identifier of this object. */
             id: string;
             code: string;
+            /** @description Display title. */
             title: string;
+            /** @description Descriptive text. */
             description: string;
             discount_type: string;
+            /** @description ISO-4217 currency code of the amounts on this object. */
+            currency: string;
             discount_value: string;
             applies_to: string;
             target_product_ids: unknown[];
@@ -2786,26 +2950,38 @@ export interface components {
             usage_limit: number | null;
             usage_limit_per_user: number | null;
             used_count: number;
+            /** @description Whether this object is active. */
             is_active: boolean;
             is_valid: boolean;
             is_expired: boolean;
+            /** @description URL of the image. */
             image_url: string;
             /** Format: date-time */
             starts_at: string | null;
             /** Format: date-time */
             expires_at: string | null;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description When this object was created (ISO-8601 timestamp).
+             */
             created_at: string | null;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description When this object was last changed (ISO-8601 timestamp).
+             */
             updated_at: string | null;
         };
         /** CustomerAddressResource */
         CustomerAddressResource: {
+            /** @description Unique identifier of this object. */
             id: string;
+            /** @description Display label. */
             label: string | null;
+            /** @description Postal address. */
             address: string;
             lat: number;
             lng: number;
+            /** @description ISO-3166 country code. */
             country_code: string | null;
             state: string | null;
             city: string | null;
@@ -2816,36 +2992,57 @@ export interface components {
         };
         /** CustomerResource */
         CustomerResource: {
+            /** @description Unique identifier of this object. */
             id: number;
             uid: string;
+            /** @description Display name. */
             name: string | null;
+            /** @description Email address. */
             email: string | null;
+            /** @description Phone number. */
             phone: string | null;
             avatar: string;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description When this object was created (ISO-8601 timestamp).
+             */
             created_at: string | null;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description When this object was last changed (ISO-8601 timestamp).
+             */
             updated_at: string | null;
         };
         /** CustomerWishlistItemResource */
         CustomerWishlistItemResource: {
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description When this object was created (ISO-8601 timestamp).
+             */
             created_at: string | null;
             product: unknown[];
             variant: {
+                /** @description Unique identifier of this object. */
                 id: string;
+                /** @description Short, stable integer identifier of this object, the human-readable counterpart of its UUID. */
                 p_id: number;
+                /** @description Display title. */
                 title: string;
                 option_values: string;
             } | null;
         };
         /** DiscountResource */
         DiscountResource: {
+            /** @description Unique identifier of this object. */
             id: string;
             reference: string;
+            /** @description Display title. */
             title: string;
+            /** @description Descriptive text. */
             description: string;
             type: string;
+            /** @description ISO-4217 currency code of the amounts on this object. */
+            currency: string;
             value: string;
             product_ids: unknown[];
             category_ids: unknown[];
@@ -2859,24 +3056,39 @@ export interface components {
             auto_apply: boolean;
             /** @enum {string} */
             status: "active" | "inactive";
+            /** @description Whether this object is active. */
             is_active: boolean;
             is_published: boolean;
+            /** @description URL of the image. */
             image_url: string;
             valid_from: string | null;
             valid_until: string | null;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description When this object was published (ISO-8601 timestamp).
+             */
             published_at: string | null;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description When this object was created (ISO-8601 timestamp).
+             */
             created_at: string | null;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description When this object was last changed (ISO-8601 timestamp).
+             */
             updated_at: string | null;
         };
         /** FollowerResource */
         FollowerResource: {
+            /** @description Unique identifier of this object. */
             id: string;
             customer_id: number | null;
+            /** @description Display name. */
             name: string | null;
+            /** @description Email address. */
             email: string | null;
+            /** @description Phone number. */
             phone: string | null;
             avatar: string | null;
             shared_contact: boolean;
@@ -2893,12 +3105,20 @@ export interface components {
                 source_review_id: string;
                 product: string;
                 rating: number;
+                /** @description Display title. */
                 title: string | null;
+                /** @description Descriptive text. */
                 description: string | null;
                 author_display_name: string | null;
-                /** Format: date-time */
+                /**
+                 * Format: date-time
+                 * @description When this was submitted (ISO-8601 timestamp).
+                 */
                 submitted_at: string;
-                /** Format: date-time */
+                /**
+                 * Format: date-time
+                 * @description When this object was last edited (ISO-8601 timestamp).
+                 */
                 edited_at: string | null;
                 media: string[] | null;
                 user_id?: string;
@@ -2908,7 +3128,10 @@ export interface components {
                 source?: string;
                 status?: string;
                 is_verified_purchase?: string;
-                /** Format: date-time */
+                /**
+                 * Format: date-time
+                 * @description When this object was created (ISO-8601 timestamp).
+                 */
                 created_at?: string;
             }[];
         };
@@ -2933,7 +3156,7 @@ export interface components {
          */
         ImportThirdPartyOrderRequest: {
             /**
-             * @description Optional for generic app installations, which derive source from the authenticated app and must omit this field. An installed Chowdeck or Glovo app must send its matching legacy slug. A generic app supplying this field, or a legacy app sending the other slug, receives 422. Human-key legacy imports still require this field and may send either slug.
+             * @description Optional for generic app installations, which derive source from the authenticated app and must omit this field. An installed legacy marketplace app must send its matching slug. A generic app supplying this field, or a legacy app sending the other slug, receives 422. Human-key legacy imports still require this field and may send either slug.
              * @enum {string}
              */
             channel?: "chowdeck" | "glovo";
@@ -2947,7 +3170,9 @@ export interface components {
             /** Format: date-time */
             placed_at: string;
             customer: {
+                /** @description Display name. */
                 name: string;
+                /** @description Phone number. */
                 phone: string;
             };
             items: {
@@ -2977,10 +3202,13 @@ export interface components {
         /** InventoryLevelResource */
         InventoryLevelResource: {
             product: {
+                /** @description Short, stable integer identifier of this object, the human-readable counterpart of its UUID. */
                 p_id: number;
+                /** @description URL-safe handle of this object. */
                 slug: string | null;
             };
             variant: {
+                /** @description Short, stable integer identifier of this object, the human-readable counterpart of its UUID. */
                 p_id: number;
             } | null;
             quantity: number;
@@ -3008,6 +3236,7 @@ export interface components {
          *     non-numeric ref resolves to nothing (never a Postgres cast 500).
          */
         MerchantAddonGroupRequest: {
+            /** @description Display title. */
             title: string;
             required?: boolean;
             min?: number | null;
@@ -3019,9 +3248,11 @@ export interface components {
              *     detaches only the addressable members the entries name.
              */
             items: {
+                /** @description Unique identifier of this object. */
                 id?: string;
+                /** @description Display name. */
                 name: string;
-                price?: number;
+                price?: string;
                 is_pack?: boolean;
             }[];
         };
@@ -3052,16 +3283,27 @@ export interface components {
             author_display_name: string;
             product_p_id: string | null;
             rating: number;
+            /** @description Display title. */
             title: string;
+            /** @description Descriptive text. */
             description: string;
             media: string | string[];
             status: string;
             is_verified_purchase: boolean;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description When this was submitted (ISO-8601 timestamp).
+             */
             submitted_at: string;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description When this object was created (ISO-8601 timestamp).
+             */
             created_at: string;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description When this object was last edited (ISO-8601 timestamp).
+             */
             edited_at: string;
         };
         /** MerchantImportedReview */
@@ -3098,8 +3340,11 @@ export interface components {
         MerchantInventoryLevels: components["schemas"]["MerchantInventoryLevelsResource"];
         /** MerchantInventoryLevelsResource */
         MerchantInventoryLevelsResource: {
+            /** @description Short, stable integer identifier of this object, the human-readable counterpart of its UUID. */
             p_id: number;
+            /** @description URL-safe handle of this object. */
             slug: string;
+            /** @description Barcode of the item, when set. */
             barcode: string;
             stock: number;
             effective_tracking: string;
@@ -3134,13 +3379,11 @@ export interface components {
          * Shipping zone input
          * @description POST shipping-zones / PUT shipping-zones/{zone} on the merchant API.
          *
-         *     Zone rules match the dashboard's, except the rates: this API speaks money as
-         *     decimal strings in the currency's major unit ("1500.00", or a number) — the
-         *     same shape a zone read returns, so a read round-trips into a write. Values
-         *     are stored in the currency's minor unit; the dashboard sends minor-unit
-         *     integers directly.
+         *     Same zone rules and money rates as the dashboard zone write: major-unit decimal strings or numbers,
+         *     the shape a read returns. This request only adds the row's scope gate.
          */
         MerchantShippingZoneRequest: {
+            /** @description Display name. */
             name: string;
             /** @enum {string} */
             zone_type: "local" | "national" | "international";
@@ -3166,18 +3409,28 @@ export interface components {
          *     normalised to a URL-safe slug only when it arrives as a string.
          */
         MerchantStorePostRequest: {
+            /** @description Display title. */
             title: string;
+            /** @description URL-safe handle of this object. */
             slug?: string | null;
             body?: string | null;
+            /** @description Short summary text. */
             excerpt?: string | null;
+            /** @description URL of the cover image. */
             cover_image_url?: string | null;
             /** @enum {string|null} */
             status?: "draft" | "published" | null;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description When this object was published (ISO-8601 timestamp).
+             */
             published_at?: string | null;
+            /** @description Free-form tags attached to this object. */
             tags?: string[] | null;
             seo: {
+                /** @description Display title. */
                 title?: string | null;
+                /** @description Descriptive text. */
                 description?: string | null;
                 /** Format: uri */
                 og_image?: string | null;
@@ -3199,18 +3452,28 @@ export interface components {
          *     the scoped unique ignores the resolved row.
          */
         MerchantUpdatePostRequest: {
+            /** @description Display title. */
             title?: string;
+            /** @description URL-safe handle of this object. */
             slug?: string | null;
             body?: string | null;
+            /** @description Short summary text. */
             excerpt?: string | null;
+            /** @description URL of the cover image. */
             cover_image_url?: string | null;
             /** @enum {string} */
             status?: "draft" | "published";
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description When this object was published (ISO-8601 timestamp).
+             */
             published_at?: string | null;
+            /** @description Free-form tags attached to this object. */
             tags?: string[] | null;
             seo: {
+                /** @description Display title. */
                 title?: string | null;
+                /** @description Descriptive text. */
                 description?: string | null;
                 /** Format: uri */
                 og_image?: string | null;
@@ -3238,6 +3501,7 @@ export interface components {
         MetafieldDefinitionRequest: {
             /** @enum {string} */
             owner_type: "product" | "order";
+            /** @description Namespace the key belongs to. */
             namespace: string;
             key: string;
             /** @enum {string} */
@@ -3245,7 +3509,9 @@ export interface components {
             storefront_visible?: boolean | null;
             pinned?: boolean | null;
             pinned_position?: number | null;
+            /** @description Display name. */
             name?: string | null;
+            /** @description Descriptive text. */
             description?: string | null;
             validations?: {
                 min?: string | null;
@@ -3257,21 +3523,31 @@ export interface components {
         };
         /** MetafieldDefinitionResource */
         MetafieldDefinitionResource: {
+            /** @description Short, stable integer identifier of this object, the human-readable counterpart of its UUID. */
             p_id: number;
             handle: string;
             owner_type: string;
+            /** @description Namespace the key belongs to. */
             namespace: string;
             key: string;
             type: string;
             storefront_visible: boolean;
             pinned: boolean;
             pinned_position: number | null;
+            /** @description Display name. */
             name: string;
+            /** @description Descriptive text. */
             description: string;
             validations: string;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description When this object was created (ISO-8601 timestamp).
+             */
             created_at: string;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description When this object was last changed (ISO-8601 timestamp).
+             */
             updated_at: string;
         };
         /**
@@ -3295,7 +3571,9 @@ export interface components {
          */
         MetaobjectDefinitionRequest: {
             type: string;
+            /** @description Display name. */
             name: string;
+            /** @description Descriptive text. */
             description?: string | null;
             display_field: string;
             storefront_visible?: boolean | null;
@@ -3307,6 +3585,7 @@ export interface components {
             has_pages?: boolean | null;
             fields: {
                 key?: string;
+                /** @description Display name. */
                 name?: string;
                 /** @enum {string} */
                 type?: "single_line_text" | "multi_line_text" | "integer" | "decimal" | "boolean" | "date" | "url" | "json" | "media_id" | "list.single_line_text" | "list.multi_line_text" | "list.integer" | "list.decimal" | "list.boolean" | "list.date" | "list.url" | "list.media_id";
@@ -3325,9 +3604,12 @@ export interface components {
         };
         /** MetaobjectDefinitionResource */
         MetaobjectDefinitionResource: {
+            /** @description Short, stable integer identifier of this object, the human-readable counterpart of its UUID. */
             p_id: number;
             type: string;
+            /** @description Display name. */
             name: string;
+            /** @description Descriptive text. */
             description: string;
             display_field: string;
             storefront_visible: boolean;
@@ -3348,9 +3630,15 @@ export interface components {
              *     responses never carry it.
              */
             records_count?: number | null;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description When this object was created (ISO-8601 timestamp).
+             */
             created_at: string;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description When this object was last changed (ISO-8601 timestamp).
+             */
             updated_at: string;
         };
         /**
@@ -3374,8 +3662,10 @@ export interface components {
         };
         /** OrderItemResource */
         OrderItemResource: {
+            /** @description Unique identifier of this object. */
             id: string;
             quantity: number;
+            /** @description Display title. */
             title: string | null;
             variant_id: string | null;
             variant_title: string | null;
@@ -3384,21 +3674,26 @@ export interface components {
             };
             variant_media: {
                 image: string | null;
+                /** @description URL of the video. */
                 video_url: string | null;
                 /** @enum {string} */
                 source: "variant" | "product";
             } | null;
+            /** @description ISO-4217 currency code of the amounts on this object. */
             currency: string;
-            total_price: number | null;
-            sale_price: number | null;
-            unit_price: number | null;
-            base_unit_price: number | null;
+            total_price: string | null;
+            sale_price: string | null;
+            unit_price: string | null;
+            base_unit_price: string | null;
             is_backorder: boolean;
             backorder_ready_date: string | null;
-            discounted_amount?: number | null;
-            /** Format: date-time */
+            discounted_amount?: string | null;
+            /**
+             * Format: date-time
+             * @description When this object was created (ISO-8601 timestamp).
+             */
             created_at: string | null;
-            addons: unknown;
+            addons: unknown[] | null;
             /**
              * @description Per-line checkout properties. Always present as an object so
              *     dashboard chips and the shopper page never branch on absence.
@@ -3409,6 +3704,7 @@ export interface components {
         };
         /** OrderResource */
         OrderResource: {
+            /** @description Unique identifier of this object. */
             id: number;
             uid: string;
             order_number: string;
@@ -3456,16 +3752,23 @@ export interface components {
             tax_total: string;
             total: string;
             customer: {
+                /** @description Unique identifier of this object. */
                 id: number;
+                /** @description Display name. */
                 name: string | null;
+                /** @description Email address. */
                 email: string | null;
+                /** @description Phone number. */
                 phone: string | null;
             } | null;
             shipping_address: {
+                /** @description Postal address. */
                 address: string | null;
                 latitude: number | null;
                 longitude: number | null;
+                /** @description Display name. */
                 name: string | null;
+                /** @description Phone number. */
                 phone: string | null;
             } | null;
             shipment: {
@@ -3481,9 +3784,11 @@ export interface components {
                 delivered_at: string | null;
             } | null;
             line_items: {
+                /** @description Unique identifier of this object. */
                 id: string;
                 product_id: number | null;
                 product_uid: string | null;
+                /** @description Display title. */
                 title: string;
                 variant_title: string;
                 quantity: number;
@@ -3507,9 +3812,15 @@ export interface components {
              */
             metafields: string;
             metadata: string;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description When this object was created (ISO-8601 timestamp).
+             */
             created_at: string | null;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description When this object was last changed (ISO-8601 timestamp).
+             */
             updated_at: string | null;
             /** Format: date-time */
             fulfilled_at: string | null;
@@ -3524,59 +3835,87 @@ export interface components {
         };
         /** PostResource */
         PostResource: {
+            /** @description Unique identifier of this object. */
             id: string;
             parent_id: string | null;
             blog_category_ids: string | string[];
             type: string;
             template: string;
+            /** @description URL-safe handle of this object. */
             slug: string;
+            /** @description Display title. */
             title: string;
             content: string;
+            /** @description Short summary text. */
             excerpt: string;
+            /** @description URL of the cover image. */
             cover_image_url: string;
             status: string;
             tags: string | string[];
             seo: string | string[];
+            /** @description Sort position within the parent list. */
             position: number;
             is_home: boolean;
             chrome: string;
             show_page_title: boolean;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description When this object was published (ISO-8601 timestamp).
+             */
             published_at: string | null;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description When this object was created (ISO-8601 timestamp).
+             */
             created_at: string | null;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description When this object was last changed (ISO-8601 timestamp).
+             */
             updated_at: string | null;
         };
         /** ProductImageResource */
         ProductImageResource: {
+            /** @description Unique identifier of this object. */
             id: number | null;
             is_primary: string;
             position: string;
+            /** @description Public URL. */
             url: string;
             alt: string | null;
+            /** @description Width in pixels. */
             width: number | null;
+            /** @description Height in pixels. */
             height: number | null;
             variants: string;
         };
         /** ProductQuestionResource */
         ProductQuestionResource: {
+            /** @description Unique identifier of this object. */
             id: string;
             question: string;
             answer: string;
             status: string;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description When this object was created (ISO-8601 timestamp).
+             */
             created_at: string;
             /** Format: date-time */
             answered_at: string;
             user?: {
+                /** @description Unique identifier of this object. */
                 id: string;
+                /** @description Display name. */
                 name: string;
                 avatar: string;
             };
             product?: {
+                /** @description Unique identifier of this object. */
                 id: string;
+                /** @description URL-safe handle of this object. */
                 slug: string;
+                /** @description Display title. */
                 title: string;
                 thumbnail: string;
             } | null;
@@ -3584,6 +3923,7 @@ export interface components {
         /** Product input */
         ProductRequest: {
             metafields?: {
+                /** @description Namespace the key belongs to. */
                 namespace?: string;
                 key?: string;
                 value?: string | null;
@@ -3594,10 +3934,12 @@ export interface components {
              *     it can carry are size and count.
              */
             metadata?: (string | null)[] | null;
+            /** @description Display title. */
             title: string;
             /** @description Update only: the merchant chose a new URL slug when renaming. Never empty, never a duplicate. */
             slug?: string;
             stock?: number | null;
+            /** @description Whether stock is tracked for this item. */
             track_inventory?: boolean | null;
             in_stock?: boolean | null;
             service_id?: string | null;
@@ -3609,7 +3951,9 @@ export interface components {
             is_backorder?: boolean | null;
             /** Format: date-time */
             backorder_ready_date?: string | null;
+            /** @description Descriptive text. */
             description?: string | null;
+            /** @description Short summary text. */
             excerpt?: string | null;
             /**
              * Format: binary
@@ -3617,34 +3961,47 @@ export interface components {
              */
             image_file?: string;
             image_media_id?: number | null;
+            /** @description Free-form tags attached to this object. */
             tags?: string[] | null;
             featured?: string | null;
             min_qty?: string | null;
             max_qty?: string | null;
+            /** @description Weight of the item. */
             weight?: number | null;
             unit?: string | null;
             collection_ids?: string[] | null;
             variations?: string[] | null;
             has_variants?: boolean;
             variants?: {
-                /** Format: uuid */
+                /**
+                 * Format: uuid
+                 * @description Unique identifier of this object.
+                 */
                 id?: string | null;
+                /** @description Stock-keeping unit assigned by the store. */
                 sku?: string | null;
+                /** @description Barcode of the item, when set. */
                 barcode?: string | null;
+                /** @description Display title. */
                 title?: string;
                 option_values?: string[];
                 price?: number;
                 compare_at_price?: number | null;
                 stock?: number | null;
+                /** @description Whether stock is tracked for this item. */
                 track_inventory?: boolean | null;
+                /** @description Whether this object is active. */
                 is_active?: boolean | null;
+                /** @description Weight of the item. */
                 weight?: number | null;
+                /** @description Sort position within the parent list. */
                 position?: number | null;
                 is_backorder?: boolean | null;
                 /** Format: date-time */
                 backorder_ready_date?: string | null;
             }[];
             cost_price?: number | null;
+            /** @description ISO-4217 currency code of the amounts on this object. */
             currency?: string | null;
             is_digital?: boolean | null;
             is_pos?: boolean | null;
@@ -3667,8 +4024,12 @@ export interface components {
             sku?: string | null;
             compare_at_price?: number | null;
             images?: string | null;
+            /** @description URL of the image. */
             image_url?: string | null;
-            /** Format: uri */
+            /**
+             * Format: uri
+             * @description URL of the video.
+             */
             video_url?: string | null;
             /**
              * Format: binary
@@ -3702,11 +4063,16 @@ export interface components {
         };
         /** ProductResource */
         ProductResource: {
+            /** @description Unique identifier of this object. */
             id: number;
             uid: string;
+            /** @description Display title. */
             title: string;
+            /** @description URL-safe handle of this object. */
             slug: string;
+            /** @description Short summary text. */
             excerpt: string | null;
+            /** @description Descriptive text. */
             description: string;
             /** @enum {string} */
             status: "active" | "out_of_stock" | "draft" | "archived";
@@ -3715,11 +4081,16 @@ export interface components {
             price: string;
             storefront_price: string;
             storefront_compare_at_price: string | null;
+            /** @description Public URL. */
             url: string | null;
+            /** @description ISO-4217 currency code of the amounts on this object. */
             currency: string;
+            /** @description Stock-keeping unit assigned by the store. */
             sku: string;
+            /** @description Barcode of the item, when set. */
             barcode: string;
             stock: number | null;
+            /** @description Whether stock is tracked for this item. */
             track_inventory: boolean;
             is_digital: boolean;
             has_variants: boolean;
@@ -3749,9 +4120,15 @@ export interface components {
              */
             metafields: string;
             metadata: string;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description When this object was created (ISO-8601 timestamp).
+             */
             created_at: string | null;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description When this object was last changed (ISO-8601 timestamp).
+             */
             updated_at: string | null;
             /** Format: date-time */
             deleted_at: string | null;
@@ -3760,6 +4137,7 @@ export interface components {
                 /** @description The channel id. */
                 id: number;
                 key: string;
+                /** @description Display name. */
                 name: string;
             }[];
         } & {
@@ -3767,9 +4145,12 @@ export interface components {
         };
         /** ProductReviewResource */
         ProductReviewResource: {
+            /** @description Unique identifier of this object. */
             id: string;
             rating: number;
+            /** @description Display title. */
             title: string;
+            /** @description Descriptive text. */
             description: string;
             media: string | string[];
             vendor_response: string;
@@ -3777,62 +4158,101 @@ export interface components {
             vendor_response_at: string;
             status: string;
             is_verified_purchase: boolean;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description When this object was created (ISO-8601 timestamp).
+             */
             created_at: string;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description When this object was last changed (ISO-8601 timestamp).
+             */
             updated_at: string;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description When this object was last edited (ISO-8601 timestamp).
+             */
             edited_at: string;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description When this was submitted (ISO-8601 timestamp).
+             */
             submitted_at: string;
             source: string | null;
             author_display_name: string;
             user?: string;
             product?: {
+                /** @description Unique identifier of this object. */
                 id: string;
+                /** @description URL-safe handle of this object. */
                 slug: string;
+                /** @description Display title. */
                 title: string;
                 thumbnail: string;
             };
         };
         /** ProductVariantResource */
         ProductVariantResource: {
+            /** @description Unique identifier of this object. */
             id: number;
             uid: string;
+            /** @description Stock-keeping unit assigned by the store. */
             sku: string;
+            /** @description Barcode of the item, when set. */
             barcode: string;
+            /** @description Display title. */
             title: string;
             option_values: string;
+            /** @description ISO-4217 currency code of the amounts on this object. */
+            currency: string;
             price: string;
             storefront_price: string;
             storefront_compare_at_price: string | null;
+            /** @description Public URL. */
             url: string | null;
             compare_at_price: string | null;
             stock: number;
+            /** @description Whether stock is tracked for this item. */
             track_inventory: boolean;
             /**
              * @description Product-level flag, inherited read-only: variants carry no
              *     is_digital column, so a missing parent reads false, never throws.
              */
             is_digital: boolean;
+            /** @description Whether this object is active. */
             is_active: boolean;
             is_backorder: boolean;
             backorder_ready_date: string | null;
+            /** @description Weight of the item. */
             weight: number | null;
+            /** @description Sort position within the parent list. */
             position: number;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description When this object was created (ISO-8601 timestamp).
+             */
             created_at: string | null;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description When this object was last changed (ISO-8601 timestamp).
+             */
             updated_at: string | null;
         };
         /** PromotionResource */
         PromotionResource: {
+            /** @description Unique identifier of this object. */
             id: string;
+            /** @description Display title. */
             title: string;
+            /** @description Descriptive text. */
             description: string;
+            /** @description URL of the image. */
             image_url: string;
             type: string;
-            value: number;
+            /** @description ISO-4217 currency code of the amounts on this object. */
+            currency: string;
+            /** @description A percentage when `type` is percentage, an amount in `currency` otherwise. */
+            value: string | null;
             priority: number;
             valid_from: string | null;
             valid_until: string | null;
@@ -3842,12 +4262,17 @@ export interface components {
         };
         /** PublicationResource */
         PublicationResource: {
+            /** @description Unique identifier of this object. */
             id: number;
             key: string;
+            /** @description Display name. */
             name: string;
             kind: string;
             status: string;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description When this object was created (ISO-8601 timestamp).
+             */
             created_at: string | null;
         };
         /** @description The error envelope every error body answers. Switch on `error.code`, never on the message. The additive legacy-compatibility top-level keys some surfaces emit beside it (`error_code`, `message`, and — on non-reissued surfaces only — `request_id`, `doc_url`) are documented separately under `QueekLegacyErrorKeys`, which no operation references. */
@@ -3939,6 +4364,7 @@ export interface components {
         };
         /** QueekWebhookCustomerEmailMarketingConsentPayload */
         QueekWebhookCustomerEmailMarketingConsentPayload: {
+            /** @description Unique identifier of this object. */
             id: number;
             email_marketing_consent: {
                 /** @enum {string} */
@@ -3987,6 +4413,7 @@ export interface components {
         };
         /** QueekWebhookCustomerSmsMarketingConsentPayload */
         QueekWebhookCustomerSmsMarketingConsentPayload: {
+            /** @description Unique identifier of this object. */
             id: number;
             sms_marketing_consent: {
                 /** @enum {string} */
@@ -4082,6 +4509,7 @@ export interface components {
          *     be digits only.
          */
         RegisterPublicationRequest: {
+            /** @description Display name. */
             name: string;
             key: string;
         };
@@ -4109,27 +4537,42 @@ export interface components {
         };
         /** ReviewsBlockItemResource */
         ReviewsBlockItemResource: {
+            /** @description Unique identifier of this object. */
             id: string;
             rating: number;
+            /** @description Display title. */
             title: string;
+            /** @description Descriptive text. */
             description: string;
             media: string | string[];
             vendor_response: string;
             /** Format: date-time */
             vendor_response_at: string;
             is_verified_purchase: boolean;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description When this object was created (ISO-8601 timestamp).
+             */
             created_at: string;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description When this object was last edited (ISO-8601 timestamp).
+             */
             edited_at: string;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description When this was submitted (ISO-8601 timestamp).
+             */
             submitted_at: string;
             source: string | null;
             author_display_name: string;
             user?: string;
             product?: {
+                /** @description Unique identifier of this object. */
                 id: string;
+                /** @description URL-safe handle of this object. */
                 slug: string;
+                /** @description Display title. */
                 title: string;
                 thumbnail: string;
             };
@@ -4149,6 +4592,7 @@ export interface components {
         SendAppAlertRequest: {
             /** @enum {string} */
             severity: "info" | "warning" | "error";
+            /** @description Display title. */
             title: string;
             message: string;
             dedupe_key?: string | null;
@@ -4156,32 +4600,39 @@ export interface components {
         };
         /** ShippingZoneResource */
         ShippingZoneResource: {
+            /** @description Unique identifier of this object. */
             id: string;
+            /** @description Display name. */
             name: string;
             zone_type: string;
             countries: unknown[];
             state_ids: unknown[];
             area_ids: unknown[];
-            /**
-             * @description Vendor chain, never the silent platform default: loaded relation first,
-             *     then the cache-backed lookup (zero DB queries on a warm cache).
-             */
+            /** @description ISO-4217 currency code of the amounts on this object. */
             currency: string;
-            base_rate: string;
+            base_rate: string | null;
             per_kg_rate: string | null;
             min_weight_kg: string | null;
             max_weight_kg: string | null;
             min_days: number;
             max_days: number;
             active: boolean;
+            /** @description Sort position within the parent list. */
             position: number;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description When this object was created (ISO-8601 timestamp).
+             */
             created_at: string | null;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description When this object was last changed (ISO-8601 timestamp).
+             */
             updated_at: string | null;
         };
         /** StockAdjustmentResource */
         StockAdjustmentResource: {
+            /** @description Unique identifier of this object. */
             id: string;
             type: string;
             quantity_before: number;
@@ -4191,27 +4642,37 @@ export interface components {
             reason_code: string | null;
             scope: string;
             product: {
+                /** @description Unique identifier of this object. */
                 id: number;
                 uid: string;
+                /** @description Display title. */
                 title: string;
+                /** @description URL-safe handle of this object. */
                 slug: string;
             } | null;
             variant: {
                 uid: string;
+                /** @description Display title. */
                 title: string;
                 option_values: string;
             } | null;
             order: {
+                /** @description Unique identifier of this object. */
                 id: number;
                 uid: string;
             } | null;
             shortfall: string;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description When this object was created (ISO-8601 timestamp).
+             */
             created_at: string | null;
         };
         /** Store coupon input */
         StoreCouponRequest: {
+            /** @description Display title. */
             title: string;
+            /** @description Descriptive text. */
             description?: string | null;
             code?: string | null;
             /** @enum {string} */
@@ -4231,7 +4692,9 @@ export interface components {
         };
         /** Store discount input */
         StoreDiscountRequest: {
+            /** @description Display title. */
             title: string;
+            /** @description Descriptive text. */
             description?: string | null;
             /** @enum {string} */
             type: "percentage" | "fixed";
@@ -4246,6 +4709,7 @@ export interface components {
                 taxonomy_category_ids?: string[] | null;
                 collection_category_ids?: string[] | null;
                 attributes?: {
+                    /** @description Display name. */
                     name?: string;
                     /** @enum {string} */
                     operator?: "eq" | "equals" | "contains" | "includes";
@@ -4268,16 +4732,21 @@ export interface components {
             valid_from?: string | null;
             /** Format: date-time */
             valid_until?: string | null;
+            /** @description Whether this object is active. */
             is_active?: boolean;
             is_published?: boolean;
             auto_apply?: boolean;
-            /** Format: uri */
+            /**
+             * Format: uri
+             * @description URL of the image.
+             */
             image_url?: string | null;
             settings?: string[] | null;
         };
         /** StoreLocaleResource */
         StoreLocaleResource: {
             locale: string;
+            /** @description Display name. */
             name: string;
             native_name: string;
             is_primary: boolean;
@@ -4289,10 +4758,13 @@ export interface components {
         };
         /** StorePageResource */
         StorePageResource: {
+            /** @description Unique identifier of this object. */
             id: string;
             type: string;
             template: string;
+            /** @description URL-safe handle of this object. */
             slug: string;
+            /** @description Display title. */
             title: string;
             /**
              * @description Self-heal on serve: run stored blocks through the canonical
@@ -4305,7 +4777,9 @@ export interface components {
              */
             content: string | string[];
             media_index: string;
+            /** @description Short summary text. */
             excerpt: string | null;
+            /** @description URL of the cover image. */
             cover_image_url: string;
             cover_image_variants: string | null;
             tags: string | string[];
@@ -4313,6 +4787,7 @@ export interface components {
             blog_categories: string | string[];
             reading_time: number;
             author?: {
+                /** @description Display name. */
                 name: string;
                 avatar_url: string;
             } | null;
@@ -4320,12 +4795,22 @@ export interface components {
             chrome: string;
             show_page_title: boolean;
             status: string;
+            /** @description Sort position within the parent list. */
             position: number;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description When this object was published (ISO-8601 timestamp).
+             */
             published_at: string | null;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description When this object was created (ISO-8601 timestamp).
+             */
             created_at: string | null;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description When this object was last changed (ISO-8601 timestamp).
+             */
             updated_at: string | null;
         };
         /**
@@ -4337,7 +4822,10 @@ export interface components {
          */
         StoreProductImageRequest: {
             media_id?: number | null;
-            /** Format: uri */
+            /**
+             * Format: uri
+             * @description Public URL.
+             */
             url?: string | null;
             primary?: boolean;
         };
@@ -4348,12 +4836,16 @@ export interface components {
          */
         StoreProductVariantRequest: {
             option_values: string[];
+            /** @description Stock-keeping unit assigned by the store. */
             sku?: string | null;
+            /** @description Barcode of the item, when set. */
             barcode?: string | null;
             price: number;
             compare_at_price?: number | null;
             stock?: number;
+            /** @description Whether stock is tracked for this item. */
             track_inventory?: boolean;
+            /** @description Whether this object is active. */
             is_active?: boolean;
             is_backorder?: boolean;
             /**
@@ -4361,7 +4853,9 @@ export interface components {
              * @description No `sometimes`: required_if must still fire when the date is omitted.
              */
             backorder_ready_date?: string | null;
+            /** @description Weight of the item. */
             weight?: number | null;
+            /** @description Sort position within the parent list. */
             position?: number;
         };
         /** StoreResource */
@@ -4484,9 +4978,12 @@ export interface components {
         };
         /** TeamDirectoryResource */
         TeamDirectoryResource: {
+            /** @description Unique identifier of this object. */
             id: number;
+            /** @description Display name. */
             name: string | null;
             role_names: string;
+            /** @description Whether this object is active. */
             is_active: boolean;
         };
         /**
@@ -4508,6 +5005,7 @@ export interface components {
             status: "incomplete" | "complete";
             items: {
                 key: string;
+                /** @description Display label. */
                 label: string;
                 value: string;
                 sensitive: boolean;
@@ -4551,12 +5049,16 @@ export interface components {
          */
         UpdateProductVariantRequest: {
             option_values?: string[];
+            /** @description Stock-keeping unit assigned by the store. */
             sku?: string | null;
+            /** @description Barcode of the item, when set. */
             barcode?: string | null;
             price?: number;
             compare_at_price?: number | null;
             stock?: number;
+            /** @description Whether stock is tracked for this item. */
             track_inventory?: boolean;
+            /** @description Whether this object is active. */
             is_active?: boolean;
             is_backorder?: boolean;
             /**
@@ -4564,7 +5066,9 @@ export interface components {
              * @description No `sometimes`: required_if must still fire when the date is omitted.
              */
             backorder_ready_date?: string | null;
+            /** @description Weight of the item. */
             weight?: number | null;
+            /** @description Sort position within the parent list. */
             position?: number;
         };
         /**
@@ -4624,18 +5128,24 @@ export interface components {
         };
         /** UserItemResource */
         UserItemResource: {
+            /** @description Unique identifier of this object. */
             id: string;
             username: string;
             first_name: string | null;
             last_name: string | null;
+            /** @description Display name. */
             name: string | null;
+            /** @description Email address. */
             email: string | null;
+            /** @description Phone number. */
             phone: string | null;
+            /** @description ISO-3166 country code. */
             country_code: string | null;
             phone_code: string | null;
             avatar: string;
             map_lat: number;
             map_lng: number;
+            /** @description Postal address. */
             address: string | null;
             status: string;
             roles?: string;
@@ -4649,15 +5159,17 @@ export interface components {
         };
         /** VendorItemResource */
         VendorItemResource: {
+            /** @description Unique identifier of this object. */
             id: string;
+            /** @description Display name. */
             name: string;
             distance: string;
             delivery_info: {
                 is_free_delivery: boolean;
-                delivery_fee: number | null;
-                delivery_fee_value: number | null;
-                min_order: number;
-                min_order_fee: number;
+                delivery_fee: string | null;
+                delivery_fee_value: string | null;
+                min_order: string | null;
+                min_order_fee: string | null;
                 /** @constant */
                 d_p_value: 1.5;
                 /**
@@ -4675,6 +5187,7 @@ export interface components {
                 disable_delivery_msg?: "We dont have any available rider close to your location at the moment, please check back later";
             };
             notice: string[];
+            /** @description URL-safe handle of this object. */
             slug: string;
             service: string;
             /**
@@ -4691,7 +5204,9 @@ export interface components {
             area: string;
             banner: string | null;
             support_phone: string;
+            /** @description Phone number. */
             phone: string;
+            /** @description ISO-3166 country code. */
             country_code: string;
             phone_code: string;
             support_email: string;
@@ -4706,13 +5221,14 @@ export interface components {
             rating: number;
             rating_count: number;
             short_description: string;
+            /** @description Postal address. */
             address: string;
             open_time: string | null;
             close_time: string | null;
             service_type: string;
             landmark: string;
             region_id: string;
-            min_order_price: number | null;
+            min_order_price: string | null;
         };
         /**
          * Vendor order extension input
@@ -4739,6 +5255,7 @@ export interface components {
          */
         VendorOrderExtensionRequest: {
             metafields?: {
+                /** @description Namespace the key belongs to. */
                 namespace?: string;
                 key?: string;
                 value?: string | null;
@@ -4769,8 +5286,11 @@ export interface components {
         };
         /** VendorProfileResource */
         VendorProfileResource: {
+            /** @description Unique identifier of this object. */
             id: string;
+            /** @description Short, stable integer identifier of this object, the human-readable counterpart of its UUID. */
             p_id: number;
+            /** @description Display name. */
             name: string;
             brand_id: string;
             status: string;
@@ -4780,24 +5300,32 @@ export interface components {
             logo_media_id: number | null;
             banner_media_id: number | null;
             logo_media?: {
+                /** @description Unique identifier of this object. */
                 id: number;
+                /** @description Public URL. */
                 url: string;
                 thumbnail_url: string;
                 mime_type: string;
                 aggregate_type: string;
                 size: number | null;
+                /** @description Width in pixels. */
                 width: number | null;
+                /** @description Height in pixels. */
                 height: number | null;
                 duration_seconds: number | null;
             } | null;
             banner_media?: {
+                /** @description Unique identifier of this object. */
                 id: number;
+                /** @description Public URL. */
                 url: string;
                 thumbnail_url: string;
                 mime_type: string;
                 aggregate_type: string;
                 size: number | null;
+                /** @description Width in pixels. */
                 width: number | null;
+                /** @description Height in pixels. */
                 height: number | null;
                 duration_seconds: number | null;
             } | null;
@@ -4805,10 +5333,13 @@ export interface components {
                 value: number;
                 count: number;
             };
+            /** @description ISO-4217 currency code of the amounts on this object. */
+            currency: string;
             commission: number;
             store_details: {
                 support_phone: string;
                 support_email: string;
+                /** @description Postal address. */
                 address: string;
                 landmark: string;
                 map_coordinates: {
@@ -4816,7 +5347,7 @@ export interface components {
                     lng: number;
                 };
                 region: string | null;
-                minimum_order_price: number;
+                minimum_order_price: string | null;
                 service_type: string;
             };
             operating_hours: {
@@ -4856,7 +5387,7 @@ export interface components {
                 instore_order_commission: number;
                 service_charge: {
                     percent: number;
-                    cap: number;
+                    cap: string | null;
                 };
                 risk_level: string | "Not assessed";
             };
@@ -4867,28 +5398,40 @@ export interface components {
              */
             management: {
                 owner: {
+                    /** @description Unique identifier of this object. */
                     id: string;
+                    /** @description Display name. */
                     name: string;
                 } | string;
                 manager: {
+                    /** @description Unique identifier of this object. */
                     id: string;
+                    /** @description Display name. */
                     name: string;
                 } | string | "Not assigned";
                 onboarded_by: {
+                    /** @description Unique identifier of this object. */
                     id: string;
+                    /** @description Display name. */
                     name: string;
                 } | string | null;
             };
             bank_account: components["schemas"]["BankResource"] | null;
             wallet: {
+                /** @description ISO-4217 currency code of the amounts on this object. */
+                currency: string;
                 balance: string | null;
-                balance_val: number | null;
+                balance_val: string | null;
                 total_withdrawal: string | null;
             };
             qr_codes: [
                 {
-                    /** @constant */
+                    /**
+                     * @description Display name.
+                     * @constant
+                     */
                     name: "in_store_qrcode";
+                    /** @description Public URL. */
                     url: string | null;
                     qrcode: string;
                 }
@@ -4901,12 +5444,14 @@ export interface components {
         };
         /** VendorResource */
         VendorResource: {
+            /** @description Unique identifier of this object. */
             id: string;
+            /** @description Display name. */
             name: string;
             distance: number;
             distance_text: string;
             delivery_info: {
-                delivery_fee: number | null;
+                delivery_fee: string | null;
                 delivery_time: string;
                 pickup_enabled: boolean;
                 /** @constant */
@@ -4925,6 +5470,7 @@ export interface components {
             service_type: string;
             commerce_mode: string | "quick";
             notice: string[];
+            /** @description URL-safe handle of this object. */
             slug: string;
             service: string;
             logo: string | null;
@@ -4944,6 +5490,7 @@ export interface components {
             area: string | null;
             landmark?: string | null;
             support_phone?: string | null;
+            /** @description ISO-3166 country code. */
             country_code?: string | null;
             phone_code?: string | null;
             support_email?: string | null;
@@ -4951,7 +5498,7 @@ export interface components {
             short_description?: string | null;
             disable_order?: boolean;
             region_id?: string | null;
-            min_order_price?: number | null;
+            min_order_price?: string | null;
             /**
              * @description A sandbox store is publicly reachable at `{slug}-test`; the storefront
              *     keeps it out of crawlers and AI discovery (robots, sitemap, agents.md).
@@ -4968,11 +5515,14 @@ export interface components {
             password_required?: boolean;
             indexable?: boolean;
             is_closed: boolean;
+            /** @description ISO-4217 currency code of the amounts on this object. */
             currency: string;
             storefront_url?: string | null;
             checkout_url?: string | null;
             contact?: {
+                /** @description Phone number. */
                 phone: string | null;
+                /** @description Email address. */
                 email: string | null;
                 whatsapp: string | null;
             };
@@ -4985,26 +5535,31 @@ export interface components {
         };
         /** WalletResource */
         WalletResource: {
-            balance: number | null;
-            balance_value: string;
+            /** @description ISO-4217 currency code of the amounts on this object. */
+            currency: string;
+            balance: string | null;
+            /** @description Display name. */
             name: string | null;
             account_number: string | null;
             account_name: string | null;
             account_provider: string | null;
+        } & {
+            [key: string]: unknown;
         };
-        /** @description Additive legacy-compatibility top-level keys the runtime still emits on error bodies — never a replacement for `error.*`, which is the contract. `error_code` and `message` ride top-level on helper-produced refusals; `request_id` and `doc_url` ride top-level ONLY on non-reissued controller-helper bodies (storefront, client, developer and dashboard surfaces) — merchant routes reissue refusals, so there they live inside `error` and the `X-Request-Id` header. Handler-produced bodies keep their own top-level keys with `error` stapled beside them. Not referenced by any operation response: new integrations switch on `error.code`. */
+        /** @description Additive legacy-compatibility top-level keys the runtime still emits on error bodies — never a replacement for `error.*`, which is the contract. `error_code` and `message` ride top-level on the refusals the platform itself raises; `request_id` and `doc_url` ride top-level ONLY on storefront, client, developer and dashboard error bodies — merchant routes reissue refusals, so there they live inside `error` and the `X-Request-Id` header. Some bodies keep their own top-level keys with `error` added beside them. Not referenced by any operation response: new integrations switch on `error.code`. */
         QueekLegacyErrorKeys: {
-            /** @description Top-level mirror of `error.code` on helper-produced refusals (shared controller error helpers, client-auth handler branches). */
+            /** @description Top-level mirror of `error.code` on the refusals the platform itself raises (including the storefront sign-in branches). */
             error_code?: string;
-            /** @description Top-level mirror of `error.message` on the same helper-produced refusals as `error_code`. */
+            /** @description Top-level mirror of `error.message` on the same refusals as `error_code`. */
             message?: string;
-            /** @description Top-level mirror of `error.request_id` ONLY on non-reissued controller-helper bodies. Always a string when present. */
+            /** @description Top-level mirror of `error.request_id` ONLY on storefront, client, developer and dashboard error bodies. Always a string when present. */
             request_id?: string;
-            /** @description Top-level mirror of `error.doc_url`, same per-producer scope as top-level `request_id`: non-reissued controller-helper bodies only. */
+            /** @description Top-level mirror of `error.doc_url`, present on the same bodies as top-level `request_id`. */
             doc_url?: string;
         };
         /** @description One vendor metaobject entry with timestamps. `fields` carries the values keyed by field key. */
         MerchantMetaobject: {
+            /** @description Short, stable integer identifier of this object, the human-readable counterpart of its UUID. */
             p_id: number;
             type: string;
             handle: string;
@@ -5014,9 +5569,15 @@ export interface components {
             fields: {
                 [key: string]: unknown;
             };
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description When this object was created (ISO-8601 timestamp).
+             */
             created_at: string;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description When this object was last changed (ISO-8601 timestamp).
+             */
             updated_at: string;
         };
         /** @description The updated publication beside the per-ref outcomes of one PATCH call. */
@@ -5055,60 +5616,7 @@ export interface components {
             last_posted_at: string;
         };
     };
-    responses: {
-        /** @description Unauthenticated */
-        AuthenticationException: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": {
-                    /** @description Error overview. */
-                    message: string;
-                };
-            };
-        };
-        /** @description Validation error */
-        ValidationException: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": {
-                    /** @description Errors overview. */
-                    message: string;
-                    /** @description A detailed description of each field that failed validation. */
-                    errors: {
-                        [key: string]: string[];
-                    };
-                };
-            };
-        };
-        /** @description Authorization error */
-        AuthorizationException: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": {
-                    /** @description Error overview. */
-                    message: string;
-                };
-            };
-        };
-        /** @description Not found */
-        ModelNotFoundException: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": {
-                    /** @description Error overview. */
-                    message: string;
-                };
-            };
-        };
-    };
+    responses: never;
     parameters: never;
     requestBodies: never;
     headers: never;
@@ -5119,8 +5627,12 @@ export interface operations {
     "addons.list": {
         parameters: {
             query?: {
-                /** @example 2 */
+                /**
+                 * @description Maximum number of items to return in one page.
+                 * @example 2
+                 */
                 limit?: number | null;
+                /** @description Cursor for the next page: pass `next_cursor` from the previous response unchanged. Keep walking while `has_more` is true. */
                 starting_after?: string | null;
             };
             header: {
@@ -5161,6 +5673,7 @@ export interface operations {
                      *               "id": 44101,
                      *               "uid": "019a1d52-3c8e-7f41-b0d2-6a3e9c1f4c01",
                      *               "name": "Grilled Chicken",
+                     *               "currency": "NGN",
                      *               "price": "1500.00",
                      *               "in_stock": true,
                      *               "is_pack": false,
@@ -5170,6 +5683,7 @@ export interface operations {
                      *               "id": 44102,
                      *               "uid": "019a1d52-3c8e-7f41-b0d2-6a3e9c1f4c02",
                      *               "name": "Fried Plantain",
+                     *               "currency": "NGN",
                      *               "price": "800.00",
                      *               "in_stock": true,
                      *               "is_pack": false,
@@ -5342,6 +5856,7 @@ export interface operations {
                      *             "id": 44101,
                      *             "uid": "019a1d52-3c8e-7f41-b0d2-6a3e9c1f4c01",
                      *             "name": "Grilled Chicken",
+                     *             "currency": "NGN",
                      *             "price": "1500.00",
                      *             "in_stock": true,
                      *             "is_pack": false,
@@ -5351,6 +5866,7 @@ export interface operations {
                      *             "id": 44102,
                      *             "uid": "019a1d52-3c8e-7f41-b0d2-6a3e9c1f4c02",
                      *             "name": "Fried Plantain",
+                     *             "currency": "NGN",
                      *             "price": "800.00",
                      *             "in_stock": true,
                      *             "is_pack": false,
@@ -5486,7 +6002,10 @@ export interface operations {
                 "X-Request-Id"?: string;
             };
             path: {
-                /** @example 9101 */
+                /**
+                 * @description Identifier of the add-on group, as returned by the Merchant API.
+                 * @example 9101
+                 */
                 group: string;
             };
             cookie?: never;
@@ -5518,6 +6037,7 @@ export interface operations {
                      *             "id": 44101,
                      *             "uid": "019a1d52-3c8e-7f41-b0d2-6a3e9c1f4c01",
                      *             "name": "Grilled Chicken",
+                     *             "currency": "NGN",
                      *             "price": "1500.00",
                      *             "in_stock": true,
                      *             "is_pack": false,
@@ -5527,6 +6047,7 @@ export interface operations {
                      *             "id": 44102,
                      *             "uid": "019a1d52-3c8e-7f41-b0d2-6a3e9c1f4c02",
                      *             "name": "Fried Plantain",
+                     *             "currency": "NGN",
                      *             "price": "800.00",
                      *             "in_stock": true,
                      *             "is_pack": false,
@@ -5639,7 +6160,10 @@ export interface operations {
                 "Idempotency-Key"?: string;
             };
             path: {
-                /** @example 9101 */
+                /**
+                 * @description Identifier of the add-on group, as returned by the Merchant API.
+                 * @example 9101
+                 */
                 group: string;
             };
             cookie?: never;
@@ -5792,7 +6316,10 @@ export interface operations {
                 "Idempotency-Key"?: string;
             };
             path: {
-                /** @example 9101 */
+                /**
+                 * @description Identifier of the add-on group, as returned by the Merchant API.
+                 * @example 9101
+                 */
                 group: string;
             };
             cookie?: never;
@@ -5842,6 +6369,7 @@ export interface operations {
                      *             "id": 44101,
                      *             "uid": "019a1d52-3c8e-7f41-b0d2-6a3e9c1f4c01",
                      *             "name": "Grilled Chicken",
+                     *             "currency": "NGN",
                      *             "price": "1500.00",
                      *             "in_stock": true,
                      *             "is_pack": false,
@@ -5851,6 +6379,7 @@ export interface operations {
                      *             "id": 44102,
                      *             "uid": "019a1d52-3c8e-7f41-b0d2-6a3e9c1f4c02",
                      *             "name": "Fried Plantain",
+                     *             "currency": "NGN",
                      *             "price": "800.00",
                      *             "in_stock": true,
                      *             "is_pack": false,
@@ -6007,7 +6536,10 @@ export interface operations {
                 "Idempotency-Key"?: string;
             };
             path: {
-                /** @example 20417 */
+                /**
+                 * @description Identifier of the product, as returned by the Merchant API.
+                 * @example 20417
+                 */
                 product: string;
             };
             cookie?: never;
@@ -6054,6 +6586,7 @@ export interface operations {
                      *                 "id": 44201,
                      *                 "uid": "019a1d52-3c8e-7f41-b0d2-6a3e9c1f4c11",
                      *                 "name": "Gift Box",
+                     *                 "currency": "NGN",
                      *                 "price": "2500.00",
                      *                 "in_stock": true,
                      *                 "is_pack": false,
@@ -6221,9 +6754,15 @@ export interface operations {
                 "Idempotency-Key"?: string;
             };
             path: {
-                /** @example 20417 */
+                /**
+                 * @description Identifier of the product, as returned by the Merchant API.
+                 * @example 20417
+                 */
                 product: string;
-                /** @example 9101 */
+                /**
+                 * @description Identifier of the add-on group, as returned by the Merchant API.
+                 * @example 9101
+                 */
                 group: string;
             };
             cookie?: never;
@@ -6550,11 +7089,11 @@ export interface operations {
                  *       "items": [
                  *         {
                  *           "key": "webhook_url",
-                 *           "label": "Chowdeck webhook URL",
-                 *           "value": "https://apps.usequeek.com/chowdeck/hooks/1095",
+                 *           "label": "Example Kitchen webhook URL",
+                 *           "value": "https://apps.usequeek.com/example-channel/hooks/1095",
                  *           "sensitive": false,
                  *           "copyable": true,
-                 *           "instructions": "Paste this into Chowdeck Vendor Portal → Settings → Webhooks."
+                 *           "instructions": "Paste this into the Example Kitchen vendor portal → Settings → Webhooks."
                  *         }
                  *       ]
                  *     }
@@ -6578,11 +7117,11 @@ export interface operations {
                      *           "items": [
                      *             {
                      *               "key": "webhook_url",
-                     *               "label": "Chowdeck webhook URL",
-                     *               "value": "https://apps.usequeek.com/chowdeck/hooks/1095",
+                     *               "label": "Example Kitchen webhook URL",
+                     *               "value": "https://apps.usequeek.com/example-channel/hooks/1095",
                      *               "sensitive": false,
                      *               "copyable": true,
-                     *               "instructions": "Paste this into Chowdeck Vendor Portal → Settings → Webhooks."
+                     *               "instructions": "Paste this into the Example Kitchen vendor portal → Settings → Webhooks."
                      *             }
                      *           ],
                      *           "updated_at": "2026-09-24T12:00:00+01:00"
@@ -6725,8 +7264,8 @@ export interface operations {
                 /**
                  * @example {
                  *       "severity": "warning",
-                 *       "title": "Chowdeck menu out of sync",
-                 *       "message": "Two items on Chowdeck no longer match a product in your store. Open the app to relink them.",
+                 *       "title": "Example Kitchen menu out of sync",
+                 *       "message": "Two items on Example Kitchen no longer match a product in your store. Open the app to relink them.",
                  *       "dedupe_key": "menu-sync-1095"
                  *     }
                  */
@@ -7035,8 +7574,12 @@ export interface operations {
     "app.collected_definitions_list": {
         parameters: {
             query?: {
-                /** @example 2 */
+                /**
+                 * @description Maximum number of items to return in one page.
+                 * @example 2
+                 */
                 limit?: number | null;
+                /** @description Cursor for the next page: pass `next_cursor` from the previous response unchanged. Keep walking while `has_more` is true. */
                 starting_after?: string | null;
             };
             header: {
@@ -7418,7 +7961,10 @@ export interface operations {
                 "Idempotency-Key"?: string;
             };
             path: {
-                /** @example 74 */
+                /**
+                 * @description Identifier of the definition, as returned by the Merchant API.
+                 * @example 74
+                 */
                 definition: string;
             };
             cookie?: never;
@@ -7616,12 +8162,19 @@ export interface operations {
             query?: {
                 /** @example 74 */
                 definition?: string;
-                /** @example 2 */
+                /**
+                 * @description Maximum number of items to return in one page.
+                 * @example 2
+                 */
                 limit?: number | null;
-                /** @example WzEsIjAyNTRiNDZlMWU2YTIxZmM3M2ZiZTVkMTQ1NTk5MDM4OGFjYzFmNWRkNzY3ZDY1OWM2YmJkOTIwNzliZjU3MWEiLCJleUp6ZFdKdGFYUjBaV1JmWVhRaU9pSXlNREkyTFRBNUxUSTBJREUxT2pJd09qQXdJaXdpY0Y5cFpDSTZOVFV6TUN3aVgzQnZhVzUwYzFSdlRtVjRkRWwwWlcxeklqcDBjblZsZlEiXQ */
+                /**
+                 * @description Cursor for the next page: pass `next_cursor` from the previous response unchanged. Keep walking while `has_more` is true.
+                 * @example WzEsIjAyNTRiNDZlMWU2YTIxZmM3M2ZiZTVkMTQ1NTk5MDM4OGFjYzFmNWRkNzY3ZDY1OWM2YmJkOTIwNzliZjU3MWEiLCJleUp6ZFdKdGFYUjBaV1JmWVhRaU9pSXlNREkyTFRBNUxUSTBJREUxT2pJd09qQXdJaXdpY0Y5cFpDSTZOVFV6TUN3aVgzQnZhVzUwYzFSdlRtVjRkRWwwWlcxeklqcDBjblZsZlEiXQ
+                 */
                 starting_after?: string | null;
                 /** @example new */
                 status?: components["schemas"]["CollectedRecordStatus"] | null;
+                /** @description Free-text filter: only items matching this text are returned. */
                 search?: string | null;
             };
             header: {
@@ -7939,7 +8492,10 @@ export interface operations {
                 "X-Request-Id"?: string;
             };
             path: {
-                /** @example 5530 */
+                /**
+                 * @description Identifier of the metaobject record, as returned by the Merchant API.
+                 * @example 5530
+                 */
                 record: string;
             };
             cookie?: never;
@@ -8075,7 +8631,10 @@ export interface operations {
                 "Idempotency-Key"?: string;
             };
             path: {
-                /** @example 5530 */
+                /**
+                 * @description Identifier of the metaobject record, as returned by the Merchant API.
+                 * @example 5530
+                 */
                 record: string;
             };
             cookie?: never;
@@ -8256,14 +8815,23 @@ export interface operations {
     "collections.list": {
         parameters: {
             query?: {
-                /** @example 2 */
+                /**
+                 * @description Maximum number of items to return in one page.
+                 * @example 2
+                 */
                 limit?: number | null;
-                /** @example eyJpZCI6MzEwOSwiX3BvaW50c1RvTmV4dEl0ZW1zIjp0cnVlfQ */
+                /**
+                 * @description Cursor for the next page: pass `next_cursor` from the previous response unchanged. Keep walking while `has_more` is true.
+                 * @example eyJpZCI6MzEwOSwiX3BvaW50c1RvTmV4dEl0ZW1zIjp0cnVlfQ
+                 */
                 starting_after?: string | null;
                 /** @example all */
                 collection_mode?: string | null;
+                /** @description Free-text filter: only items matching this text are returned. */
                 search?: string | null;
+                /** @description Field to sort the list by. */
                 sort_by?: string | null;
+                /** @description Sort direction. One of `asc`, `desc`. */
                 sort_order?: "asc" | "desc" | null;
                 publication?: string | null;
             };
@@ -8626,7 +9194,10 @@ export interface operations {
                 "Idempotency-Key"?: string;
             };
             path: {
-                /** @example 3108 */
+                /**
+                 * @description Identifier of the collection, as returned by the Merchant API.
+                 * @example 3108
+                 */
                 collection: string;
             };
             cookie?: never;
@@ -8806,7 +9377,10 @@ export interface operations {
                 "Idempotency-Key"?: string;
             };
             path: {
-                /** @example 3108 */
+                /**
+                 * @description Identifier of the collection, as returned by the Merchant API.
+                 * @example 3108
+                 */
                 collection: string;
             };
             cookie?: never;
@@ -8975,11 +9549,19 @@ export interface operations {
     "posts.list": {
         parameters: {
             query?: {
-                /** @example 2 */
+                /**
+                 * @description Maximum number of items to return in one page.
+                 * @example 2
+                 */
                 limit?: number | null;
+                /** @description Cursor for the next page: pass `next_cursor` from the previous response unchanged. Keep walking while `has_more` is true. */
                 starting_after?: string | null;
+                /** @description One of `page`, `post`, `gallery`. */
                 type?: "page" | "post" | "gallery" | null;
-                /** @example published */
+                /**
+                 * @description One of `draft`, `published`.
+                 * @example published
+                 */
                 status?: "draft" | "published" | null;
             };
             header: {
@@ -9377,7 +9959,10 @@ export interface operations {
                 "X-Request-Id"?: string;
             };
             path: {
-                /** @example how-we-smoke-our-party-jollof */
+                /**
+                 * @description Identifier of the post, as returned by the Merchant API.
+                 * @example how-we-smoke-our-party-jollof
+                 */
                 post: string;
             };
             cookie?: never;
@@ -9531,7 +10116,10 @@ export interface operations {
                 "Idempotency-Key"?: string;
             };
             path: {
-                /** @example how-we-smoke-our-party-jollof */
+                /**
+                 * @description Identifier of the post, as returned by the Merchant API.
+                 * @example how-we-smoke-our-party-jollof
+                 */
                 post: string;
             };
             cookie?: never;
@@ -9744,7 +10332,10 @@ export interface operations {
                 "Idempotency-Key"?: string;
             };
             path: {
-                /** @example how-we-smoke-our-party-jollof */
+                /**
+                 * @description Identifier of the post, as returned by the Merchant API.
+                 * @example how-we-smoke-our-party-jollof
+                 */
                 post: string;
             };
             cookie?: never;
@@ -9882,13 +10473,18 @@ export interface operations {
     "coupons.list": {
         parameters: {
             query?: {
-                /** @example 1 */
+                /**
+                 * @description Maximum number of items to return in one page.
+                 * @example 1
+                 */
                 limit?: number | null;
+                /** @description Cursor for the next page: pass `next_cursor` from the previous response unchanged. Keep walking while `has_more` is true. */
                 starting_after?: string | null;
                 /** @example percentage */
                 discount_type?: string | null;
                 /** @example active */
                 status?: string | null;
+                /** @description Free-text filter: only items matching this text are returned. */
                 search?: string | null;
             };
             header: {
@@ -9919,6 +10515,7 @@ export interface operations {
                      *           "title": "Lekki Launch 10% Off",
                      *           "description": "10% off your first order from our Lekki kitchen.",
                      *           "discount_type": "percentage",
+                     *           "currency": "NGN",
                      *           "discount_value": "10.00",
                      *           "applies_to": "all_products",
                      *           "target_product_ids": [],
@@ -10084,6 +10681,7 @@ export interface operations {
                      *         "title": "Lekki Launch 10% Off",
                      *         "description": "10% off your first order from our Lekki kitchen.",
                      *         "discount_type": "percentage",
+                     *         "currency": "NGN",
                      *         "discount_value": "10.00",
                      *         "applies_to": "all_products",
                      *         "target_product_ids": [],
@@ -10220,17 +10818,30 @@ export interface operations {
     "customers.list": {
         parameters: {
             query?: {
-                /** @example 2 */
+                /**
+                 * @description Maximum number of items to return in one page.
+                 * @example 2
+                 */
                 limit?: number | null;
+                /** @description Cursor for the next page: pass `next_cursor` from the previous response unchanged. Keep walking while `has_more` is true. */
                 starting_after?: string | null;
                 from_date?: string | null;
                 to_date?: string | null;
+                /** @description One of `today`, `this_week`, `this_month`. */
                 date_range?: "today" | "this_week" | "this_month" | null;
+                /** @description One of `campaign`. */
                 audience?: "campaign" | null;
+                /** @description Free-text filter: only items matching this text are returned. */
                 search?: string | null;
-                /** @example created_at */
+                /**
+                 * @description Field to sort the list by. One of `created_at`, `updated_at`, `joined_date`, `name`, `email`, `phone`, `p_id`, `customer_orders_count`.
+                 * @example created_at
+                 */
                 sort_by?: "created_at" | "updated_at" | "joined_date" | "name" | "email" | "phone" | "p_id" | "customer_orders_count" | null;
-                /** @example desc */
+                /**
+                 * @description Sort direction. One of `asc`, `desc`.
+                 * @example desc
+                 */
                 sort_order?: "asc" | "desc" | null;
             };
             header: {
@@ -10392,9 +11003,14 @@ export interface operations {
     "customers.list_followers": {
         parameters: {
             query?: {
-                /** @example 2 */
+                /**
+                 * @description Maximum number of items to return in one page.
+                 * @example 2
+                 */
                 limit?: number | null;
+                /** @description Cursor for the next page: pass `next_cursor` from the previous response unchanged. Keep walking while `has_more` is true. */
                 starting_after?: string | null;
+                /** @description Free-text filter: only items matching this text are returned. */
                 search?: string | null;
             };
             header: {
@@ -10550,7 +11166,10 @@ export interface operations {
                 "X-Request-Id"?: string;
             };
             path: {
-                /** @example 90341 */
+                /**
+                 * @description Identifier of the customer, as returned by the Merchant API.
+                 * @example 90341
+                 */
                 customer: string;
             };
             cookie?: never;
@@ -10690,7 +11309,10 @@ export interface operations {
                 "Idempotency-Key"?: string;
             };
             path: {
-                /** @example 90341 */
+                /**
+                 * @description Identifier of the customer, as returned by the Merchant API.
+                 * @example 90341
+                 */
                 customer: string;
             };
             cookie?: never;
@@ -10869,7 +11491,10 @@ export interface operations {
                 "Idempotency-Key"?: string;
             };
             path: {
-                /** @example 90341 */
+                /**
+                 * @description Identifier of the customer, as returned by the Merchant API.
+                 * @example 90341
+                 */
                 customer: string;
             };
             cookie?: never;
@@ -11052,9 +11677,15 @@ export interface operations {
     "customers.list_wishlist_items": {
         parameters: {
             query?: {
-                /** @example 2 */
+                /**
+                 * @description Maximum number of items to return in one page.
+                 * @example 2
+                 */
                 limit?: number | null;
-                /** @example eyJjdXN0b21lcl93aXNobGlzdF9pdGVtcy5jcmVhdGVkX2F0IjoiMjAyNi0wOS0yNCAxMjowMDowMCIsImN1c3RvbWVyX3dpc2hsaXN0X2l0ZW1zLmlkIjoiMDE5YTFkNTItM2M4ZS03ZjQxLWIwZDItNmEzZTljMWY0YjI4IiwiX3BvaW50c1RvTmV4dEl0ZW1zIjp0cnVlfQ */
+                /**
+                 * @description Cursor for the next page: pass `next_cursor` from the previous response unchanged. Keep walking while `has_more` is true.
+                 * @example eyJjdXN0b21lcl93aXNobGlzdF9pdGVtcy5jcmVhdGVkX2F0IjoiMjAyNi0wOS0yNCAxMjowMDowMCIsImN1c3RvbWVyX3dpc2hsaXN0X2l0ZW1zLmlkIjoiMDE5YTFkNTItM2M4ZS03ZjQxLWIwZDItNmEzZTljMWY0YjI4IiwiX3BvaW50c1RvTmV4dEl0ZW1zIjp0cnVlfQ
+                 */
                 starting_after?: string | null;
             };
             header: {
@@ -11067,7 +11698,10 @@ export interface operations {
                 "X-Request-Id"?: string;
             };
             path: {
-                /** @example 90341 */
+                /**
+                 * @description Identifier of the customer, as returned by the Merchant API.
+                 * @example 90341
+                 */
                 customer: string;
             };
             cookie?: never;
@@ -11099,13 +11733,13 @@ export interface operations {
                      *             "type": null,
                      *             "commerce_mode": "shop",
                      *             "currency": "NGN",
-                     *             "price": 2875,
-                     *             "discount_price": 2875,
+                     *             "price": "2875.00",
+                     *             "discount_price": "2875.00",
                      *             "compare_at_price": null,
                      *             "is_price_from": true,
                      *             "price_range": {
-                     *               "min": 2875,
-                     *               "max": 4830
+                     *               "min": "2875.00",
+                     *               "max": "4830.00"
                      *             },
                      *             "has_variants": true,
                      *             "has_addons": false,
@@ -11202,8 +11836,8 @@ export interface operations {
                      *             },
                      *             "variant_summary": {
                      *               "count": 2,
-                     *               "min_price": 2875,
-                     *               "max_price": 4830,
+                     *               "min_price": "2875.00",
+                     *               "max_price": "4830.00",
                      *               "total_stock": 60,
                      *               "tracks_inventory": true,
                      *               "in_stock": true
@@ -11276,9 +11910,9 @@ export interface operations {
                      *                 "option_values": {
                      *                   "Size": "50cl"
                      *                 },
-                     *                 "price": 2875,
-                     *                 "discount_price": 2875,
-                     *                 "discount_amount": 0,
+                     *                 "price": "2875.00",
+                     *                 "discount_price": "2875.00",
+                     *                 "discount_amount": "0.00",
                      *                 "has_discount": false,
                      *                 "compare_at_price": null,
                      *                 "stock": 36,
@@ -11374,9 +12008,9 @@ export interface operations {
                      *                 "option_values": {
                      *                   "Size": "1 litre"
                      *                 },
-                     *                 "price": 4830,
-                     *                 "discount_price": 4830,
-                     *                 "discount_amount": 0,
+                     *                 "price": "4830.00",
+                     *                 "discount_price": "4830.00",
+                     *                 "discount_amount": "0.00",
                      *                 "has_discount": false,
                      *                 "compare_at_price": null,
                      *                 "stock": 24,
@@ -11618,14 +12252,24 @@ export interface operations {
     "discounts.list": {
         parameters: {
             query?: {
-                /** @example 2 */
+                /**
+                 * @description Maximum number of items to return in one page.
+                 * @example 2
+                 */
                 limit?: number | null;
+                /** @description Cursor for the next page: pass `next_cursor` from the previous response unchanged. Keep walking while `has_more` is true. */
                 starting_after?: string | null;
+                /** @description One of `percentage`, `fixed`. */
                 type?: "percentage" | "fixed" | null;
-                /** @example active */
+                /**
+                 * @description One of `active`, `inactive`.
+                 * @example active
+                 */
                 status?: "active" | "inactive" | null;
                 is_published?: boolean | null;
+                /** @description Free-text filter: only items matching this text are returned. */
                 search?: string | null;
+                /** @description One of `all`, `discount`, `promotion`. */
                 campaign_type?: "all" | "discount" | "promotion" | null;
             };
             header: {
@@ -11656,6 +12300,7 @@ export interface operations {
                      *           "title": "Detty December ₦2,000 Off",
                      *           "description": "₦2,000 off party packs through December.",
                      *           "type": "fixed",
+                     *           "currency": "NGN",
                      *           "value": "2000.00",
                      *           "product_ids": [
                      *             "019a1d52-3c8e-7f41-b0d2-6a3e9c1f4b21"
@@ -11685,6 +12330,7 @@ export interface operations {
                      *           "title": "Party Pack Season 10% Off",
                      *           "description": "10% off every party pack until the end of the year.",
                      *           "type": "percentage",
+                     *           "currency": "NGN",
                      *           "value": "10.00",
                      *           "product_ids": [],
                      *           "category_ids": [
@@ -11861,6 +12507,7 @@ export interface operations {
                      *         "title": "Detty December ₦2,000 Off",
                      *         "description": "₦2,000 off party packs through December.",
                      *         "type": "fixed",
+                     *         "currency": "NGN",
                      *         "value": "2000.00",
                      *         "product_ids": [
                      *           "019a1d52-3c8e-7f41-b0d2-6a3e9c1f4b21"
@@ -12010,7 +12657,10 @@ export interface operations {
                 "X-Request-Id"?: string;
             };
             path: {
-                /** @example 019a2e90-7a1b-7c2d-9e3f-4a5b6c7d8e01 */
+                /**
+                 * @description Identifier of the discount, as returned by the Merchant API.
+                 * @example 019a2e90-7a1b-7c2d-9e3f-4a5b6c7d8e01
+                 */
                 discount: string;
             };
             cookie?: never;
@@ -12032,6 +12682,7 @@ export interface operations {
                      *         "title": "Party Pack Season 10% Off",
                      *         "description": "10% off every party pack until the end of the year.",
                      *         "type": "percentage",
+                     *         "currency": "NGN",
                      *         "value": "10.00",
                      *         "product_ids": [],
                      *         "category_ids": [
@@ -12158,7 +12809,10 @@ export interface operations {
                 "Idempotency-Key"?: string;
             };
             path: {
-                /** @example 019a2e90-7a1b-7c2d-9e3f-4a5b6c7d8e01 */
+                /**
+                 * @description Identifier of the discount, as returned by the Merchant API.
+                 * @example 019a2e90-7a1b-7c2d-9e3f-4a5b6c7d8e01
+                 */
                 discount: string;
             };
             cookie?: never;
@@ -12302,7 +12956,10 @@ export interface operations {
                 "Idempotency-Key"?: string;
             };
             path: {
-                /** @example 019a2e90-7a1b-7c2d-9e3f-4a5b6c7d8e01 */
+                /**
+                 * @description Identifier of the discount, as returned by the Merchant API.
+                 * @example 019a2e90-7a1b-7c2d-9e3f-4a5b6c7d8e01
+                 */
                 discount: string;
             };
             cookie?: never;
@@ -12434,8 +13091,12 @@ export interface operations {
     "files.list": {
         parameters: {
             query?: {
-                /** @example 10 */
+                /**
+                 * @description Maximum number of items to return in one page.
+                 * @example 10
+                 */
                 limit?: number | null;
+                /** @description Cursor for the next page: pass `next_cursor` from the previous response unchanged. Keep walking while `has_more` is true. */
                 starting_after?: string | null;
             };
             header: {
@@ -12850,8 +13511,12 @@ export interface operations {
     "images.list": {
         parameters: {
             query?: {
-                /** @example 2 */
+                /**
+                 * @description Maximum number of items to return in one page.
+                 * @example 2
+                 */
                 limit?: number | null;
+                /** @description Cursor for the next page: pass `next_cursor` from the previous response unchanged. Keep walking while `has_more` is true. */
                 starting_after?: string | null;
             };
             header: {
@@ -12864,7 +13529,10 @@ export interface operations {
                 "X-Request-Id"?: string;
             };
             path: {
-                /** @example 20417 */
+                /**
+                 * @description Identifier of the product, as returned by the Merchant API.
+                 * @example 20417
+                 */
                 product: string;
             };
             cookie?: never;
@@ -13091,7 +13759,10 @@ export interface operations {
                 "Idempotency-Key"?: string;
             };
             path: {
-                /** @example 20417 */
+                /**
+                 * @description Identifier of the product, as returned by the Merchant API.
+                 * @example 20417
+                 */
                 product: string;
             };
             cookie?: never;
@@ -13365,9 +14036,15 @@ export interface operations {
                 "Idempotency-Key"?: string;
             };
             path: {
-                /** @example 20417 */
+                /**
+                 * @description Identifier of the product, as returned by the Merchant API.
+                 * @example 20417
+                 */
                 product: string;
-                /** @example 88215 */
+                /**
+                 * @description Identifier of the product image, as returned by the Merchant API.
+                 * @example 88215
+                 */
                 image: string;
             };
             cookie?: never;
@@ -13511,9 +14188,15 @@ export interface operations {
                 "Idempotency-Key"?: string;
             };
             path: {
-                /** @example 20417 */
+                /**
+                 * @description Identifier of the product, as returned by the Merchant API.
+                 * @example 20417
+                 */
                 product: string;
-                /** @example 88214 */
+                /**
+                 * @description Identifier of the product image, as returned by the Merchant API.
+                 * @example 88214
+                 */
                 image: string;
             };
             cookie?: never;
@@ -13817,10 +14500,17 @@ export interface operations {
     "inventory.levels": {
         parameters: {
             query?: {
-                /** @example 2 */
+                /**
+                 * @description Maximum number of items to return in one page.
+                 * @example 2
+                 */
                 limit?: number | null;
-                /** @example eyJwX2lkIjoyMDQxNywiX3BvaW50c1RvTmV4dEl0ZW1zIjp0cnVlfQ */
+                /**
+                 * @description Cursor for the next page: pass `next_cursor` from the previous response unchanged. Keep walking while `has_more` is true.
+                 * @example eyJwX2lkIjoyMDQxNywiX3BvaW50c1RvTmV4dEl0ZW1zIjp0cnVlfQ
+                 */
                 starting_after?: string | null;
+                /** @description Only items belonging to this product. */
                 product?: string;
                 barcode?: string;
             };
@@ -14161,8 +14851,12 @@ export interface operations {
     "inventory.history": {
         parameters: {
             query?: {
-                /** @example 2 */
+                /**
+                 * @description Maximum number of items to return in one page.
+                 * @example 2
+                 */
                 limit?: number | null;
+                /** @description Cursor for the next page: pass `next_cursor` from the previous response unchanged. Keep walking while `has_more` is true. */
                 starting_after?: string | null;
                 type?: string | null;
             };
@@ -14176,7 +14870,10 @@ export interface operations {
                 "X-Request-Id"?: string;
             };
             path: {
-                /** @example 20417 */
+                /**
+                 * @description Identifier of the product, as returned by the Merchant API.
+                 * @example 20417
+                 */
                 product: string;
             };
             cookie?: never;
@@ -14358,8 +15055,12 @@ export interface operations {
     "inventory.list_adjustments": {
         parameters: {
             query?: {
-                /** @example 2 */
+                /**
+                 * @description Maximum number of items to return in one page.
+                 * @example 2
+                 */
                 limit?: number | null;
+                /** @description Cursor for the next page: pass `next_cursor` from the previous response unchanged. Keep walking while `has_more` is true. */
                 starting_after?: string | null;
                 type?: string | null;
                 product_id?: string | null;
@@ -14741,8 +15442,12 @@ export interface operations {
     "metafields.list_definitions": {
         parameters: {
             query?: {
-                /** @example 2 */
+                /**
+                 * @description Maximum number of items to return in one page.
+                 * @example 2
+                 */
                 limit?: number | null;
+                /** @description Cursor for the next page: pass `next_cursor` from the previous response unchanged. Keep walking while `has_more` is true. */
                 starting_after?: string | null;
                 owner_type?: string | null;
             };
@@ -15097,8 +15802,12 @@ export interface operations {
     "metaobjects.list_definitions": {
         parameters: {
             query?: {
-                /** @example 2 */
+                /**
+                 * @description Maximum number of items to return in one page.
+                 * @example 2
+                 */
                 limit?: number | null;
+                /** @description Cursor for the next page: pass `next_cursor` from the previous response unchanged. Keep walking while `has_more` is true. */
                 starting_after?: string | null;
             };
             header: {
@@ -15476,13 +16185,18 @@ export interface operations {
     "metaobjects.list": {
         parameters: {
             query?: {
-                /** @example 2 */
+                /**
+                 * @description Maximum number of items to return in one page.
+                 * @example 2
+                 */
                 limit?: number | null;
+                /** @description Cursor for the next page: pass `next_cursor` from the previous response unchanged. Keep walking while `has_more` is true. */
                 starting_after?: string | null;
                 /** @example chef */
                 type?: string | null;
                 /** @example active */
                 status?: string | null;
+                /** @description Free-text filter: only items matching this text are returned. */
                 search?: string | null;
             };
             header: {
@@ -15807,27 +16521,41 @@ export interface operations {
     "orders.list": {
         parameters: {
             query?: {
-                /** @example paid */
+                /**
+                 * @description One of `paid`, `unpaid`, `refunded`, `partial`, `pending`, `awaiting_confirmation`.
+                 * @example paid
+                 */
                 payment_status?: "paid" | "unpaid" | "refunded" | "partial" | "pending" | "awaiting_confirmation" | null;
-                /** @example delivery */
+                /**
+                 * @description One of `delivery`, `pickup`, `instore`, `shipping`.
+                 * @example delivery
+                 */
                 delivery_method?: "delivery" | "pickup" | "instore" | "shipping" | null;
                 registry_id?: string | null;
                 "metafield[]"?: string[] | null;
                 /** @description Only orders attributed to this sales channel: a channel id, or an app key's own channel key. Unknown channel 404, archived 410. */
                 publication?: string | null;
                 /**
-                 * @description One hand-recorded or third-party channel name (CustomOrderChannel);
-                 *     ANDs with ?channel= (e.g. channel=third_party narrows the
-                 *     platform, this picks the name). Shared with the Merchant API
-                 *     list, which pages the same rows — see its spec entry.
+                 * @description One hand-recorded or third-party channel name; combines with
+                 *     ?channel= (channel=third_party narrows the platform, this picks
+                 *     the name). The Merchant API list pages the same rows.
                  */
                 custom_channel?: "physical_sale" | "instagram" | "whatsapp" | "facebook" | "flutterwave" | "jiji" | "jumia" | "konga" | "tiktok" | "glovo" | "chowdeck" | "paystack" | "snapchat" | "x_twitter" | "others" | null;
+                /** @description Field to sort the list by. One of `created_at`, `updated_at`, `status`, `payment_status`, `total`. */
                 sort_by?: "created_at" | "updated_at" | "status" | "payment_status" | "total" | null;
+                /** @description Sort direction. One of `asc`, `desc`. */
                 sort_order?: "asc" | "desc" | null;
-                /** @example 2 */
+                /**
+                 * @description Maximum number of items to return in one page.
+                 * @example 2
+                 */
                 limit?: number | null;
+                /** @description Cursor for the next page: pass `next_cursor` from the previous response unchanged. Keep walking while `has_more` is true. */
                 starting_after?: string | null;
-                /** @example 2026-10-03T11:55:00Z */
+                /**
+                 * @description Only items changed after this ISO-8601 timestamp.
+                 * @example 2026-10-03T11:55:00Z
+                 */
                 updated_after?: string;
             };
             header: {
@@ -16116,7 +16844,10 @@ export interface operations {
                 "X-Request-Id"?: string;
             };
             path: {
-                /** @example 58213 */
+                /**
+                 * @description Identifier of the order, as returned by the Merchant API.
+                 * @example 58213
+                 */
                 order: string;
             };
             cookie?: never;
@@ -16319,7 +17050,10 @@ export interface operations {
                 "Idempotency-Key"?: string;
             };
             path: {
-                /** @example 58213 */
+                /**
+                 * @description Identifier of the order, as returned by the Merchant API.
+                 * @example 58213
+                 */
                 order: string;
             };
             cookie?: never;
@@ -16853,7 +17587,10 @@ export interface operations {
                 "Idempotency-Key"?: string;
             };
             path: {
-                /** @example 58213 */
+                /**
+                 * @description Identifier of the order, as returned by the Merchant API.
+                 * @example 58213
+                 */
                 order: string;
             };
             cookie?: never;
@@ -17085,7 +17822,10 @@ export interface operations {
                 "Idempotency-Key"?: string;
             };
             path: {
-                /** @example 58213 */
+                /**
+                 * @description Identifier of the order, as returned by the Merchant API.
+                 * @example 58213
+                 */
                 order: string;
             };
             cookie?: never;
@@ -17317,7 +18057,10 @@ export interface operations {
                 "Idempotency-Key"?: string;
             };
             path: {
-                /** @example 58190 */
+                /**
+                 * @description Identifier of the order, as returned by the Merchant API.
+                 * @example 58190
+                 */
                 order: string;
             };
             cookie?: never;
@@ -17546,8 +18289,12 @@ export interface operations {
     "payouts.list": {
         parameters: {
             query?: {
-                /** @example 10 */
+                /**
+                 * @description Maximum number of items to return in one page.
+                 * @example 10
+                 */
                 limit?: number | null;
+                /** @description Cursor for the next page: pass `next_cursor` from the previous response unchanged. Keep walking while `has_more` is true. */
                 starting_after?: string | null;
             };
             header: {
@@ -17690,7 +18437,10 @@ export interface operations {
                 "X-Request-Id"?: string;
             };
             path: {
-                /** @example 2026-09-24 */
+                /**
+                 * @description Identifier of the payout, as returned by the Merchant API.
+                 * @example 2026-09-24
+                 */
                 payout: string;
             };
             cookie?: never;
@@ -17817,11 +18567,18 @@ export interface operations {
     "products.list": {
         parameters: {
             query?: {
-                /** @example 2 */
+                /**
+                 * @description Maximum number of items to return in one page.
+                 * @example 2
+                 */
                 limit?: number | null;
+                /** @description Cursor for the next page: pass `next_cursor` from the previous response unchanged. Keep walking while `has_more` is true. */
                 starting_after?: string | null;
+                /** @description Field to sort the list by. One of `created_at`, `updated_at`, `title`, `price`, `stock`, `published`. */
                 sort_by?: "created_at" | "updated_at" | "title" | "price" | "stock" | "published" | null;
+                /** @description Sort direction. */
                 sort_order?: string | null;
+                /** @description Free-text filter: only items matching this text are returned. */
                 search?: string | null;
                 category_id?: string | null;
                 taxonomy_category_id?: string | null;
@@ -17833,10 +18590,15 @@ export interface operations {
                 channel?: string | null;
                 /** @description Only products published to this sales channel: a channel id, or an app key's own channel key. Unknown channel 404, archived 410. */
                 publication?: string | null;
+                /** @description One of `0`, `1`, `true`, `false`. */
                 is_marketplace?: "0" | "1" | "true" | "false" | null;
+                /** @description One of `0`, `1`, `true`, `false`. */
                 is_wholesale?: "0" | "1" | "true" | "false" | null;
                 "metafield[]"?: string[] | null;
-                /** @example 2026-10-03T11:55:00Z */
+                /**
+                 * @description Only items changed after this ISO-8601 timestamp.
+                 * @example 2026-10-03T11:55:00Z
+                 */
                 updated_after?: string;
             };
             header: {
@@ -17895,6 +18657,7 @@ export interface operations {
                      *               "option_values": {
                      *                 "Size": "50cl"
                      *               },
+                     *               "currency": "NGN",
                      *               "price": "2500.00",
                      *               "storefront_price": "2500.00",
                      *               "storefront_compare_at_price": null,
@@ -17920,6 +18683,7 @@ export interface operations {
                      *               "option_values": {
                      *                 "Size": "1 litre"
                      *               },
+                     *               "currency": "NGN",
                      *               "price": "4200.00",
                      *               "storefront_price": "4200.00",
                      *               "storefront_compare_at_price": null,
@@ -18432,16 +19196,25 @@ export interface operations {
             query?: {
                 /** @example jollof */
                 keyword?: string | null;
-                /** @example 1 */
+                /**
+                 * @description One of `0`, `1`, `true`, `false`.
+                 * @example 1
+                 */
                 in_stock?: "0" | "1" | "true" | "false" | null;
                 /**
                  * @description The dot is part of the handle (namespace.key), not a nested path, so
                  *     each handle and value is validated on the map as a whole.
                  */
                 "metafield[]"?: string[] | null;
-                /** @example latest */
+                /**
+                 * @description One of `latest`, `popular`, `price_low`, `price_high`.
+                 * @example latest
+                 */
                 sort?: "latest" | "popular" | "price_low" | "price_high" | null;
-                /** @example 2 */
+                /**
+                 * @description Maximum number of items to return in one page.
+                 * @example 2
+                 */
                 limit?: number | null;
                 /** @description The cursor is an opaque signed token; pass it back unchanged. */
                 starting_after?: string | null;
@@ -18502,6 +19275,7 @@ export interface operations {
                      *               "option_values": {
                      *                 "Size": "50cl"
                      *               },
+                     *               "currency": "NGN",
                      *               "price": "2500.00",
                      *               "storefront_price": "2500.00",
                      *               "storefront_compare_at_price": null,
@@ -18527,6 +19301,7 @@ export interface operations {
                      *               "option_values": {
                      *                 "Size": "1 litre"
                      *               },
+                     *               "currency": "NGN",
                      *               "price": "4200.00",
                      *               "storefront_price": "4200.00",
                      *               "storefront_compare_at_price": null,
@@ -18791,7 +19566,10 @@ export interface operations {
                 "X-Request-Id"?: string;
             };
             path: {
-                /** @example 20417 */
+                /**
+                 * @description Identifier of the product, as returned by the Merchant API.
+                 * @example 20417
+                 */
                 product: string;
             };
             cookie?: never;
@@ -18997,7 +19775,10 @@ export interface operations {
                 "Idempotency-Key"?: string;
             };
             path: {
-                /** @example 20417 */
+                /**
+                 * @description Identifier of the product, as returned by the Merchant API.
+                 * @example 20417
+                 */
                 product: string;
             };
             cookie?: never;
@@ -19272,7 +20053,10 @@ export interface operations {
                 "Idempotency-Key"?: string;
             };
             path: {
-                /** @example 20417 */
+                /**
+                 * @description Identifier of the product, as returned by the Merchant API.
+                 * @example 20417
+                 */
                 product: string;
             };
             cookie?: never;
@@ -19583,8 +20367,12 @@ export interface operations {
     "publications.list": {
         parameters: {
             query?: {
-                /** @example 2 */
+                /**
+                 * @description Maximum number of items to return in one page.
+                 * @example 2
+                 */
                 limit?: number | null;
+                /** @description Cursor for the next page: pass `next_cursor` from the previous response unchanged. Keep walking while `has_more` is true. */
                 starting_after?: string | null;
             };
             header: {
@@ -19887,7 +20675,10 @@ export interface operations {
                 "Idempotency-Key"?: string;
             };
             path: {
-                /** @example 1001 */
+                /**
+                 * @description Identifier of the publication, as returned by the Merchant API.
+                 * @example 1001
+                 */
                 publication: string;
             };
             cookie?: never;
@@ -20082,12 +20873,22 @@ export interface operations {
     "reviews.list_imported": {
         parameters: {
             query?: {
-                /** @example 2 */
+                /**
+                 * @description Maximum number of items to return in one page.
+                 * @example 2
+                 */
                 limit?: number | null;
-                /** @example eyJjcmVhdGVkX2F0IjoiMjAyNi0xMC0wMyAwOTowMDowMCIsImlkIjoiMDE5YTFkNTItM2M4ZS03ZjQxLWIwZDItNmEzZTljMWY0YjIxIiwiX3BvaW50c1RvTmV4dEl0ZW1zIjp0cnVlfQ */
+                /**
+                 * @description Cursor for the next page: pass `next_cursor` from the previous response unchanged. Keep walking while `has_more` is true.
+                 * @example eyJjcmVhdGVkX2F0IjoiMjAyNi0xMC0wMyAwOTowMDowMCIsImlkIjoiMDE5YTFkNTItM2M4ZS03ZjQxLWIwZDItNmEzZTljMWY0YjIxIiwiX3BvaW50c1RvTmV4dEl0ZW1zIjp0cnVlfQ
+                 */
                 starting_after?: string | null;
+                /** @description Only items belonging to this product. */
                 product?: string;
-                /** @example pending */
+                /**
+                 * @description One of `pending`, `approved`, `rejected`.
+                 * @example pending
+                 */
                 status?: "pending" | "approved" | "rejected";
             };
             header: {
@@ -20113,8 +20914,8 @@ export interface operations {
                      * @example {
                      *       "data": [
                      *         {
-                     *           "source_review_id": "chowdeck-review-2026-0042",
-                     *           "source": "chowdeck",
+                     *           "source_review_id": "example-channel-review-2026-0042",
+                     *           "source": "example-channel",
                      *           "author_display_name": "Ifeoma Adebayo",
                      *           "product_p_id": 20417,
                      *           "rating": 5,
@@ -20246,7 +21047,7 @@ export interface operations {
                  * @example {
                  *       "reviews": [
                  *         {
-                 *           "source_review_id": "chowdeck-review-2026-0042",
+                 *           "source_review_id": "example-channel-review-2026-0042",
                  *           "product": "20417",
                  *           "rating": 5,
                  *           "title": "Fresh and delicious",
@@ -20276,7 +21077,7 @@ export interface operations {
                      *       "data": {
                      *         "results": [
                      *           {
-                     *             "source_review_id": "chowdeck-review-2026-0042",
+                     *             "source_review_id": "example-channel-review-2026-0042",
                      *             "result": "imported",
                      *             "status": "pending",
                      *             "product_p_id": 20417
@@ -20401,8 +21202,12 @@ export interface operations {
     "shipping_zones.list": {
         parameters: {
             query?: {
-                /** @example 2 */
+                /**
+                 * @description Maximum number of items to return in one page.
+                 * @example 2
+                 */
                 limit?: number | null;
+                /** @description Cursor for the next page: pass `next_cursor` from the previous response unchanged. Keep walking while `has_more` is true. */
                 starting_after?: string | null;
             };
             header: {
@@ -20765,7 +21570,10 @@ export interface operations {
                 "Idempotency-Key"?: string;
             };
             path: {
-                /** @example 019a2c5d-3e4f-7a5b-8c6d-7e8f9a0b1c21 */
+                /**
+                 * @description Identifier of the shipping zone, as returned by the Merchant API.
+                 * @example 019a2c5d-3e4f-7a5b-8c6d-7e8f9a0b1c21
+                 */
                 zone: string;
             };
             cookie?: never;
@@ -21156,9 +21964,14 @@ export interface operations {
     "team.list": {
         parameters: {
             query?: {
-                /** @example 2 */
+                /**
+                 * @description Maximum number of items to return in one page.
+                 * @example 2
+                 */
                 limit?: number | null;
+                /** @description Cursor for the next page: pass `next_cursor` from the previous response unchanged. Keep walking while `has_more` is true. */
                 starting_after?: string | null;
+                /** @description Free-text filter: only items matching this text are returned. */
                 search?: string | null;
             };
             header: {
@@ -21617,7 +22430,10 @@ export interface operations {
                 "Idempotency-Key"?: string;
             };
             path: {
-                /** @example de */
+                /**
+                 * @description Identifier of the locale, as returned by the Merchant API.
+                 * @example de
+                 */
                 locale: string;
             };
             cookie?: never;
@@ -21764,7 +22580,10 @@ export interface operations {
                 "Idempotency-Key"?: string;
             };
             path: {
-                /** @example fr */
+                /**
+                 * @description Identifier of the locale, as returned by the Merchant API.
+                 * @example fr
+                 */
                 locale: string;
             };
             cookie?: never;
@@ -21956,7 +22775,10 @@ export interface operations {
                 "Idempotency-Key"?: string;
             };
             path: {
-                /** @example fr */
+                /**
+                 * @description Identifier of the locale, as returned by the Merchant API.
+                 * @example fr
+                 */
                 locale: string;
             };
             cookie?: never;
@@ -22120,10 +22942,17 @@ export interface operations {
     "translatable_resources.list": {
         parameters: {
             query: {
-                /** @example 2 */
+                /**
+                 * @description Maximum number of items to return in one page.
+                 * @example 2
+                 */
                 limit?: number | null;
+                /** @description Cursor for the next page: pass `next_cursor` from the previous response unchanged. Keep walking while `has_more` is true. */
                 starting_after?: string | null;
-                /** @example product */
+                /**
+                 * @description One of `product`, `product_variation`, `product_variation_item`, `collection`, `category`, `page`, `post`, `menu`, `theme_string`.
+                 * @example product
+                 */
                 type: "product" | "product_variation" | "product_variation_item" | "collection" | "category" | "page" | "post" | "menu" | "theme_string";
             };
             header: {
@@ -22308,7 +23137,10 @@ export interface operations {
     "translatable_resources.retrieve": {
         parameters: {
             query?: {
-                /** @example fr */
+                /**
+                 * @description One of `en`, `fr`, `es`, `pt`, `pt-BR`, `de`, `it`, `nl`, `pl`, `ru`, `uk`, `tr`, `ar`, `ur`, `fa`, `he`, `hi`, `ja`, `ko`, `zh-CN`, `zh-TW`, `id`, `ms`, `vi`, `th`, `tl`, `sw`, `ha`, `yo`, `ig`, `pcm`.
+                 * @example fr
+                 */
                 locale?: "en" | "fr" | "es" | "pt" | "pt-BR" | "de" | "it" | "nl" | "pl" | "ru" | "uk" | "tr" | "ar" | "ur" | "fa" | "he" | "hi" | "ja" | "ko" | "zh-CN" | "zh-TW" | "id" | "ms" | "vi" | "th" | "tl" | "sw" | "ha" | "yo" | "ig" | "pcm" | null;
             };
             header: {
@@ -22697,6 +23529,7 @@ export interface operations {
     "translations.delete": {
         parameters: {
             query?: {
+                /** @description One of `en`, `fr`, `es`, `pt`, `pt-BR`, `de`, `it`, `nl`, `pl`, `ru`, `uk`, `tr`, `ar`, `ur`, `fa`, `he`, `hi`, `ja`, `ko`, `zh-CN`, `zh-TW`, `id`, `ms`, `vi`, `th`, `tl`, `sw`, `ha`, `yo`, `ig`, `pcm`. */
                 "locales[]"?: "en" | "fr" | "es" | "pt" | "pt-BR" | "de" | "it" | "nl" | "pl" | "ru" | "uk" | "tr" | "ar" | "ur" | "fa" | "he" | "hi" | "ja" | "ko" | "zh-CN" | "zh-TW" | "id" | "ms" | "vi" | "th" | "tl" | "sw" | "ha" | "yo" | "ig" | "pcm";
                 "keys[]"?: string[];
             };
@@ -22877,8 +23710,12 @@ export interface operations {
     "variants.list": {
         parameters: {
             query?: {
-                /** @example 2 */
+                /**
+                 * @description Maximum number of items to return in one page.
+                 * @example 2
+                 */
                 limit?: number | null;
+                /** @description Cursor for the next page: pass `next_cursor` from the previous response unchanged. Keep walking while `has_more` is true. */
                 starting_after?: string | null;
             };
             header: {
@@ -22891,7 +23728,10 @@ export interface operations {
                 "X-Request-Id"?: string;
             };
             path: {
-                /** @example 20418 */
+                /**
+                 * @description Identifier of the product, as returned by the Merchant API.
+                 * @example 20418
+                 */
                 product: string;
             };
             cookie?: never;
@@ -22915,6 +23755,7 @@ export interface operations {
                      *           "option_values": {
                      *             "Size": "50cl"
                      *           },
+                     *           "currency": "NGN",
                      *           "price": "2500.00",
                      *           "storefront_price": "2500.00",
                      *           "storefront_compare_at_price": null,
@@ -22940,6 +23781,7 @@ export interface operations {
                      *           "option_values": {
                      *             "Size": "1 litre"
                      *           },
+                     *           "currency": "NGN",
                      *           "price": "4200.00",
                      *           "storefront_price": "4200.00",
                      *           "storefront_compare_at_price": null,
@@ -23089,7 +23931,10 @@ export interface operations {
                 "Idempotency-Key"?: string;
             };
             path: {
-                /** @example 20418 */
+                /**
+                 * @description Identifier of the product, as returned by the Merchant API.
+                 * @example 20418
+                 */
                 product: string;
             };
             cookie?: never;
@@ -23131,6 +23976,7 @@ export interface operations {
                      *         "option_values": {
                      *           "Size": "1 litre"
                      *         },
+                     *         "currency": "NGN",
                      *         "price": "4200.00",
                      *         "storefront_price": "4200.00",
                      *         "storefront_compare_at_price": null,
@@ -23296,9 +24142,15 @@ export interface operations {
                 "Idempotency-Key"?: string;
             };
             path: {
-                /** @example 20418 */
+                /**
+                 * @description Identifier of the product, as returned by the Merchant API.
+                 * @example 20418
+                 */
                 product: string;
-                /** @example 7731 */
+                /**
+                 * @description Identifier of the variant, as returned by the Merchant API.
+                 * @example 7731
+                 */
                 variant: string;
             };
             cookie?: never;
@@ -23443,9 +24295,15 @@ export interface operations {
                 "Idempotency-Key"?: string;
             };
             path: {
-                /** @example 20418 */
+                /**
+                 * @description Identifier of the product, as returned by the Merchant API.
+                 * @example 20418
+                 */
                 product: string;
-                /** @example 7732 */
+                /**
+                 * @description Identifier of the variant, as returned by the Merchant API.
+                 * @example 7732
+                 */
                 variant: string;
             };
             cookie?: never;
@@ -23480,6 +24338,7 @@ export interface operations {
                      *         "option_values": {
                      *           "Size": "1 litre"
                      *         },
+                     *         "currency": "NGN",
                      *         "price": "4200.00",
                      *         "storefront_price": "4200.00",
                      *         "storefront_compare_at_price": null,
