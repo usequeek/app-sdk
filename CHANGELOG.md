@@ -2,6 +2,12 @@
 
 All notable changes to `@usequeek/app-sdk`. Releases before this file are listed on the [GitHub releases page](https://github.com/usequeek/app-sdk/releases).
 
+## 0.7.1 - 2026-10-13
+
+### Fixed
+
+- The generated Merchant API types no longer expose internal class names. Four component schemas are named `Collection`, `Order`, `OrderItem` and `Product`; the exported `MerchantCollection`, `QueekStoreOrder`, `QueekStoreOrderItem` and `QueekStoreProduct` types are unchanged.
+
 ## 0.7.0 - 2026-10-12
 
 ### Fixed

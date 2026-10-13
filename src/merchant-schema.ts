@@ -2123,7 +2123,7 @@ export interface components {
             reason: string;
         };
         /** Collection */
-        "App.Http.Resources.Api.CollectionResource": {
+        Collection: {
             /** @description Unique identifier of this object. */
             id: number;
             uid: string;
@@ -2154,7 +2154,7 @@ export interface components {
             updated_at: string | null;
         };
         /** OrderItem */
-        "App.Http.Resources.Customer.OrderItemResource": {
+        OrderItem: {
             /** @description Unique identifier of this object. */
             id: string;
             quantity: string;
@@ -2196,7 +2196,7 @@ export interface components {
             properties: string;
         };
         /** Product */
-        "App.Http.Resources.Customer.ProductResource": unknown[] | {
+        Product: unknown[] | {
             shop_id: string;
             /** @description Unique identifier of this object. */
             id: string;
@@ -2317,7 +2317,7 @@ export interface components {
             barcode: string;
         };
         /** Order */
-        "App.Http.Resources.OrderResource": {
+        Order: {
             0: Record<string, never>;
             /** @description Unique identifier of this object. */
             id: string;
@@ -2718,7 +2718,7 @@ export interface components {
                 }) | string;
             };
             subtotal: string | null;
-            product: components["schemas"]["App.Http.Resources.Customer.ProductResource"];
+            product: components["schemas"]["Product"];
             vendor: components["schemas"]["VendorItemResource"];
             /**
              * Format: date-time
@@ -3267,7 +3267,7 @@ export interface components {
         /** MerchantCollectedRecord */
         MerchantCollectedRecord: components["schemas"]["CollectedRecordResource"];
         /** MerchantCollection */
-        MerchantCollection: components["schemas"]["App.Http.Resources.Api.CollectionResource"];
+        MerchantCollection: components["schemas"]["Collection"];
         /** MerchantCoupon */
         MerchantCoupon: components["schemas"]["CouponResource"];
         /** MerchantCustomer */
@@ -4328,13 +4328,13 @@ export interface components {
         /** QueekStoreMetaobject */
         QueekStoreMetaobject: components["schemas"]["MetaobjectResource"];
         /** QueekStoreOrder */
-        QueekStoreOrder: components["schemas"]["App.Http.Resources.OrderResource"];
+        QueekStoreOrder: components["schemas"]["Order"];
         /** QueekStoreOrderItem */
-        QueekStoreOrderItem: components["schemas"]["App.Http.Resources.Customer.OrderItemResource"];
+        QueekStoreOrderItem: components["schemas"]["OrderItem"];
         /** QueekStorePage */
         QueekStorePage: components["schemas"]["StorePageResource"];
         /** QueekStoreProduct */
-        QueekStoreProduct: components["schemas"]["App.Http.Resources.Customer.ProductResource"];
+        QueekStoreProduct: components["schemas"]["Product"];
         /** QueekStorePromotion */
         QueekStorePromotion: components["schemas"]["PromotionResource"];
         /** QueekStoreQuestion */
