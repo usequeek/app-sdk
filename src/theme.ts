@@ -48,6 +48,15 @@ function globalParent(): unknown {
   return (globalThis as unknown as { window?: { parent?: unknown } }).window?.parent;
 }
 
+/** The framing parent window, or undefined when the app is the top-level document. */
+function framingParent(): EmbedPostTarget | undefined {
+  const win = (globalThis as unknown as { window?: { parent?: unknown } }).window;
+  const parent = win?.parent as { postMessage?: unknown } | undefined;
+  return parent !== undefined && parent !== win && typeof parent.postMessage === "function"
+    ? (parent as EmbedPostTarget)
+    : undefined;
+}
+
 export interface ThemeDocumentElement {
   classList: { toggle(name: string, force?: boolean): void };
   style: { colorScheme: string };
@@ -207,7 +216,8 @@ export interface ThemeListenerOptions {
 }
 
 /**
- * Follow live dashboard theme changes: announces `ready` on subscribe (so a
+ * Follow live dashboard theme changes: announces `ready` on subscribe, to
+ * `postTarget` or, by default, the framing parent window (so a
  * non-React app gets the mode even after an in-frame reload), then every
  * bridge `theme{mode}` toggles the `dark` class, is remembered for the
  * bootstrap fallback, and notifies `onChange`. Applies nothing else on
@@ -217,7 +227,7 @@ export interface ThemeListenerOptions {
 export function installThemeListener(options: ThemeListenerOptions): () => void {
   const { dashboardOrigin, target, onChange, doc, postTarget, capabilities, sdkVersion, storage } = options;
   const expectSource = options.expectSource !== undefined ? options.expectSource : globalParent();
-  sendReady(dashboardOrigin, postTarget, { capabilities, sdkVersion });
+  sendReady(dashboardOrigin, postTarget ?? framingParent(), { capabilities, sdkVersion });
   return listenToDashboard({
     dashboardOrigin,
     target,

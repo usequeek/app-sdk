@@ -2,6 +2,16 @@
 
 All notable changes to `@usequeek/app-sdk`. Releases before this file are listed on the [GitHub releases page](https://github.com/usequeek/app-sdk/releases).
 
+## 0.7.2 - 2026-10-18
+
+### Fixed
+
+- `installThemeListener` now announces `ready` as its documentation says. It sent nothing unless the caller passed `postTarget`, so an app wired with the browser primitives (the starter's bridge) never told the dashboard it was ready, and the embedded page failed with "didn't respond". It now announces to the framing parent window by default. An explicit `postTarget` still wins, and a top-level document posts nothing.
+
+### Changed
+
+- The generated Merchant API types follow the live contract. The additions are new endpoints and fields only.
+
 ## 0.7.1 - 2026-10-13
 
 ### Fixed

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { DASHBOARD_SOURCE } from "../src/frame.js";
 import {
   applyTheme,
@@ -332,5 +332,58 @@ describe("installThemeListener", () => {
     stop();
     fire({ source: DASHBOARD_SOURCE, type: "theme", mode: "light" });
     expect(onChange).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("installThemeListener without a postTarget", () => {
+  const stubWindow = (win: unknown) => vi.stubGlobal("window", win);
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("announces ready to the framing parent, on the exact dashboard origin", () => {
+    const posts: { message: unknown; origin: string }[] = [];
+    const parent = {
+      postMessage: (message: unknown, origin: string) => {
+        posts.push({ message, origin });
+      },
+    };
+    stubWindow({ parent });
+    const stop = installThemeListener({
+      dashboardOrigin: ORIGIN,
+      target: { addEventListener: () => {}, removeEventListener: () => {} },
+      doc: fakeDocument(),
+    });
+    expect(posts).toEqual([{ message: { source: "queek-app", type: "ready" }, origin: ORIGIN }]);
+    stop();
+  });
+
+  it("stays silent when the app is the top-level document", () => {
+    const posted = vi.fn();
+    const win: { parent?: unknown; postMessage: typeof posted } = { postMessage: posted };
+    win.parent = win;
+    stubWindow(win);
+    const stop = installThemeListener({
+      dashboardOrigin: ORIGIN,
+      target: { addEventListener: () => {}, removeEventListener: () => {} },
+      doc: fakeDocument(),
+    });
+    stop();
+    expect(posted).not.toHaveBeenCalled();
+  });
+
+  it("an explicit postTarget still wins over the parent", () => {
+    const parentPosts: unknown[] = [];
+    const explicitPosts: unknown[] = [];
+    stubWindow({ parent: { postMessage: (m: unknown) => parentPosts.push(m) } });
+    const stop = installThemeListener({
+      dashboardOrigin: ORIGIN,
+      target: { addEventListener: () => {}, removeEventListener: () => {} },
+      doc: fakeDocument(),
+      postTarget: { postMessage: (m: unknown) => explicitPosts.push(m) },
+    });
+    stop();
+    expect(explicitPosts).toHaveLength(1);
+    expect(parentPosts).toHaveLength(0);
   });
 });
