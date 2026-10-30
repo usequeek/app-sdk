@@ -6,7 +6,7 @@ All notable changes to `@usequeek/app-sdk`. Releases before this file are listed
 
 ### Added
 
-- Queek AI tools and actions. The manifest `ai` section has types (`ManifestAi`, `ManifestAiTool`, `ManifestAiAction`, `ManifestAiInput`, and the input and output type lists) and `MANIFEST_AI_RESERVED_INPUT_KEYS` with `isReservedAiInputKey` for the input names Queek signs or owns. `handleAiToolRequest()` (and `createAiToolHandler()` in `@usequeek/app-sdk/hono`) serves the signed `GET ai/{tool}` call: only a declared tool answers a `surface=ai` call (403 otherwise), a storefront or dashboard call at that path is refused, and a handler that answers anything but an object gets a 500. `onAiAction()` (also in `@usequeek/app-sdk/browser`, and as `onAiAction` on `listenToDashboard`) receives the `ai-action` message Queek AI sends to an action's page, from the exact dashboard origin only. Stage the values and never save on load. See the README, "Queek AI tools and actions".
+- Queek AI tools and actions. The manifest `ai` section has types (`ManifestAi`, `ManifestAiTool`, `ManifestAiAction`, `ManifestAiInput`, and the input and output type lists) and `MANIFEST_AI_RESERVED_INPUT_KEYS` with `isReservedAiInputKey` for the input names Queek signs or owns. `handleAiToolRequest()` (and `createAiToolHandler()` in `@usequeek/app-sdk/hono`) serves the signed `GET ai/{tool}` call (pass `replayStore` to make each call single-use): only a declared tool answers a `surface=ai` call (403 otherwise), a storefront or dashboard call at that path is refused, and a handler that answers anything but an object gets a 500. `onAiAction()` (also in `@usequeek/app-sdk/browser`, and as `onAiAction` on `listenToDashboard`; it listens on the global window and accepts only the parent frame, like `installAuthFetch`) receives the `ai-action` message Queek AI sends to an action's page, from the exact dashboard origin only. Stage the values and never save on load. See the README, "Queek AI tools and actions".
 - The signed proxy `surface` (`storefront`, `dashboard` or `ai`). `verifyProxyQuery`, `verifyProxyQueryDetailed` and `verifyProxyDelivery` take `expectedSurface` and refuse a genuine call signed for another surface (`surface_mismatch`; 403 from `verifyProxyDelivery`). The verified result and the `onVerified` argument carry `surface`.
 - `ManifestSetting` (the manifest `settings` entry type) with the opt-in `ai_editable` flag, and `aiEditableSettingKeys`. Queek AI changes an installed app's setting only when the manifest marks it `ai_editable: true`. A `secret` never can, and each change still needs the merchant's confirmation.
 
@@ -14,7 +14,13 @@ All notable changes to `@usequeek/app-sdk`. Releases before this file are listed
 
 - `handleProxyRequest` answers 403 `forbidden` to a `surface=ai` call instead of handing it to `onVerified`. Queek AI reaches an app only through a declared tool.
 - `ProxyVerification` failures can carry status 403 as well as 401.
-- The generated Merchant API types follow the live contract. The additions are new endpoints and fields only.
+- `AppInboundMessage` gained an `ai-action` member. An exhaustive `switch` over `message.type` that ends in a `never` check needs a case for it.
+- The generated Merchant API types follow the live contract. It adds endpoints and fields, and it corrects types that did not match what the API returns:
+  - `option_values` on variant create and update is an object, not an array.
+  - Analytics responses and `POST /app/alerts` no longer have `meta`.
+  - Metafield definitions, metaobject definitions and `products/{product}/variants` lists no longer have `status`, `message` or `meta`. `data[]` of the metafield definitions and the variants lists holds objects, not strings.
+  - Translatable resources no longer have `status` or `message`.
+  - A purchase order's `line_items` and `receipts` are arrays, not strings.
 
 ## 0.7.2 - 2026-10-18
 

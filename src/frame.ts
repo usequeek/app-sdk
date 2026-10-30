@@ -841,6 +841,8 @@ export function listenToDashboard(options: FrameBridgeOptions): () => void {
 
 /**
  * Receive the action Queek AI opened this page for, from the exact dashboard origin only (the same gate as the token).
+ * Like `installAuthFetch`, it listens on the global window and accepts only messages from the embedding parent
+ * window; pass `target` / `expectSource` to override (`expectSource: null` turns the source check off).
  * Stage `values` in your form and show them editable; NEVER save on load, only the merchant's own Save writes.
  * Returns an unsubscribe function.
  */
@@ -848,7 +850,17 @@ export function onAiAction(
   handler: (action: AiAction) => void,
   options: Pick<FrameBridgeOptions, "dashboardOrigin" | "target" | "expectSource">,
 ): () => void {
-  return listenToDashboard({ ...options, onAiAction: handler });
+  const scope = globalThis as unknown as {
+    window?: EmbedEventTarget & { location?: unknown; parent?: unknown };
+  };
+  const win = scope.window?.location !== undefined ? scope.window : undefined;
+  const expectSource = options.expectSource !== undefined ? options.expectSource : win?.parent;
+  return listenToDashboard({
+    dashboardOrigin: options.dashboardOrigin,
+    target: options.target ?? win,
+    expectSource: expectSource ?? undefined,
+    onAiAction: handler,
+  });
 }
 
 /** Validate a title-bar action shape, then cap its strings. */

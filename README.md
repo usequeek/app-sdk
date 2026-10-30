@@ -484,7 +484,7 @@ app.route(
 );
 ```
 
-A `surface=ai` call is served only by a declared tool handler (403 otherwise), and a storefront or dashboard call at that path is refused. Answer an object, never a bare array: `{ rows: [...] }` for a list tool (`output.list: true`), the declared fields object otherwise. A handler that answers anything else gets a 500. Return only the declared output fields, because Queek drops the rest. Tool inputs are structured, with no free text. `call.actorRole` is the member's role, never a user id. A tool only reads, so a call replayed inside the 5-minute window replays nothing and the handler does not claim the `jti`.
+A `surface=ai` call is served only by a declared tool handler (403 otherwise), and a storefront or dashboard call at that path is refused. Answer an object, never a bare array: `{ rows: [...] }` for a list tool (`output.list: true`), the declared fields object otherwise. A handler that answers anything else gets a 500. Return only the declared output fields, because Queek drops the rest. Tool inputs are structured, with no free text. `call.actorRole` is the member's role, never a user id. Pass `replayStore` (your installation store) to make each call single-use: the `jti` is claimed like the storefront proxy does, and a replay answers 401. Without it a captured call can be replayed for 5 minutes, which for a read-only tool repeats only the read.
 
 Actions never write. Queek AI only opens your `page` (a path under your merchant page) with the values filled in, and shows "Opened by Queek AI, check these values before saving" above it. Receive the values with `onAiAction`, stage them in your form, show them editable, and write nothing until the merchant presses your own Save:
 

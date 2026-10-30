@@ -358,6 +358,12 @@ export interface AiToolRequestOptions extends Omit<ProxyVerifyOptions, "expected
   secrets: (kid: string) => Promise<string[]> | string[];
   /** The read tools the manifest `ai.tools` declares, by key. Only these are served. */
   tools: Record<string, AiToolHandler>;
+  /**
+   * Makes each call single-use: when given, a verified call's `jti` is claimed atomically in this store, exactly as
+   * `verifyProxyDelivery` does, and a replay answers 401 `replayed`. Pass the installation store. Without it a
+   * captured call can be replayed inside the skew window.
+   */
+  replayStore?: Pick<InstallationStore, "claimWebhookId">;
 }
 
 /**
@@ -365,8 +371,8 @@ export interface AiToolRequestOptions extends Omit<ProxyVerifyOptions, "expected
  * the surface are verified first (401, or 403 for a genuine call signed for another surface). `surface=ai` is served
  * only by a declared tool handler (403 for an undeclared key), a storefront or dashboard call at this path is
  * refused, and an AI call never reaches `handleProxyRequest`'s responder. A handler that answers anything but an
- * object (a bare array, a scalar) is answered 500. A tool only reads, so a call replayed inside the skew window
- * replays nothing and no `jti` is claimed.
+ * object (a bare array, a scalar) is answered 500. Pass `replayStore` to make each call single-use; a tool only
+ * reads, so without it a replay inside the skew window repeats nothing but the read.
  */
 export async function handleAiToolRequest(
   request: Request,
@@ -376,7 +382,7 @@ export async function handleAiToolRequest(
   if (request.method.toUpperCase() !== "GET") {
     return toResponse({ status: 405, body: { ok: false, error: "method_not_allowed" } });
   }
-  const { subpath, secrets, tools, ...verifyOptions } = options;
+  const { subpath, secrets, tools, replayStore, ...verifyOptions } = options;
   const query = requestQuery(request);
   const params = normalizeQuery(query);
   const kid = params[PROXY_KID_PARAM] ?? "";
@@ -389,6 +395,9 @@ export async function handleAiToolRequest(
       status: verified.reason === "surface_mismatch" ? 403 : 401,
       body: { ok: false, error: verified.reason },
     });
+  }
+  if (replayStore && !(await replayStore.claimWebhookId(`proxy-jti:${params[PROXY_NONCE_PARAM]}`))) {
+    return toResponse({ status: 401, body: { ok: false, error: "replayed" } });
   }
   const handler = Object.hasOwn(tools, tool) ? tools[tool] : undefined;
   if (!handler) {

@@ -416,14 +416,19 @@ describe("Queek AI read tools (handleAiToolRequest, createAiToolHandler)", () =>
   const secrets = (kid: string) => (kid === "424242" ? [BACKEND_SECRET] : []);
 
   /** A signed `GET ai/{tool}` URL as Queek sends it. */
-  function toolUrl(tool: string, surface: string, params: Record<string, string> = {}): string {
+  function toolUrl(
+    tool: string,
+    surface: string,
+    params: Record<string, string> = {},
+    jti = "ai-jti-1",
+  ): string {
     const signed: Record<string, string> = {
       ...params,
       surface,
       actor_role: "owner",
       shop: "store_xyz",
       ts: String(NOW),
-      jti: "ai-jti-1",
+      jti,
       kid: "424242",
     };
     const query = { ...signed, sig: signProxyQuery(`/apps/${SUBPATH}/ai/${tool}`, signed, BACKEND_SECRET) };
@@ -537,6 +542,31 @@ describe("Queek AI read tools (handleAiToolRequest, createAiToolHandler)", () =>
     // @ts-expect-error an array is not an AiToolOutput
     const typed: AiToolHandler = () => [];
     expect(typed).toBeTypeOf("function");
+  });
+
+  it("claims the jti when a replay store is given: the same call twice is 401 replayed", async () => {
+    const store = new SqliteInstallationStore({ path: ":memory:", storeKey: STORE_KEY });
+    const options = {
+      subpath: SUBPATH,
+      secrets,
+      nowSeconds: NOW,
+      replayStore: store,
+      tools: { upcoming_bookings: () => ({ rows: [] }) },
+    };
+    const url = toolUrl("upcoming_bookings", "ai");
+    const first = await handleAiToolRequest(new Request(url), "upcoming_bookings", options);
+    expect(first.status).toBe(200);
+    const replay = await handleAiToolRequest(new Request(url), "upcoming_bookings", options);
+    expect(replay.status).toBe(401);
+    expect(await replay.json()).toEqual({ ok: false, error: "replayed" });
+    // Without a replay store the same call still serves (the read-only default).
+    const { replayStore: _drop, ...open } = options;
+    expect((await handleAiToolRequest(new Request(url), "upcoming_bookings", open)).status).toBe(200);
+    // A forged call never burns a jti.
+    const forged = new URL(toolUrl("upcoming_bookings", "ai", {}, "ai-jti-forged"));
+    forged.searchParams.set("sig", "0".repeat(64));
+    expect((await handleAiToolRequest(new Request(forged), "upcoming_bookings", options)).status).toBe(401);
+    expect(await store.claimWebhookId("proxy-jti:ai-jti-forged")).toBe(true);
   });
 
   it("serves GET only", async () => {

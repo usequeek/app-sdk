@@ -126,6 +126,37 @@ describe("onAiAction", () => {
     expect(parseInboundMessage({ ...message, values })).toBeNull();
   });
 
+  it("with only { dashboardOrigin } listens on the global window and accepts only its parent", () => {
+    const win = fakeWindow();
+    const parent = {};
+    const scope = globalThis as unknown as { window?: unknown };
+    scope.window = {
+      ...win,
+      location: { href: "https://app.example.com/admin" },
+      parent,
+    };
+    try {
+      const handler = vi.fn();
+      const stop = onAiAction(handler, { dashboardOrigin: ORIGIN });
+      const fire = (origin: string, source: unknown) => {
+        for (const listener of win.listeners.get("message") ?? [])
+          listener({ origin, data: message, source });
+      };
+      fire(ORIGIN, parent);
+      expect(handler).toHaveBeenCalledTimes(1);
+      expect(handler).toHaveBeenCalledWith({ action: "block_date", values: { date: "2026-12-25" } });
+      fire(ORIGIN, {}); // right origin, another window
+      fire(ORIGIN, undefined);
+      fire("https://evil.example.com", parent); // the parent window, wrong origin
+      expect(handler).toHaveBeenCalledTimes(1);
+      stop();
+      fire(ORIGIN, parent);
+      expect(handler).toHaveBeenCalledTimes(1);
+    } finally {
+      scope.window = undefined;
+    }
+  });
+
   it("does not answer an ai-action as a resize-ack", () => {
     const target = fakeWindow();
     const onResizeAck = vi.fn();
