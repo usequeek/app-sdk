@@ -225,6 +225,34 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/app/metafields": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the installation’s metafields
+         * @description Requires scope `merchant-app_metafields-read`.
+         *
+         *     Answers the calling installation’s own metafield values (app-data metafields): the app’s settings and state, stored in Queek instead of the app’s own database. Each value lives under an `installation` metafield definition the app created in its own `app_{slug}` namespace (POST metafield-definitions with `owner_type` `installation`). Only the installation that wrote them reads them: never the merchant’s dashboard, the storefront, webhooks, the AI or another app. They are deleted when the app is uninstalled; a reinstall starts empty. The installation is the calling key’s; the scope is granted to every installation key.
+         */
+        get: operations["app.metafields_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Set the installation’s metafields
+         * @description Requires scope `merchant-app_metafields-update`.
+         *
+         *     Writes the calling installation’s own metafield values: `metafields` is a list of `{namespace, key, value}`. Each handle needs an `installation` metafield definition in the app’s own `app_{slug}` namespace (POST metafield-definitions with `owner_type` `installation`), values are type-checked against it (a `date` for a season start, an `integer` for a lead time), a handle you leave out keeps its value and `"value": null` deletes one. Not for secrets: keep credentials in the app’s own secret store. Answers every value the installation holds, as GET app/metafields does. The installation is the calling key’s; the scope is granted to every installation key.
+         */
+        patch: operations["app.metafields_update"];
+        trace?: never;
+    };
     "/app/alerts": {
         parameters: {
             query?: never;
@@ -262,6 +290,28 @@ export interface paths {
          *     Replaces the calling installation product requirements map: which products require line properties under the installation namespace and which exact claim key each requires. Products are addressed by p_id, scoped to the calling installation vendor.
          */
         put: operations["app.requirements_write"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/app/line-inputs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Replace the installation line-input sheet
+         * @description Requires scope `merchant-app-requirements-write`.
+         *
+         *     Replaces the calling installation map of which products take shopper text on a line, and under which of the line_text fields its manifest declares: per product up to 3 fields, each by key with optional required (true or false) and max_length (a whole number, 1 to 500, never above the manifest value, which is 100 when the manifest sets none). The label always comes from the manifest. Send the whole sheet every time: a product left out loses its declaration, an empty items list removes them all, and an identical retry changes nothing. Products are addressed by p_id, scoped to the calling installation vendor; an unknown product or key refuses the whole sheet and keeps the old one. A key the manifest does not declare as line_text in the extensions the merchant granted is refused.
+         */
+        put: operations["app.line_inputs_write"];
         post?: never;
         delete?: never;
         options?: never;
@@ -338,7 +388,7 @@ export interface paths {
          * Submit a collected record
          * @description Requires scope `merchant-collected-records-submit`.
          *
-         *     Submits one record under one of the calling installation’s collected types. Values run the same field validation entries use; every record is filed with source `app`. Rate-limited per installation with 429 + Retry-After past the caps, on top of the per-definition storage cap.
+         *     Submits one record under one of the calling installation’s collected types. Values run the same field validation entries use; every record is filed with source `app`. Send an `Idempotency-Key` to make a retry safe: the same key and body replays the first answer instead of filing the record twice, the same key with a different body is 409; the header is optional. Creates are capped per installation at 30 a minute and 2000 a day (429 + Retry-After past either), on top of the per-definition storage cap of 5000 records. This is a form-submission path, not a bulk store: keep many small items inside one record’s values (up to 64 KiB) instead of one record each. Records appear in the merchant’s Submissions inbox under their definition, which is flagged `app_owned`.
          */
         post: operations["app.records_submit"];
         delete?: never;
@@ -397,6 +447,34 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/collections/{collection}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Retrieve a collection
+         * @description Requires scope `merchant-collections-detail`.
+         *
+         *     Retrieves one of the store’s collections — the same object collections list returns, with its `metafields` (the store’s custom fields on it, every definition) and without the smart-collection rule set. {collection} is a p_id, UUID or slug of this store.
+         */
+        get: operations["collections.retrieve"];
+        /**
+         * Update a collection
+         * @description Requires scope `merchant-collections-update`.
+         *
+         *     Replaces a collection’s fields; `name` is required. Renaming never changes the collection’s URL: `slug` is the URL handle (lowercase letters, digits and hyphens, up to 100, unique in the store), send it only to change the address, and the old address then redirects to the new one automatically. `seo` is the search listing, `{title, description}` (plain text, up to 255 and 1000 characters): leave the key out to keep it, send an object to replace it, send null or blank values to clear it; the storefront then falls back to the name and the description. `metafields` is a list of `{namespace, key, value}` checked against the store’s `collection` definitions: a `null` value clears one, a key left out keeps its value, and an undefined handle answers 422. Answers the updated collection — the same object GET collections/{collection} returns.
+         */
+        put: operations["collections.update"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/collections/bulk": {
         parameters: {
             query?: never;
@@ -410,7 +488,7 @@ export interface paths {
          * Create collections in bulk
          * @description Requires scope `merchant-collections-create`.
          *
-         *     Creates several collections in one call.
+         *     Creates several collections in one call; each may carry a `seo` listing, `{title, description}`.
          */
         post: operations["collections.bulk_create"];
         delete?: never;
@@ -474,7 +552,7 @@ export interface paths {
          * List posts
          * @description Requires scope `merchant-posts-read`.
          *
-         *     Lists the store’s posts.
+         *     Lists the store’s posts, each with its `metafields` (the store’s custom fields on a blog post, every definition; absent on a page or gallery).
          */
         get: operations["posts.list"];
         put?: never;
@@ -482,7 +560,7 @@ export interface paths {
          * Create post
          * @description Requires scope `merchant-posts-create`.
          *
-         *     Creates a markdown-body blog post (title required; draft unless published).
+         *     Creates a markdown-body blog post (title required; draft unless published). `metafields` is a list of `{namespace, key, value}` checked against the store’s `post` definitions; values go live at once, even on a draft post.
          */
         post: operations["posts.create"];
         delete?: never;
@@ -502,14 +580,14 @@ export interface paths {
          * Get post
          * @description Requires scope `merchant-posts-detail`.
          *
-         *     Gets one blog post by p_id, UUID or slug. {post} is a p_id, UUID or slug of this store.
+         *     Gets one blog post by p_id, UUID or slug, with its `metafields` (the store’s custom fields on it, every definition). {post} is a p_id, UUID or slug of this store.
          */
         get: operations["posts.get"];
         /**
          * Update post
          * @description Requires scope `merchant-posts-update`.
          *
-         *     Updates a markdown-body blog post by p_id, UUID or slug (publish/unpublish via status). {post} is a p_id, UUID or slug of this store.
+         *     Updates a markdown-body blog post by p_id, UUID or slug (publish/unpublish via status). `metafields` is a list of `{namespace, key, value}` checked against the store’s `post` definitions: a `null` value clears one, a key left out keeps its value; values go live at once. {post} is a p_id, UUID or slug of this store.
          */
         put: operations["posts.update"];
         post?: never;
@@ -1280,7 +1358,7 @@ export interface paths {
          * List stock adjustments
          * @description Requires scope `merchant-stock_adjustments-read`.
          *
-         *     Lists stock adjustments: the store’s stock audit trail.
+         *     Lists stock adjustments: the store’s stock audit trail, newest first, with cursor pagination. `type` keeps one or several kinds, comma-separated (`sale,return`); `product_id` keeps one product, by its `id` (the `product.id` each movement shows), slug or uid; `date_from` / `date_to` bound the day. Each movement names its `variant` by `id` (p_id) and `uid` when it moved a variant.
          */
         get: operations["inventory.list_adjustments"];
         put?: never;
@@ -1352,15 +1430,43 @@ export interface paths {
          * List suppliers
          * @description Requires scope `merchant-suppliers-read`.
          *
-         *     Lists the store’s suppliers A to Z with cursor pagination (`limit` + `starting_after`, `has_more`/`next_cursor`). `q` keeps suppliers whose name, contact name or email contains the text, ignoring letter case; percent and underscore match themselves. A supplier has an `id`, `name`, `contact_name`, `email`, `phone`, `address`, `is_active` and timestamps; the merchant’s notes and custom data are not exposed. Suppliers are created and edited in the dashboard: purchase orders name a supplier by this `id`. Needs the supplier management feature on the store’s plan.
+         *     Lists the store’s suppliers A to Z with cursor pagination (`limit` + `starting_after`, `has_more`/`next_cursor`). `q` keeps suppliers whose name, contact name or email contains the text, ignoring letter case; percent and underscore match themselves. A supplier has an `id`, `name`, `contact_name`, `email`, `phone`, `address`, `is_active` and timestamps; the merchant’s notes and custom data are not exposed. Purchase orders name a supplier by this `id`; create and change suppliers with POST suppliers and PATCH suppliers/{supplier}.
          */
         get: operations["suppliers.list"];
+        put?: never;
+        /**
+         * Create a supplier
+         * @description Requires scope `merchant-suppliers-create`.
+         *
+         *     Creates a supplier of this store: `name` (required), and optional `contact_name`, `email`, `phone`, `address` and `is_active` (default true). The merchant’s notes and custom data on a supplier are theirs and cannot be written. Answers 201 with the supplier, whose `id` names it on purchase orders.
+         */
+        post: operations["suppliers.create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/suppliers/{supplier}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
         put?: never;
         post?: never;
         delete?: never;
         options?: never;
         head?: never;
-        patch?: never;
+        /**
+         * Update a supplier
+         * @description Requires scope `merchant-suppliers-update`.
+         *
+         *     Changes a supplier of this store: only the fields sent change (`name`, `contact_name`, `email`, `phone`, `address`, `is_active`); the merchant’s notes and custom data are not writable. {supplier} is the supplier `id`; one of another store reads as not found. Answers the supplier.
+         */
+        patch: operations["suppliers.update"];
         trace?: never;
     };
     "/purchase-orders": {
@@ -1374,7 +1480,7 @@ export interface paths {
          * List purchase orders
          * @description Requires scope `merchant-purchase_orders-read`.
          *
-         *     Lists the store’s purchase orders, newest first, with cursor pagination (`limit` + `starting_after`, `has_more`/`next_cursor`). `status` keeps one of `draft`, `ordered`, `partial`, `received` or `cancelled`. Each order has its `id`, `number`, `status`, `supplier`, `currency`, `total_cost` (a decimal string), dates, `notes`, ordered and received quantities and its `line_items` (product `id` and `slug`, quantities, `unit_cost`, `total_cost`); receipts are on the single-order read. Needs the purchase orders feature on the store’s plan.
+         *     Lists the store’s purchase orders, newest first, with cursor pagination (`limit` + `starting_after`, `has_more`/`next_cursor`). `status` keeps one of `draft`, `ordered`, `partial`, `received`, `closed` or `cancelled`. Each order has its `id`, `number`, `status`, `supplier`, `currency`, `total_cost` (a decimal string), dates, `notes`, ordered and received quantities and its `line_items` (product `id` and `slug`, the `variant` when the line names one, quantities, `unit_cost`, `total_cost`); receipts are on the single-order read.
          */
         get: operations["purchase_orders.list"];
         put?: never;
@@ -1382,7 +1488,7 @@ export interface paths {
          * Create a purchase order
          * @description Requires scope `merchant-purchase_orders-create`.
          *
-         *     Creates a purchase order for a supplier of this store: `supplier` is its `id`, each `items[]` line names a `product` (p_id or slug of this store) with `quantity_ordered`, `unit_cost` and optional `notes`. An order has at most 100 lines, each for 1 to 1,000,000 units. `status` is `ordered` (default) or `draft`; `expected_date` must be after today. Creating an order plans a purchase only: no stock or product cost changes until goods are received. A supplier or product not in this store answers 404. Answers the purchase order.
+         *     Creates a purchase order for a supplier of this store: `supplier` is its `id`, each `items[]` line names a `product` (p_id or slug of this store) with `quantity_ordered`, `unit_cost` and optional `notes`. An order has at most 100 lines, each for 1 to 1,000,000 units. A line is product-level: a purchase order holds ONE line per product (the same product twice, as p_id and slug too, answers 422 with the field `items.{index}.product`), and the variant is named only when the goods are received (`items[].variant` on POST purchase-orders/{po}/receive). `unit_cost` may be sent as a decimal string or a number; responses carry it as a string. `status` is `ordered` (default) or `draft` (mark it ordered later with POST purchase-orders/{po}/order, or cancel it with POST purchase-orders/{po}/cancel); `expected_date` must be after today. Creating an order plans a purchase only: no stock or product cost changes until goods are received. A supplier or product not in this store answers 404. Answers the purchase order.
          */
         post: operations["purchase_orders.create"];
         delete?: never;
@@ -1413,6 +1519,72 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/purchase-orders/{po}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel a draft purchase order
+         * @description Requires scope `merchant-purchase_orders-update`.
+         *
+         *     Cancels a purchase order that is still a `draft`: nothing was ordered or received, so only its status changes to `cancelled` and no stock moves; the cancel is written to the store’s activity log. An order in any other status answers 409 `conflict` (`data.status` names it). Send no body. {po} is the order `id`; an order of another store reads as not found. Answers the cancelled order.
+         */
+        post: operations["purchase_orders.cancel"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/purchase-orders/{po}/order": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Mark a draft purchase order as ordered
+         * @description Requires scope `merchant-purchase_orders-update`.
+         *
+         *     Marks a `draft` purchase order as `ordered` (sent to the supplier) and sets `ordered_at`; it cannot be undone, and from then on the order expects its goods. No stock moves until goods are received. An order in any other status answers 409 `conflict` (`data.status` names it). Send no body. {po} is the order `id`; an order of another store reads as not found. The change is written to the store’s activity log. Answers the ordered purchase order.
+         */
+        post: operations["purchase_orders.order"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/purchase-orders/{po}/close": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Close a purchase order short
+         * @description Requires scope `merchant-purchase_orders-update`.
+         *
+         *     Closes an `ordered` or `partial` purchase order whose remaining goods are not coming: its status becomes `closed`, nothing more can be received against it, what was received stays received, and no stock moves (closing an `ordered` order that received nothing therefore changes stock exactly as cancelling would, while the order keeps its ordered record). An order in any other status answers 409 `conflict` (`data.status` names it); a draft is cancelled instead (POST purchase-orders/{po}/cancel). Send no body. {po} is the order `id`; an order of another store reads as not found. The change is written to the store’s activity log. Answers the closed purchase order.
+         */
+        post: operations["purchase_orders.close"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/purchase-orders/{po}/receive": {
         parameters: {
             query?: never;
@@ -1426,13 +1598,197 @@ export interface paths {
          * Receive a purchase order
          * @description Requires scope `merchant-purchase_orders-update`.
          *
-         *     Receives goods against a purchase order, in full or in part: each `items[]` line (at most 100) names a `purchase_order_item` (a line `id`) and a `quantity_received` (1 to 1,000,000), plus the `variant` (its p_id) the goods are for; a line for a product with active variants must name one (else 422 `variant_required`, nothing received), and a variant that is not of that line’s product in this store is a 422. The quantity is added to that variant’s stock (the product’s totals follow), or, for a product without variants, to the product’s stock, with a stock adjustment linked to the receipt, and the receipt records the line’s ordered `unit_cost`; the product’s own cost price is not changed. The order becomes `partial` or `received`. An `Idempotency-Key` header is REQUIRED: a retry with the same key and body replays the first answer instead of receiving the goods twice, and a different body under a used key answers 409. A cancelled or fully received order answers 409 `conflict`; a line that would take in more than it has left answers 422, and nothing is received at all when any line is refused. A purchase order or line that is not in this store answers 404. Answers the purchase order with its receipts.
+         *     Receives goods against a purchase order, in full or in part: each `items[]` line (at most 100) names a `purchase_order_item` (a line `id`) and a `quantity_received` (1 to 1,000,000), plus the `variant` (its p_id) the goods are for; a line for a product with active variants must name one (else 422 `variant_required`, nothing received), and a variant that is not of that line’s product in this store is a 422. The quantity is added to that variant’s stock (the product’s totals follow), or, for a product without variants, to the product’s stock, with a stock adjustment linked to the receipt, and the receipt records the line’s ordered `unit_cost`; the product’s own cost price is not changed. The order becomes `partial` or `received`; receiving a `draft` marks it ordered first. An `Idempotency-Key` header is REQUIRED: a retry with the same key and body replays the first answer instead of receiving the goods twice, and a different body under a used key answers 409. A cancelled, closed or fully received order answers 409 `conflict`; a line that would take in more than it has left answers 422, and nothing is received at all when any line is refused; 422s name the line (`items.{index}.variant` or `items.{index}.quantity_received` in `error.errors`). Each received line writes a stock adjustment of type `purchase_order_received` (positive `quantity_change`, variant scope when a variant was named, `reason_code` null), readable at GET inventory/adjustments?type=purchase_order_received. A purchase order or line that is not in this store answers 404. Answers the purchase order with its receipts.
          */
         post: operations["purchase_orders.receive"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/invoices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List invoices
+         * @description Requires scope `merchant-invoices-read`.
+         *
+         *     Lists the store’s invoices, newest first, with cursor pagination (`limit` + `starting_after`, `has_more`/`next_cursor`). Needs the Invoices app installed on the store (403 `app_not_installed` otherwise). Every row is the object GET invoices/{invoice} answers: `number` (null on a draft), `kind` (`invoice`, `proforma` or `credit_note`), `status` (`overdue` is derived: issued, past its due date, balance left), `source` (`standalone`, or `order` for an invoice that mirrors an order’s payments and balance, with that `order`), the `buyer`, the `lines`, the totals, `payments`, `installments` and `credit_notes`. Every id is a p_id, every amount a decimal string at the invoice’s currency precision beside its ISO `currency`. Filters: `status`, `kind`, `customer_id` and `order_id` (a p_id or UUID of this store; one that is not this store’s lists nothing), `q` (number, title or buyer name or phone; needs merchant-customers-contact-read, 403 `insufficient_scope` without it), `from` and `to` (creation dates, Y-m-d) and `updated_since` (RFC 3339 with an explicit offset: keeps rows changed at or after that time). The buyer’s `name`, `email` and `phone` are null without merchant-customers-contact-read; the address and tax id are on the document either way. An order-backed invoice (`source` `order`) follows its order only when it is read: the `updated_since` and `status` filters run on the stored row, so they do not see an order payment until the invoice is read (a row can list under its old `status` and a stale `updated_at`); watch the `orders/*` webhooks or read GET orders/{order}/invoice instead, and note that reading refreshes it and moves its `updated_at`. The customer link, the order’s pay link, customer payment notices and the merchant’s bank details are never in the object. The window moves as rows change, so a walk through pages is not a snapshot: poll with `updated_since` for invoices the merchant makes and deduplicate on `id` and `updated_at`.
+         */
+        get: operations["invoices.list"];
+        put?: never;
+        /**
+         * Create an invoice draft
+         * @description Requires scope `merchant-invoices-create`.
+         *
+         *     Creates a DRAFT invoice (or a `proforma`, which is not a tax invoice): it has no `number` yet and is not shown to the customer until it is issued with POST invoices/{invoice}/issue. You send only what a person would type: `lines` (`description`, `quantity`, `unit_price` and optionally `tax_rate`, `tax_name` or several named `taxes`), the `buyer` (`name`, `email`, `phone`, `address`, `tax_id`) or a `customer_id` (a p_id or UUID of one of this store’s customers, whose details fill the buyer), an invoice-level `discount` (`type` `fixed` or `percent`, `value`), `due_at`, `terms`, `note`, `title`, `language` (`en`, `fr` or `ar`) and an `installments` plan. The server computes every total: the subtotal, discount, tax and total are never accepted, and a `total_amount`, line total or tax amount you send is ignored. Money is a decimal string in the invoice’s `currency` (the store’s currency unless you send a supported `currency`), with no more decimals than that currency has (more answers 422). Answers 201 with the invoice as GET invoices/{invoice} reads it. Needs the Invoices app installed on the store (403 `app_not_installed` otherwise). A draft is not a document yet: it takes no payment and consumes no invoice number. Fires `invoices/create`. Send an `Idempotency-Key` so a retried call does not create a second draft.
+         */
+        post: operations["invoices.create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/invoices/{invoice}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Retrieve an invoice
+         * @description Requires scope `merchant-invoices-read`.
+         *
+         *     Retrieves one invoice with its lines, tax breakdown, payments, instalments and credit notes. {invoice} is a p_id or UUID of this store; another store’s invoice reads exactly like one that does not exist (404). Needs the Invoices app installed on the store (403 `app_not_installed` otherwise). Money is a decimal string beside the invoice’s ISO `currency`; the buyer’s `name`, `email` and `phone` are null without merchant-customers-contact-read. An order-backed invoice (`source` `order`) is brought in line with its order first and lists the order’s payments and refunds with `source` `order`. The customer link, the order’s pay link, customer payment notices and the merchant’s bank details are never in the object.
+         */
+        get: operations["invoices.retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/orders/{order}/invoice": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Retrieve the invoice of an order
+         * @description Requires scope `merchant-invoices-read`.
+         *
+         *     Retrieves the invoice raised for an order of this store, the same object GET invoices/{invoice} answers. {order} is a p_id or UUID of this store; 404 when the order is not this store’s or has no invoice yet. Needs the Invoices app installed on the store (403 `app_not_installed` otherwise).
+         */
+        get: operations["invoices.retrieve_for_order"];
+        put?: never;
+        /**
+         * Create the invoice of an order
+         * @description Requires scope `merchant-invoices-create`.
+         *
+         *     Raises the invoice of an order in one call: an ISSUED, numbered document (it takes the store’s next invoice number and is frozen at once, under `merchant-invoices-create` alone: there is no separate issue step) over the order’s own items and charges, whose total is exactly what the order charges. An order has one invoice, so the call is repeatable: 201 when this call made it, 200 with the same invoice when the order already had one. The invoice mirrors the order: its paid amount, balance and payments are the order’s own and follow it when it is read (take a payment on the order, not here). {order} is a p_id or UUID of this store; an order that is not this store’s, or a checkout that has not been placed, reads like one that does not exist (404). An order charged in a market’s currency has no invoice: 422 `invoice_market_order_unsupported`, on the first call and on a repeat. A cancelled or rejected order, or one with no items, answers 409 `invoice_state_conflict`. Answers the invoice as GET invoices/{invoice} reads it. Needs the Invoices app installed on the store (403 `app_not_installed` otherwise). Fires `invoices/create` when it makes the invoice.
+         */
+        post: operations["invoices.create_for_order"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/invoices/{invoice}/issue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Issue an invoice
+         * @description Requires scope `merchant-invoices-update`.
+         *
+         *     Issues a draft: it takes the store’s next invoice number (the numbers are sequential with no gaps, so a refused call uses none), freezes the document (the seller and the totals are fixed, and it can no longer be edited, only voided and replaced) and becomes payable. `due_at` may set the due date in the same call. {invoice} is a p_id or UUID of this store; another store’s invoice reads exactly like one that does not exist (404). A draft needs a buyer name, at least one line, a total above zero and, when the merchant’s Invoices settings require it, the buyer’s `tax_id`: otherwise 409 `invoice_state_conflict`; an invoice that is already issued answers 409 too, so a retry never takes a second number. Answers the issued invoice as GET invoices/{invoice} reads it. Needs the Invoices app installed on the store (403 `app_not_installed` otherwise). Fires `invoices/update`. Send an `Idempotency-Key` so a retried call replays the first answer.
+         */
+        post: operations["invoices.issue"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/invoices/{invoice}/payments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Record a payment on an invoice
+         * @description Requires scope `merchant-invoices-record-payment`.
+         *
+         *     Records money the merchant confirmed receiving against an issued invoice: a bank transfer, cash, a card terminal, mobile money, or tax withheld at source (`method`: `bank_transfer`, `cash`, `pos`, `mobile_money`, `other` or `tax_withheld`). Nothing moves through Queek: it settles the document only, and never reaches the store’s wallet or payouts. `amount` is a decimal string in the invoice’s `currency` with no more decimals than it has, above zero and not above the balance (`amount_due`): a larger one answers 409 `invoice_state_conflict`. The invoice’s `amount_paid`, `amount_due`, `status` and instalments follow the payments. A draft, a void invoice, one already paid in full, a proforma, a credit note, a credited invoice and an order-backed invoice (`source` `order`: its payments are the order’s own) answer 409. `paid_at` may not be in the future; `reference` is the payer’s or the bank’s reference. `Idempotency-Key` is required (400 `idempotency_key_required` without it): the same key replays the first answer without recording a second payment, and the same key with another amount, method, date or reference answers 409 `idempotency_key_reuse`, however long ago the first call was. A key is yours alone: another key or installation sending the same string records its own payment. {invoice} is a p_id or UUID of this store. Answers 201 with the invoice as GET invoices/{invoice} reads it. Needs the Invoices app installed on the store (403 `app_not_installed` otherwise). Fires `invoices/update`.
+         */
+        post: operations["invoices.record_payment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/markets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List markets
+         * @description Requires scope `merchant-markets-read`.
+         *
+         *     Lists the store’s markets, oldest first, with cursor pagination (`limit` + `starting_after`, `has_more`/`next_cursor`). A market names the `countries` it sells to and the `currency` shoppers there see prices in and are charged in once it is published. `published` is true once the merchant has published the market; an unpublished market changes nothing a shopper sees or pays. `status` says whether shoppers can use it right now (`draft`, `live`, or `not_live` for a published market that something blocks) and `blockers` lists what blocks it (`store_currency`, `no_provider`, `no_rate`, `rate_stale`; empty when nothing does): both are read live at the moment of the response, so they can change with no write to the market, and the `markets/*` webhooks do not carry them. `checkout_currency` is the store’s own currency, in which its prices and orders are kept: an order placed through a published market is charged in that market’s `currency`, every other order in `checkout_currency`.
+         */
+        get: operations["markets.list"];
+        put?: never;
+        /**
+         * Create a market
+         * @description Requires scope `merchant-markets-write`.
+         *
+         *     Defines a market: a unique `name`, the `countries` (ISO 3166-1 alpha-2 codes, each in at most one market of the store) and the `currency` (ISO 4217, never the store’s own, at most two decimals). Only the launch countries can be chosen yet; every other answers 422 `market_country_not_available`. A store has at most ten markets. Rule failures answer 422 with their own code: `market_name_taken`, `market_country_unknown`, `market_country_not_available`, `market_country_taken`, `market_country_is_store_country` (a market cannot contain the store’s own country), `market_currency_unsupported`, `market_currency_precision`, `market_currency_is_shop_currency`, `market_limit_exceeded`. The market is created unpublished, so it changes no price, checkout or payment until it is published. Answers 201 with the market and fires `markets/create`. `Idempotency-Key` is optional and makes a retried create replay the first answer. Writes are limited to 20 a minute and 100 an hour per store.
+         */
+        post: operations["markets.create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/markets/{market}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Retrieve a market
+         * @description Requires scope `merchant-markets-read`.
+         *
+         *     Retrieves one market of this store by its integer `id`. An id of another store, or one that does not exist, answers 404.
+         */
+        get: operations["markets.retrieve"];
+        put?: never;
+        post?: never;
+        /**
+         * Remove a market
+         * @description Requires scope `merchant-markets-write`.
+         *
+         *     Removes a market of this store; its countries are free to join another. An id of another store, or one that does not exist, answers 404. Fires `markets/destroy`. Writes are limited to 20 a minute and 100 an hour per store.
+         */
+        delete: operations["markets.delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Update a market
+         * @description Requires scope `merchant-markets-write`.
+         *
+         *     Changes any of `name`, `countries` (the full replacement list) and `currency`; fields left out keep their value, and at least one field is required. The same rules as a create apply. `published: true` publishes the market and `published: false` unpublishes it (no event when nothing changes). Publishing answers 422 `market_publish_no_provider` unless a payment provider enabled for the store can charge the currency, and `market_publish_no_rate` unless a current exchange rate from the store’s currency exists; a published market’s `currency` and `countries` cannot change (422 `market_published_locked`: unpublish first). A request that fails changes nothing. An id of another store answers 404. Fires `markets/update`. Writes are limited to 20 a minute and 100 an hour per store.
+         */
+        patch: operations["markets.update"];
         trace?: never;
     };
     "/metafield-definitions": {
@@ -1446,7 +1802,7 @@ export interface paths {
          * List metafield definitions
          * @description Requires scope `merchant-metafields-read`.
          *
-         *     Lists the store’s metafield definitions: its custom-field schema.
+         *     Lists the store’s metafield definitions: its custom-field schema, the merchant’s own and, for an installed app, its own app-owned ones (never another app’s). Each carries `app_owned` and `merchant_access`.
          */
         get: operations["metafields.list_definitions"];
         put?: never;
@@ -1454,13 +1810,41 @@ export interface paths {
          * Create a metafield definition
          * @description Requires scope `merchant-metafields-create`.
          *
-         *     Creates a metafield definition.
+         *     Creates a metafield definition. An installed app that creates one in its own `app_{slug}` namespace (the slug with hyphens as underscores, exactly: `app_{slug}_…` is another app’s) owns it: the definition is hidden from the storefront unless `storefront_visible` is true, `merchant_access` is `read` (the merchant sees the values, the app alone writes them) or `read_write`, and only that app reads or writes its values through the API (another app and a plain store key cannot). Any other namespace creates the merchant’s own definition, exactly as before; the `app` and `app_…` namespace form is reserved for apps and refused to anyone else. `merchant_access` is refused on a definition that is not app-owned. Uninstalling the app hands its definitions and values to the merchant. `owner_type` `installation` is an app’s own data on its installation (read and written with GET and PATCH app/metafields): only an installed app creates one, in its own `app_{slug}` namespace, without `storefront_visible` or `merchant_access`; at most 50 per installation, outside the store’s definition limit; they are deleted, not handed over, at uninstall.
          */
         post: operations["metafields.create_definition"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/metafield-definitions/{definition}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete an installation metafield definition
+         * @description Requires scope `merchant-app_metafields-update`.
+         *
+         *     Deletes one of the calling installation’s own `installation` definitions and the value written against it, and frees its place in the 50-per-installation limit. {definition} is the definition’s p_id. The merchant’s definitions and another app’s answer 404 here. Answers `deleted_values`, the number of values deleted.
+         */
+        delete: operations["metafields.delete_definition"];
+        options?: never;
+        head?: never;
+        /**
+         * Update an installation metafield definition
+         * @description Requires scope `merchant-app_metafields-update`.
+         *
+         *     Changes the `name`, `description` or `validations` of one of the calling installation’s own `installation` definitions (namespace, key, owner_type and type are fixed: delete and recreate to change them; a tightened validation applies to later writes). {definition} is the definition’s p_id. The merchant’s definitions and another app’s answer 404 here. The installation is the calling key’s; the scope is granted to every installation key.
+         */
+        patch: operations["metafields.update_definition"];
         trace?: never;
     };
     "/metaobject-definitions": {
@@ -1530,7 +1914,7 @@ export interface paths {
          * List orders
          * @description Requires scope `merchant-orders-read`.
          *
-         *     Lists the store’s orders using the same base object as orders/* webhooks; recorded payment transactions and Queek wallet-refund rows are present only with merchant-orders-read (webhooks include them only for active installations granted that scope). Order status, shipment, import, rider-assignment and patch responses do not include those finance arrays. Same filtering and search as the dashboard table with cursor pagination (`limit` + `starting_after`, `has_more`/`next_cursor`). `publication` scopes the list to one of the calling installation’s channel publications (p_id or key; human keys use p_id and need the publications-read permission, without it the filter answers 404). `custom_channel` scopes the list to one hand-recorded or third-party channel name (for example `physical_sale` or `others`) and combines with the other filters. Optional `updated_after` walks order rows changed after a timestamp, oldest change first; start each poll five minutes before the previous poll start, deduplicate ids, keep filters fixed and walk sequentially. With `updated_after`, `sort_by`, `sort_order`, `page` and `per_page` return 422; a cursor is bound to the same timestamp and filters. Item/property, shipment, metafield or customer-profile changes and deleted orders may be missed; long-running changes may appear late. The filter time is not returned and may differ from `updated_at`; this is not a snapshot or deletion feed. Provider-side, vendor-collected, offline and manual-review refunds without a recorded Queek refund row are omitted.
+         *     Lists the store’s orders using the same base object as orders/* webhooks; recorded payment transactions and Queek wallet-refund rows are present only with merchant-orders-read (webhooks include them only for active installations granted that scope). Order status, shipment, import, rider-assignment and patch responses do not include those finance arrays. Same filtering and search as the dashboard table with cursor pagination (`limit` + `starting_after`, `has_more`/`next_cursor`). `from_date` and `to_date` (YYYY-MM-DD, whole days) or `date_range` (`today`, `this_week`, `this_month`) keep orders created in a window, counted on the store’s own calendar (its `timezone`). `status=open` keeps orders that are not cancelled, rejected or completed; `payment_status=outstanding` keeps orders with money still owed (stored `pending`, `unpaid`, `partially_paid` or `awaiting_confirmation`) that are not cancelled or rejected; every stored payment word still filters on its exact value. `payment_method` is one stored method, or `offline_all` (offline, pos, bank_transfer, or an offline payment mode) / `online_all` (every other order that has a method). Each line item carries `variant_id` (the variant’s `id`), `variant_uid` and `sku`, so sales per variant need no match on `variant_title`. `publication` scopes the list to one of the calling installation’s channel publications (p_id or key; human keys use p_id and need the publications-read permission, without it the filter answers 404). `custom_channel` scopes the list to one hand-recorded or third-party channel name (for example `physical_sale` or `others`) and combines with the other filters. Optional `updated_after` walks order rows changed after a timestamp, oldest change first; start each poll five minutes before the previous poll start, deduplicate ids, keep filters fixed and walk sequentially. With `updated_after`, `sort_by`, `sort_order`, `page` and `per_page` return 422; a cursor is bound to the same timestamp and filters. Item/property, shipment, metafield or customer-profile changes and deleted orders may be missed; long-running changes may appear late. The filter time is not returned and may differ from `updated_at`; this is not a snapshot or deletion feed. Provider-side, vendor-collected, offline and manual-review refunds without a recorded Queek refund row are omitted.
          */
         get: operations["orders.list"];
         put?: never;
@@ -1570,7 +1954,7 @@ export interface paths {
          * Update an order
          * @description Requires scope `merchant-orders-update`.
          *
-         *     Changes an order’s developer-extension fields only: metafields, metadata, and per-line properties (`line_items`: merged by key into each line’s `properties`; a string sets a key, null deletes it, keys left out keep their value). `metafields` must reference an existing definition and never use an app-owned (`app.*`, `queek.*`) namespace here. `metadata` is free-form integrator bookkeeping — replaced wholesale (`null` clears it), capped in size and count, with no namespace rule and no definitions. Line-item property keys from an installation key must live under its own `app.{slug}.` namespace; any other key writes none under `app.*` or `queek.*`. Order state has its own endpoints. Answers the updated order.
+         *     Changes an order’s developer-extension fields only: metafields, metadata, and per-line properties (`line_items`: merged by key into each line’s `properties`; a string sets a key, null deletes it, keys left out keep their value). `metafields` must reference an existing definition and never use the platform namespaces `app.*` or `queek.*`; an app-owned definition’s values (`app_{slug}`) are written only by that app. `metadata` is free-form integrator bookkeeping — replaced wholesale (`null` clears it), capped in size and count, with no namespace rule and no definitions. Line-item property keys from an installation key must live under its own `app.{slug}.` namespace; any other key writes none under `app.*` or `queek.*`. Order state has its own endpoints. Answers the updated order.
          */
         patch: operations["orders.update"];
         trace?: never;
@@ -1586,7 +1970,7 @@ export interface paths {
          * List abandoned checkouts
          * @description Requires scope `merchant-checkouts-read`.
          *
-         *     Lists the store’s abandoned checkouts: signed-in customers of this store whose cart has been unchanged for the idle delay (60 minutes by default) and is at most 72 hours old, newest first, with cursor pagination (`limit` + `starting_after`, `has_more`/`next_cursor`). A customer is reported at most once, by their latest cart, and never after they placed an order at this store after the cart’s last change. Guest carts, carts written on the Queek marketplace, empty carts and carts last changed before this feature started are not listed. Each row has the cart `id`, `created_at`, `updated_at`, the `customer` (`id`; `name`, `email` and `phone` are null without merchant-customers-contact-read), `line_items` (`product` and `variant` ids, the store’s own `title`, `quantity`; no prices) and `checkout_url`, the store’s checkout page, the same link for every shopper (the shopper signs in to see their cart). Same object as the checkouts/create and checkouts/update webhooks, which an app also needs this scope to receive. `updated_since` (RFC 3339 with an explicit offset) keeps carts changed at or after that time. A cart counts as abandoned when it is unchanged, not when the shopper is inactive. The window moves with the clock and carts change, so a walk through pages is not a snapshot: poll with `updated_since` and deduplicate on `id` plus `updated_at`. Customers who place an order are detected with orders/create.
+         *     Lists the store’s abandoned checkouts, newest first, with cursor pagination (`limit` + `starting_after`, `has_more`/`next_cursor`). `stage` picks the kind: `cart` (the default) is signed-in customers of this store whose cart has been unchanged for the idle delay (60 minutes by default) and is no older than the maximum age (72 hours by default); `payment` is unpaid checkouts, orders a signed-in customer placed and never paid, left unpaid for the unpaid-checkout delay (2 hours by default) and no older than the maximum age, and also needs the merchant-checkouts-payments-read scope (403 without it). Each stage is its own list with its own cursor, and a row is keyed by `stage` plus `id`: a cart and an order can share an `id`. A customer is reported at most once per stage, by their latest cart or latest unpaid order. A cart is dropped once the customer placed an order at this store after its last change; an unpaid order is dropped once they placed an order, or started another order that was not cancelled, after it. Guest carts and orders, orders made on the Queek marketplace (the store dashboard lists those under abandoned orders), orders sent as a staff payment link, orders with a payment under review, empty carts and carts last changed before this feature started are not listed. `include_completed=true` (payment only) also lists recovered checkouts: orders paid at least the idle delay after they were created, with `completed_at` set; a refunded one stays listed, and it is off by default so a recovery app never messages someone who already paid. Each row has `id`, `stage`, `created_at`, `updated_at` (a cart’s last change; a payment row’s paid-or-created time, which does not move when the shopper opens the pay page), `completed_at`, the `customer` (`id`; `name`, `email` and `phone` are null without merchant-customers-contact-read), `line_items` (`product` and `variant` ids, the store’s own `title`, `quantity`; no prices) and `checkout_url`, the store’s checkout page, the same link for every shopper (the shopper signs in to see their cart). Four more keys are null on a cart: `order` (`id`, which opens orders/{order}, and `order_number`), `currency` (the store’s currency, never a shopper’s presentment currency), `total` (the order total as a decimal string, the same number as orders/{order}) and `recovery_url`, the order’s payment page, present only for an `online` order that can still be paid. The link does not expire and cannot be revoked, except that it is null for an order in a market whose exchange rate has expired (the shopper places the order again): treat it as a secret, never log it or pass it to a third party. A cart row is the object the checkouts/create and checkouts/update webhooks send, which carry carts only and need merchant-checkouts-read; a payment row is the object the payment_checkouts/create webhook sends once per unpaid order, which needs both merchant-checkouts-read and merchant-checkouts-payments-read (there is no update event: a recovered checkout is the orders/create webhook for the same order id; sent once per unpaid checkout in normal operation; a delivery can occasionally be missed (infrastructure failure after the checkout is claimed) or arrive twice (retries): deduplicate by (topic, order id), and use GET abandoned-checkouts?stage=payment to reconcile). `updated_since` (RFC 3339 with an explicit offset) keeps rows changed at or after that time. A cart counts as abandoned when it is unchanged, not when the shopper is inactive. The window moves with the clock and rows change, so a walk through pages is not a snapshot: poll with `updated_since` and deduplicate on `stage`, `id` and `updated_at`. A customer who buys after a cart is detected with orders/create.
          */
         get: operations["checkouts.list_abandoned"];
         put?: never;
@@ -1610,7 +1994,7 @@ export interface paths {
          * Import an order from a sales channel
          * @description Requires scope `merchant-orders-import`.
          *
-         *     Records an order already charged by an outside platform: each item names its `product` (p_id, UUID or slug of this store) and, for a variant, its `variant` (p_id or UUID of a variant belonging to that product) — the old single `ref` is refused; totals are stored as charged with no commission, and a re-sent order returns the same record. The authenticated app installation supplies source attribution; only an installed legacy marketplace app sends `channel`, and it must match its own app slug; any other app omits it, and a supplied value is rejected. The customer (name + phone) becomes the order’s `shipping_address` recipient, readable only with merchant-customers-contact-read like every contact — never `metadata`. Answers the order object orders/* webhooks send. Generic app installations derive source from the authenticated installation and omit `channel`; supplying it is a 422. An installed legacy marketplace app must send the `channel` slug matching its own app slug; mismatches are 422. Human-key legacy imports still require `channel` and may choose either slug. Those slugs are not reserved.
+         *     Records an order already charged by an outside platform: each item names its `product` (p_id, UUID or slug of this store) and, for a variant, its `variant` (p_id or UUID of a variant belonging to that product) — the old single `ref` is refused; totals are stored as charged with no commission, and a re-sent order returns the same record. The authenticated app installation supplies source attribution; only an installed legacy marketplace app sends `channel`, and it must match its own app slug; any other app omits it, and a supplied value is rejected. The customer (name + phone) becomes the order’s `shipping_address` recipient, readable only with merchant-customers-contact-read like every contact — never `metadata`. `delivery_fee` and `discount` are required: send "0.00" when there is none, and `total` must equal the lines plus `delivery_fee` minus `discount`. `placed_at` is when the outside platform took the order: on a dev store it becomes the order’s `created_at` (the order’s `updated_at` is still the import time), so a developer can build sales history, and it must be within the last 120 days, the time a dev store keeps imported orders (older answers 422); on a live store the order is recorded now and `placed_at` is kept as its order date. Answers the order object orders/* webhooks send. Generic app installations derive source from the authenticated installation and omit `channel`; supplying it is a 422. An installed legacy marketplace app must send the `channel` slug matching its own app slug; mismatches are 422. Human-key legacy imports still require `channel` and may choose either slug. Those slugs are not reserved.
          */
         post: operations["orders.import"];
         delete?: never;
@@ -1632,7 +2016,7 @@ export interface paths {
          * Update an order status
          * @description Requires scope `merchant-orders-status-update`.
          *
-         *     Moves an order to a new status and answers the updated order. `approve_payment` requires `payment_status` `awaiting_confirmation`, a payment method other than `online`/`wallet`, and a payment that is not already paid; cancelled or rejected orders cannot be updated. It records the payment and marks the order paid but does not verify provider receipt or call a provider. `accept` and `rejected` need a paid, not-yet-accepted order; every later action needs a paid and accepted order.
+         *     Moves an order to a new status and answers the updated order. `approve_payment` requires `payment_status` `awaiting_confirmation`, a payment method other than `online`/`wallet`, and a payment that is not already paid; cancelled or rejected orders cannot be updated. It records the payment and marks the order paid but does not verify provider receipt or call a provider. `accept` and `rejected` need a paid, not-yet-accepted order; every later action needs a paid and accepted order. `out_for_delivery` and `mark_delivered` finish a local delivery the store carries itself (no rider or Queek delivery on it): `out_for_delivery` from ready for pickup, then `mark_delivered` with the optional `pin` (string, up to 12 characters), which must match the customer's delivery PIN when the order has one. An unknown order answers 404; every refusal (a wrong or missing PIN, a cancelled or rejected order, a status the order cannot take now) answers 422.
          */
         post: operations["orders.update_status"];
         delete?: never;
@@ -1806,7 +2190,7 @@ export interface paths {
          * List products
          * @description Requires scope `merchant-items-read`.
          *
-         *     Lists the store’s products — the same object products/* webhooks send, with variants, images, the canonical URL and the storefront price. Same filtering as the dashboard table with cursor pagination (`limit` + `starting_after`, `has_more`/`next_cursor`); sorts limited to public fields. Optional `updated_after` walks product rows changed after a timestamp, oldest change first; start each poll five minutes before the previous poll start, deduplicate ids, keep filters fixed and walk sequentially. With `updated_after`, `sort_by`, `sort_order`, `page` and `per_page` return 422; a cursor is bound to the same timestamp and filters. Variant, image, metafield, stock, region, price, discount, bulk publish, unpublish, archive status or inventory-tracking changes and deleted products may be missed; long-running changes may appear late. The filter time is not returned and may differ from `updated_at`; this is not a snapshot or deletion feed. `publication` scopes the list to one of the calling installation channel publications (p_id or key; human keys use p_id and need the publications-read permission, without it the filter answers 404): with `updated_after` it returns additions and content changes, while a removed product surfaces only in the full reconcile walk, never as a delta.
+         *     Lists the store’s products — the same object products/* webhooks send, with variants, images, the canonical URL and the storefront price. Same filtering as the dashboard table with cursor pagination (`limit` + `starting_after`, `has_more`/`next_cursor`); sorts limited to public fields. Optional `updated_after` walks product rows changed after a timestamp, oldest change first; start each poll five minutes before the previous poll start, deduplicate ids, keep filters fixed and walk sequentially. With `updated_after`, `sort_by`, `sort_order`, `page` and `per_page` return 422; a cursor is bound to the same timestamp and filters. Variant, image, metafield, stock, region, price, discount, bulk publish, unpublish, archive status or inventory-tracking changes and deleted products may be missed; long-running changes may appear late. The filter time is not returned and may differ from `updated_at`; this is not a snapshot or deletion feed. `publication` scopes the list to one of the calling installation channel publications (p_id or key; human keys use p_id and need the publications-read permission, without it the filter answers 404): with `updated_after` it returns additions and content changes, while a removed product surfaces only in the full reconcile walk, never as a delta. `cost_price` (the unit cost, a money string or null when none was ever set) is present, on the product and on each variant, only with the protected merchant-items-cost-read scope. A variant has its own cost and a variant without one reads null, never the product’s. Older products had an unset cost filled with the selling price and still read it: a cost equal to the price on an old product is unknown, not a fact.
          */
         get: operations["products.list"];
         put?: never;
@@ -1814,7 +2198,7 @@ export interface paths {
          * Create a product
          * @description Requires scope `merchant-items-create`.
          *
-         *     Creates a product with variants, images, categories and metafields; answers the created product — the same object GET products/{product} and products/* webhooks send.
+         *     Creates a product with variants, images, categories and metafields. `seo` is the search listing, `{title, description}` (plain text, up to 255 and 1000 characters): leave the key out to keep it, send an object to replace it, send null or blank values to clear it; the storefront then falls back to the title and the excerpt. Answers the created product — the same object GET products/{product} and products/* webhooks send.
          */
         post: operations["products.create"];
         delete?: never;
@@ -1856,14 +2240,14 @@ export interface paths {
          * Retrieve a product
          * @description Requires scope `merchant-items-detail`.
          *
-         *     Retrieves one product — the same object products/* webhooks send, with variants, images, the canonical URL and the storefront price. {product} is a p_id, UUID or slug of this store.
+         *     Retrieves one product — the same object products/* webhooks send, with variants, images, the canonical URL and the storefront price. {product} is a p_id, UUID or slug of this store. `cost_price` (the unit cost, a money string or null when none was ever set) is present, on the product and on each variant, only with the protected merchant-items-cost-read scope. A variant has its own cost and a variant without one reads null, never the product’s. Older products had an unset cost filled with the selling price and still read it: a cost equal to the price on an old product is unknown, not a fact.
          */
         get: operations["products.retrieve"];
         /**
          * Update a product
          * @description Requires scope `merchant-items-update`.
          *
-         *     Replaces a product’s fields; title and the core attributes are required. Answers the updated product — the same object GET products/{product} and products/* webhooks send.
+         *     Replaces a product’s fields; title and the core attributes are required. Renaming never changes the product’s URL: `slug` is the URL handle (lowercase letters, digits and hyphens, up to 100, unique), send it only to change the address, and the old address then redirects to the new one automatically. `seo` is the search listing, `{title, description}` (plain text, up to 255 and 1000 characters): leave the key out to keep it, send an object to replace it, send null or blank values to clear it; the storefront then falls back to the title and the excerpt. Answers the updated product — the same object GET products/{product} and products/* webhooks send.
          */
         put: operations["products.update"];
         post?: never;
@@ -1877,6 +2261,28 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/products/{product}/metafields": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Set product metafield values
+         * @description Requires scope `merchant-metafields-update`.
+         *
+         *     Writes metafield values on one product without resending the product: `metafields` is a list of `{namespace, key, value}`. Each handle needs a product metafield definition (create it with POST metafield-definitions first), values are type-checked, a handle you leave out keeps its value and `"value": null` deletes one. The platform namespaces `app.*` and `queek.*` are refused; an app-owned definition’s values (its `app_{slug}` namespace, see POST metafield-definitions) are written only by that app. Answers the updated product — the same object GET products/{product} sends; storefront-hidden merchant values appear in it only with merchant-metafields-read, and an app always reads its own app-owned values. Variant values have their own route, PATCH products/{product}/variants/{variant}/metafields, under the same scope. Does not move `updated_at`; sends one products/update webhook.
+         */
+        patch: operations["products.set_metafields"];
         trace?: never;
     };
     "/products/publish": {
@@ -2144,7 +2550,7 @@ export interface paths {
          * Retrieve the store
          * @description Requires scope `merchant-business_profile-read`.
          *
-         *     Retrieves the store’s business profile: name, contact, branding and storefront status.
+         *     Retrieves the store’s business profile: name, contact, branding and storefront status, plus the store `currency` (with its `currency_meta.precision`) and its `plan` with every plan-gated feature as a boolean, so an app can format amounts and check a feature before calling a gated route.
          */
         get: operations["store.retrieve"];
         put?: never;
@@ -2427,6 +2833,50 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/translations/machine/quote": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Quote a machine translation
+         * @description Requires scope `merchant-translations-machine`.
+         *
+         *     Prices a machine translation job before anything runs. The body is a REFERENCE, never text: the target `locale` (a language the store has enabled), a `mode` (`missing`, `outdated` or `missing_and_outdated`; the outdated modes refresh machine translations only) and `resources` (`type`, `id`, optional `keys`) naming the store's own content, which is read from the store in its primary language. Answers a `quote_id` good for ten minutes, the `texts` and source `characters` it covers, the `estimated_credits` (an upper bound: the run never charges more) and the `held` keys that will not be translated (a store policy page is translated by hand). Charges nothing. The store must have the credits and the merchant must have left the app's machine translation switch on; a job is limited to 200,000 characters, 20 resources and 20 keys per resource, and a store to 1,000,000 characters a day. A job runs inside a time budget: once it is spent the remaining texts are `held` as `time_budget` and the app runs the rest again.
+         */
+        post: operations["translations.machine_quote"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/translations/machine": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Run a machine translation
+         * @description Requires scope `merchant-translations-machine`.
+         *
+         *     Runs a quoted machine translation job: send the `quote_id` with the same `locale`, `mode` and `resources` it priced. Only clean results are written, each as a translation of `origin` `machine`; any text that fails a check is `held` with a reason (`tags_changed`, `placeholders_changed`, `numbers_changed`, `keep_term_changed`, `empty_output`, `too_long`, `source_changed`, `not_allowed`, `human_written` (an out-of-date translation a person wrote: machine translation only ever refreshes its own, never a person's), `edited` (a person typed a translation meanwhile and it is never overwritten), `write_failed`, `time_budget` or `service_unavailable`) and nothing is written for it. Answers every key as `written` or `held` and the `credits_charged` to the store, never above the quote. `Idempotency-Key` is required: the same key replays the first answer without a second charge. A quote is single-use; an unknown or expired one answers 410, one made for another job 409, too few credits 402 before any work starts. Fires `translations/update` per resource written.
+         */
+        post: operations["translations.machine_run"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/products/{product}/variants": {
         parameters: {
             query?: never;
@@ -2481,6 +2931,28 @@ export interface paths {
          *     Updates a variant’s price, stock and attributes; answers the variant with the merchant price, the storefront price pair, and the canonical product URL.
          */
         patch: operations["variants.update"];
+        trace?: never;
+    };
+    "/products/{product}/variants/{variant}/metafields": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Set variant metafield values
+         * @description Requires scope `merchant-metafields-update`.
+         *
+         *     Writes metafield values on one variant without resending the variant, under the metafields scope (merchant-items-update is not needed): `metafields` is a list of `{namespace, key, value}`. Each handle needs a variant metafield definition (create it with POST metafield-definitions, `owner_type` `variant`), values are type-checked, a handle you leave out keeps its value and `"value": null` deletes one. The platform namespaces `app.*` and `queek.*` are refused; an app-owned definition’s values (its `app_{slug}` namespace, see POST metafield-definitions) are written only by that app. {variant} is a variant p_id or UUID of {product}. Answers the updated product — the same object GET products/{product} sends, with the values on the variant in `variants[]`: a variant carries every merchant value (storefront_visible governs the storefront only) and, of app-owned values, only the calling app’s. Does not move `updated_at`; sends one products/update webhook.
+         */
+        patch: operations["variants.set_metafields"];
         trace?: never;
     };
 }
@@ -2674,7 +3146,7 @@ export interface webhooks {
          * customers/create
          * @description A customer record was created for the store.
          *
-         *     Delivered to every active endpoint of the store subscribed to this topic. Endpoint subscriptions live outside this API (dashboard); verify the signature, dedupe on the event `id`, acknowledge with a 2xx inside 5s, and do the work asynchronously.
+         *     Delivered to every active merchant-owned endpoint of the store subscribed to this topic, and to every app installation that is active, subscribed and holds the scope merchant-customers-read. Endpoint subscriptions live outside this API (dashboard); verify the signature, dedupe on the event `id`, acknowledge with a 2xx inside 5s, and do the work asynchronously.
          */
         post: operations["webhook.customers.create"];
         delete?: never;
@@ -2696,7 +3168,7 @@ export interface webhooks {
          * customers/update
          * @description A customer profile field changed.
          *
-         *     Delivered to every active endpoint of the store subscribed to this topic. Endpoint subscriptions live outside this API (dashboard); verify the signature, dedupe on the event `id`, acknowledge with a 2xx inside 5s, and do the work asynchronously.
+         *     Delivered to every active merchant-owned endpoint of the store subscribed to this topic, and to every app installation that is active, subscribed and holds the scope merchant-customers-read. Endpoint subscriptions live outside this API (dashboard); verify the signature, dedupe on the event `id`, acknowledge with a 2xx inside 5s, and do the work asynchronously.
          */
         post: operations["webhook.customers.update"];
         delete?: never;
@@ -2718,7 +3190,7 @@ export interface webhooks {
          * customers/delete
          * @description A customer was removed from the store, or lost the customer designation. This is a removal from the store's directory, not an erasure: data held elsewhere about that person is not deleted. The payload carries only the customer id.
          *
-         *     Delivered to every active endpoint of the store subscribed to this topic. Endpoint subscriptions live outside this API (dashboard); verify the signature, dedupe on the event `id`, acknowledge with a 2xx inside 5s, and do the work asynchronously.
+         *     Delivered to every active merchant-owned endpoint of the store subscribed to this topic, and to every app installation that is active, subscribed and holds the scope merchant-customers-read. Endpoint subscriptions live outside this API (dashboard); verify the signature, dedupe on the event `id`, acknowledge with a 2xx inside 5s, and do the work asynchronously.
          */
         post: operations["webhook.customers.delete"];
         delete?: never;
@@ -2784,7 +3256,7 @@ export interface webhooks {
          * customers_email_marketing_consent/update
          * @description A customer email marketing preference changed.
          *
-         *     Delivered to every active endpoint of the store subscribed to this topic. Endpoint subscriptions live outside this API (dashboard); verify the signature, dedupe on the event `id`, acknowledge with a 2xx inside 5s, and do the work asynchronously.
+         *     Delivered to every active merchant-owned endpoint of the store subscribed to this topic, and to every app installation that is active, subscribed and holds the scope merchant-customers-read. Endpoint subscriptions live outside this API (dashboard); verify the signature, dedupe on the event `id`, acknowledge with a 2xx inside 5s, and do the work asynchronously.
          */
         post: operations["webhook.customers_email_marketing_consent.update"];
         delete?: never;
@@ -2806,7 +3278,7 @@ export interface webhooks {
          * customers_marketing_consent/update
          * @description A customer's SMS marketing consent changed.
          *
-         *     Delivered to every active endpoint of the store subscribed to this topic. Endpoint subscriptions live outside this API (dashboard); verify the signature, dedupe on the event `id`, acknowledge with a 2xx inside 5s, and do the work asynchronously.
+         *     Delivered to every active merchant-owned endpoint of the store subscribed to this topic, and to every app installation that is active, subscribed and holds the scope merchant-customers-read. Endpoint subscriptions live outside this API (dashboard); verify the signature, dedupe on the event `id`, acknowledge with a 2xx inside 5s, and do the work asynchronously.
          */
         post: operations["webhook.customers_marketing_consent.update"];
         delete?: never;
@@ -2903,6 +3375,72 @@ export interface webhooks {
         patch?: never;
         trace?: never;
     };
+    "markets/create": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * markets/create
+         * @description A market was defined on the store. It is created unpublished and changes nothing shoppers see or pay until it is published.
+         *
+         *     Delivered to every active merchant-owned endpoint of the store subscribed to this topic, and to every app installation that is active, subscribed and holds the scope merchant-markets-read. Endpoint subscriptions live outside this API (dashboard); verify the signature, dedupe on the event `id`, acknowledge with a 2xx inside 5s, and do the work asynchronously.
+         */
+        post: operations["webhook.markets.create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "markets/update": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * markets/update
+         * @description A market on the store changed its name, countries or currency, or was published or unpublished. The payload is the market with its current `published` state.
+         *
+         *     Delivered to every active merchant-owned endpoint of the store subscribed to this topic, and to every app installation that is active, subscribed and holds the scope merchant-markets-read. Endpoint subscriptions live outside this API (dashboard); verify the signature, dedupe on the event `id`, acknowledge with a 2xx inside 5s, and do the work asynchronously.
+         */
+        post: operations["webhook.markets.update"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "markets/destroy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * markets/destroy
+         * @description A market was removed from the store.
+         *
+         *     Delivered to every active merchant-owned endpoint of the store subscribed to this topic, and to every app installation that is active, subscribed and holds the scope merchant-markets-read. Endpoint subscriptions live outside this API (dashboard); verify the signature, dedupe on the event `id`, acknowledge with a 2xx inside 5s, and do the work asynchronously.
+         */
+        post: operations["webhook.markets.destroy"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "translations/update": {
         parameters: {
             query?: never;
@@ -2960,7 +3498,7 @@ export interface webhooks {
          * checkouts/create
          * @description A signed-in customer's cart has been unchanged for the abandonment delay, reported for the first time. Fires when the idle delay passes, not when the cart is created or edited.
          *
-         *     Delivered to every active endpoint of the store subscribed to this topic. Endpoint subscriptions live outside this API (dashboard); verify the signature, dedupe on the event `id`, acknowledge with a 2xx inside 5s, and do the work asynchronously.
+         *     Delivered to every active merchant-owned endpoint of the store subscribed to this topic, and to every app installation that is active, subscribed and holds the scope merchant-checkouts-read. Endpoint subscriptions live outside this API (dashboard); verify the signature, dedupe on the event `id`, acknowledge with a 2xx inside 5s, and do the work asynchronously.
          */
         post: operations["webhook.checkouts.create"];
         delete?: never;
@@ -2982,9 +3520,31 @@ export interface webhooks {
          * checkouts/update
          * @description A previously reported cart changed and has again been unchanged for the abandonment delay. Fires when the idle delay passes, not on every edit.
          *
-         *     Delivered to every active endpoint of the store subscribed to this topic. Endpoint subscriptions live outside this API (dashboard); verify the signature, dedupe on the event `id`, acknowledge with a 2xx inside 5s, and do the work asynchronously.
+         *     Delivered to every active merchant-owned endpoint of the store subscribed to this topic, and to every app installation that is active, subscribed and holds the scope merchant-checkouts-read. Endpoint subscriptions live outside this API (dashboard); verify the signature, dedupe on the event `id`, acknowledge with a 2xx inside 5s, and do the work asynchronously.
          */
         post: operations["webhook.checkouts.update"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "payment_checkouts/create": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * payment_checkouts/create
+         * @description A signed-in customer's order has been left unpaid for the unpaid-checkout delay. Fires when the delay passes, not when the order is created; the payload is the same row `GET abandoned-checkouts?stage=payment` returns, with the order total and `recovery_url`, a payment link that does not expire (null for an order in a market whose exchange rate has expired) and is a secret. Needs both merchant-checkouts-read and merchant-checkouts-payments-read. Recovery is the `orders/create` webhook for the same order id (`order.id`): there is no update event, and an order paid, cancelled or followed by a later order before delivery sends nothing and is not retried. Delivery: sent once per unpaid checkout in normal operation; a delivery can occasionally be missed (infrastructure failure after the checkout is claimed) or arrive twice (retries): deduplicate by (topic, order id), and use GET abandoned-checkouts?stage=payment to reconcile.
+         *
+         *     Delivered to every active merchant-owned endpoint of the store subscribed to this topic, and to every app installation that is active, subscribed and holds all of the scopes merchant-checkouts-read and merchant-checkouts-payments-read. Endpoint subscriptions live outside this API (dashboard); verify the signature, dedupe on the event `id`, acknowledge with a 2xx inside 5s, and do the work asynchronously.
+         */
+        post: operations["webhook.payment_checkouts.create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3002,9 +3562,9 @@ export interface webhooks {
         put?: never;
         /**
          * refunds/create
-         * @description Queek credited a customer's wallet for a cancelled paid order. Only this automatic wallet credit is reported: refunds made at a payment provider, collected by the merchant or settled offline have no record and send nothing.
+         * @description A refund was recorded on an order: a credit to the customer's wallet, a refund to the original card or bank through the payment provider (it starts pending and ends success or failed, signalled by `orders/updated`), a refund the merchant recorded after refunding outside Queek, or a refund Queek pays the customer by hand because it could not be sent back automatically (type `manual`, starts pending).
          *
-         *     Delivered to every active endpoint of the store subscribed to this topic. Endpoint subscriptions live outside this API (dashboard); verify the signature, dedupe on the event `id`, acknowledge with a 2xx inside 5s, and do the work asynchronously.
+         *     Delivered to every active merchant-owned endpoint of the store subscribed to this topic, and to every app installation that is active, subscribed and holds the scope merchant-orders-read. Endpoint subscriptions live outside this API (dashboard); verify the signature, dedupe on the event `id`, acknowledge with a 2xx inside 5s, and do the work asynchronously.
          */
         post: operations["webhook.refunds.create"];
         delete?: never;
@@ -3026,9 +3586,75 @@ export interface webhooks {
          * conversation_messages/create
          * @description A shopper wrote a message in one of the store's messaging conversations. Fires once per message; the payload carries the conversation id, the channel and the message, and the rest of the conversation is read with the conversations API.
          *
-         *     Delivered to every active endpoint of the store subscribed to this topic. Endpoint subscriptions live outside this API (dashboard); verify the signature, dedupe on the event `id`, acknowledge with a 2xx inside 5s, and do the work asynchronously.
+         *     Delivered to every active merchant-owned endpoint of the store subscribed to this topic, and to every app installation that is active, subscribed and holds the scope merchant-conversations-read. Endpoint subscriptions live outside this API (dashboard); verify the signature, dedupe on the event `id`, acknowledge with a 2xx inside 5s, and do the work asynchronously.
          */
         post: operations["webhook.conversation_messages.create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "invoices/create": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * invoices/create
+         * @description An invoice was created in the store's Invoices app: a draft, a duplicate, an invoice of an order, or a credit note (the note itself). The payload is the invoice `GET invoices/{invoice}` returns. Needs merchant-invoices-read, and the buyer's name, email and phone are null unless the installation also holds merchant-customers-contact-read. Nothing is sent when an order-backed invoice follows its order's payments: watch `orders/paid` and `refunds/create` for that. Apply each event as an upsert keyed by `data.id`: ignore it only when its `updated_at` is strictly older than the one you hold (two writes in the same second share a timestamp), and call GET invoices/{invoice} when unsure. A retry can send the same event again.
+         *
+         *     Delivered to every active merchant-owned endpoint of the store subscribed to this topic, and to every app installation that is active, subscribed and holds the scope merchant-invoices-read. Endpoint subscriptions live outside this API (dashboard); verify the signature, dedupe on the event `id`, acknowledge with a 2xx inside 5s, and do the work asynchronously.
+         */
+        post: operations["webhook.invoices.create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "invoices/update": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * invoices/update
+         * @description An invoice changed: edited, issued and numbered, voided, given a tax authority reference, had a payment recorded or voided, or was corrected by a credit note. The payload is the invoice `GET invoices/{invoice}` returns, with the same scope and contact rules as `invoices/create`. A change to an order-backed invoice that only follows its order's payments sends nothing (see `orders/paid` and `refunds/create`); an order cancelled with no payment voids its invoice with no event (watch `orders/cancelled`), and a customer's erasure or the store's deletion clears buyer fields with none (`customers/redact` is the signal). Apply each event as an upsert keyed by `data.id`: ignore it only when its `updated_at` is strictly older than the one you hold (two writes in the same second share a timestamp), and call GET invoices/{invoice} when unsure.
+         *
+         *     Delivered to every active merchant-owned endpoint of the store subscribed to this topic, and to every app installation that is active, subscribed and holds the scope merchant-invoices-read. Endpoint subscriptions live outside this API (dashboard); verify the signature, dedupe on the event `id`, acknowledge with a 2xx inside 5s, and do the work asynchronously.
+         */
+        post: operations["webhook.invoices.update"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "invoices/delete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * invoices/delete
+         * @description A draft invoice was deleted (an issued invoice is voided, never deleted: that is `invoices/update`). The payload carries only the invoice id, the same `p_id` the invoice read answers.
+         *
+         *     Delivered to every active merchant-owned endpoint of the store subscribed to this topic, and to every app installation that is active, subscribed and holds the scope merchant-invoices-read. Endpoint subscriptions live outside this API (dashboard); verify the signature, dedupe on the event `id`, acknowledge with a 2xx inside 5s, and do the work asynchronously.
+         */
+        post: operations["webhook.invoices.delete"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3040,7 +3666,7 @@ export interface components {
     schemas: {
         /** AbandonedCheckoutResource */
         AbandonedCheckoutResource: {
-            /** @description Unique identifier of this object. */
+            /** @description The cart's or the order's `p_id`; with `stage` it is the row's key. */
             id: number;
             /**
              * Format: date-time
@@ -3049,7 +3675,7 @@ export interface components {
             created_at: string | null;
             /**
              * Format: date-time
-             * @description When this object was last changed (ISO-8601 timestamp).
+             * @description A cart: its last change. A payment row: when the order was placed (paid), else when it was created; never the order's own `updated_at`, which moves when the pay page is opened.
              */
             updated_at: string | null;
             customer: {
@@ -3063,7 +3689,30 @@ export interface components {
                 phone: string | null;
             };
             line_items: string | string[];
+            /** @description The store's checkout page, the same link for every shopper. */
             checkout_url: string;
+            /**
+             * @description `cart`: a signed-in customer's idle cart. `payment`: an unpaid checkout (an order whose payment never arrived), on the list for a key holding `merchant-checkouts-payments-read`, and in `payment_checkouts/create`.
+             * @enum {string}
+             */
+            stage: "payment" | "cart";
+            /**
+             * Format: date-time
+             * @description When the checkout was recovered: the time the order was placed (paid) after being left. Null while it is still unpaid, and always null on a cart.
+             */
+            completed_at: string | null;
+            /** @description The order behind a payment row (`id` opens `GET orders/{id}`, `order_number` is the same value `orders` rows call `order_number`); null on a cart. */
+            order: {
+                /** @description Unique identifier of this object. */
+                id: number;
+                order_number: string;
+            } | null;
+            /** @description ISO 4217 code of the store's currency, the one `total` is in. */
+            currency: string;
+            /** @description The order total as a decimal string in the store's currency (not a shopper's presentment currency); null on a cart, which has no authoritative price. */
+            total: string | null;
+            /** @description A payment link for the shopper: the order's pay page, present only for an `online` order that can still be paid. It does not expire and cannot be revoked, except that it is null for an order in a market whose exchange rate has expired (the shopper places the order again): treat it as a secret (never log it, never pass it to a third party). Null on a cart. */
+            recovery_url: string | null;
         };
         /** AddonGroupResource */
         AddonGroupResource: {
@@ -3100,8 +3749,11 @@ export interface components {
         /** Adjust stock input */
         AdjustStockRequest: {
             product_ids: string[];
+            filters?: string;
             /** Format: uuid */
             variant_id?: string | null;
+            /** @description The location's number (p_id): the change lands at that location. Left out, it is to the product's online stock (the default location). */
+            location_id?: number | null;
             quantity_change: number;
             /** @enum {string} */
             type: "restock" | "adjustment" | "damage";
@@ -3118,6 +3770,8 @@ export interface components {
             slug: string;
             /** @description Descriptive text. */
             description: string;
+            /** @description The search listing as the merchant set it, `{title, description}` or null. A reader falls back to the name and the description. */
+            seo: string;
             image: string;
             logo: string;
             featured: boolean;
@@ -3126,6 +3780,8 @@ export interface components {
             collection_mode: string | null;
             parent_uid: string | null;
             products_count: number | null;
+            /** @description Custom field values on this object, keyed `namespace.key`; `{}` when none. */
+            metafields: string;
             children: unknown[];
             /**
              * Format: date-time
@@ -3154,8 +3810,7 @@ export interface components {
                 image: string | null;
                 /** @description URL of the video. */
                 video_url: string | null;
-                /** @enum {string} */
-                source: "variant" | "product";
+                source: string;
             } | null;
             /** @description ISO-4217 currency code of the amounts on this object. */
             currency: string;
@@ -3163,6 +3818,15 @@ export interface components {
             sale_price: string | null;
             unit_price: string | null;
             base_unit_price: string | null;
+            /** @description Market orders only: this in the market currency the shopper was charged in, beside the shop money above. Absent on every other order. */
+            presentment?: {
+                /** @description The market currency the shopper was charged in (ISO 4217). */
+                currency: string;
+                /** @description The unit price, add-ons included, in the market currency (a decimal string). */
+                unit_price: string;
+                /** @description The line total in the market currency (a decimal string). */
+                total: string;
+            } | null;
             is_backorder: boolean;
             backorder_ready_date: string | null;
             discounted_amount?: string | null;
@@ -3179,6 +3843,10 @@ export interface components {
              *     rider): the order email is their only carrier.
              */
             properties: string;
+            /** @description Declared line-text labels, `{property key: label}`, for the keys in `properties` an installed app declared on this product. Show those keys by label. Present only on the single-order read, and only when the line carries such a key. */
+            property_labels?: {
+                [key: string]: string;
+            };
         };
         /** Product */
         Product: unknown[] | {
@@ -3306,6 +3974,11 @@ export interface components {
             0: Record<string, never>;
             /** @description Unique identifier of this object. */
             id: string;
+            /**
+             * @description The short integer the shopper's account area hands to an app as its `order` hint
+             *     (never the UUID). Storefront client routes only: every other customer body stays frozen.
+             */
+            p_id: null | number | Record<string, never>;
             /** @description Display title. */
             title: string | null;
             /** @description ISO-4217 currency code of the amounts on this object. */
@@ -3402,12 +4075,20 @@ export interface components {
              * Format: date-time
              * @description When this object was created (ISO-8601 timestamp).
              */
-            created_at: string;
+            created_at: string | null;
+            /**
+             * Format: date-time
+             * @description null while the checkout is unpaid (the order is not yet placed with the store).
+             *     Storefront client routes only: every other customer body (the installed app's included) stays frozen.
+             */
+            placed_at: string | null | Record<string, never>;
+            /** @description True while the checkout is unpaid (the order is not yet placed with the store): show "Awaiting payment" with Pay. */
+            awaiting_payment: string | Record<string, never>;
             /**
              * Format: date-time
              * @description When this object was last changed (ISO-8601 timestamp).
              */
-            updated_at: string;
+            updated_at: string | null;
             status_label: string;
             status_img: string;
             user_id: string;
@@ -3479,17 +4160,42 @@ export interface components {
                 title: "Order Summary";
                 /** @constant */
                 view: "customer";
-                items: unknown[];
+                items: unknown[] | [
+                    {
+                        /** @constant */
+                        key: "grand_total";
+                        /**
+                         * @description Display label.
+                         * @constant
+                         */
+                        label: "Grand Total";
+                        /** @constant */
+                        type: "total";
+                        amount: string | null;
+                    }
+                ];
             };
-        } | {
+        } | ({
+            /**
+             * @description The store's own manual method the customer chose, as it read when the order was placed: its name
+             *     and the payment instructions to show on the confirmation and order pages. Absent on every other order.
+             */
+            0: Record<string, never>;
             /**
              * @description Settlement ledger is vendor facts, never customer facts: it stays
              *     off the storefront public path only (client_vendor_id resolved).
              *     Every other surface keeps reading it exactly as before.
+             *     (A market order shown to its customer carries no settlement ledger anywhere: it is shop money, in a body whose
+             *     money is in the market currency.)
              */
-            0: Record<string, never>;
+            1: Record<string, never>;
             /** @description Unique identifier of this object. */
             id: string;
+            /**
+             * @description The short integer the shopper's account area hands to an app as its `order` hint
+             *     (never the UUID). Storefront client routes only: every other customer body stays frozen.
+             */
+            p_id: null | number | Record<string, never>;
             /** @description Display title. */
             title: string | null;
             /** @description ISO-4217 currency code of the amounts on this object. */
@@ -3586,13 +4292,23 @@ export interface components {
              * Format: date-time
              * @description When this object was created (ISO-8601 timestamp).
              */
-            created_at: string;
+            created_at: string | null;
+            /**
+             * Format: date-time
+             * @description null while the checkout is unpaid (the order is not yet placed with the store).
+             *     Storefront client routes only: every other customer body (the installed app's included) stays frozen.
+             */
+            placed_at: string | null | Record<string, never>;
+            /** @description True while the checkout is unpaid (the order is not yet placed with the store): show "Awaiting payment" with Pay. */
+            awaiting_payment: string | Record<string, never>;
             /**
              * Format: date-time
              * @description When this object was last changed (ISO-8601 timestamp).
              */
-            updated_at: string;
-        };
+            updated_at: string | null;
+        } & {
+            [key: string]: unknown;
+        });
         /** App collected record update input */
         AppCollectedRecordUpdateRequest: {
             /** @description Record values keyed by field key. Each value’s shape follows the field type on the definition. */
@@ -3600,6 +4316,58 @@ export interface components {
                 [key: string]: unknown;
             };
             status?: components["schemas"]["CollectedRecordStatus"];
+        };
+        /**
+         * App installation metafields input
+         * @description The calling installation's own data (GET / PATCH app/metafields): app-data metafields on the
+         *     installation. The installation is the calling key's, never named in the request. A write is
+         *     partial like every metafield write (a handle left out keeps its value, `"value": null` deletes
+         *     it) and each handle needs an `installation` definition in the app's own `app_{slug}` namespace
+         *     (POST metafield-definitions).
+         */
+        AppInstallationMetafieldsRequest: {
+            /** @description Custom field values on this object, keyed `namespace.key`; `{}` when none. */
+            metafields: {
+                /** @description Namespace the key belongs to. */
+                namespace?: string;
+                /** @description Key of the custom field inside its namespace. */
+                key?: string;
+                /** @description The value, typed by the field's definition. `null` clears the field. */
+                value?: string | null;
+            }[] | null;
+        };
+        /**
+         * App line input store input
+         * @description The line-input sheet for the calling installation (PUT app/line-inputs): the
+         *     app replaces its own {product -> shopper text fields} map in one call.
+         *
+         *     Full-body PUT, like the requirements sheet: send the whole sheet every time,
+         *     so a retry replays and removals are explicit (an empty `items` removes every
+         *     declaration of this installation). Products are addressed by p_id and must
+         *     belong to the calling installation's store.
+         *
+         *     The manifest owns what a field IS: a key must be a `line_text` field of a
+         *     block in the installation's GRANTED extensions, and the label always comes
+         *     from it, never the body. The body only chooses, per product, which declared
+         *     fields apply and whether each is `required` or tighter than the manifest's
+         *     `max_length` (an effective max_length is the request's value, else the
+         *     manifest's, else the default, and never above the manifest's).
+         */
+        AppLineInputStoreRequest: {
+            /** @description The whole sheet, one entry per product (at most 200). It replaces the current sheet: a product left out loses its declaration, and an empty list removes them all. */
+            items: {
+                /** @description The product, by its p_id: a whole number as a JSON integer (not a string, a boolean or a decimal), a product of this store. Each product appears once. */
+                product_p_id: number;
+                /** @description The fields this product takes shopper text for, 1 to 3, each one of the line_text fields the app declares in its manifest. */
+                fields: {
+                    /** @description The manifest key of the line_text field: lowercase letters, digits and underscores, up to 64 characters. It may not be claim, reschedule_url or cancel_url. The label is always the manifest's. */
+                    key: string;
+                    /** @description Whether the shopper must fill this field to buy the product, true or false. Defaults to false. */
+                    required?: boolean;
+                    /** @description The most characters the shopper may enter, a whole number from 1 to 500 and not above the manifest value (100 when the manifest sets none). Defaults to that value. */
+                    max_length?: number;
+                }[];
+            }[];
         };
         /** AppMediaResource */
         AppMediaResource: {
@@ -3640,6 +4408,7 @@ export interface components {
              *     full-removal signal, and an empty array is a valid sheet.
              */
             items: {
+                /** @description The product, by its p_id: a whole number as a JSON integer (not a string, a boolean or a decimal), a product of this store. */
                 product_p_id: number;
                 /**
                  * @description The required line-property prefix, e.g. `app.booking.`. It
@@ -3676,7 +4445,11 @@ export interface components {
             position: number;
             posts_count?: number;
         };
-        /** Bulk create vendor collections input */
+        /**
+         * Bulk create vendor collections input
+         * @description A bulk create makes bare collections: custom fields (`metafields`) are NOT part of it and are
+         *     refused, not silently dropped. Set them with PUT collections/{collection} once the row exists.
+         */
         BulkCreateVendorCollectionsRequest: {
             /** Format: uuid */
             vendor_id: string;
@@ -3685,6 +4458,13 @@ export interface components {
                 name: string;
                 /** @description Descriptive text. */
                 description?: string | null;
+                /** @description The search engine listing the merchant set: a page `title` and `description` (a page adds more keys). Null or empty when nothing is set; readers then fall back to the title and the summary or description. */
+                seo?: {
+                    /** @description Display title. */
+                    title?: string | null;
+                    /** @description Descriptive text. */
+                    description?: string | null;
+                } | null;
                 /** @enum {string|null} */
                 collection_mode?: "manual" | "smart" | null;
                 /**
@@ -3698,12 +4478,15 @@ export interface components {
                 collection_rules?: {
                     conditions?: string[] | null;
                 } | null;
+                /** @description Custom field values on this object, keyed `namespace.key`; `{}` when none. */
+                metafields?: string;
             }[];
         };
         /** Bulk update publish input */
         BulkUpdatePublishRequest: {
             ids: string[];
             published: boolean;
+            filters?: string;
         };
         /** CartResource */
         CartResource: {
@@ -3748,17 +4531,27 @@ export interface components {
             0: Record<string, never>;
             /** @description Unique identifier of this object. */
             id: string;
+            /** @description The store this cart belongs to (the `id` of `GET store/info`). */
             vendor_id: string;
             vendor: components["schemas"]["VendorItemResource"];
             /** @description ISO-4217 currency code of the amounts on this object. */
             currency: string;
+            /** @description The lines of the cart, in order (`line` is the position the line endpoints take). */
             cart_items: unknown[];
+            /** @description The cart subtotal before any coupon, a decimal string in `currency`. */
             total_price: string | null;
+            /** @description Where the cart was last written from, when the caller said. */
             source: string;
+            /** @description The coupon codes applied to the cart; checkout uses the first. */
             promo_codes: string | string[];
+            /** @description The verdict of the last `cart/validate`; null until the cart has been validated. */
             is_valid: string;
+            /** @description The problems the last validation found, one entry per affected line; empty when valid. */
             validation_errors: string | string[];
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description When the cart was last validated (ISO 8601); null before the first validation.
+             */
             last_validated_at: string | null;
             /**
              * Format: date-time
@@ -3780,6 +4573,77 @@ export interface components {
             subtotal: string | null;
             discount_total: string | null;
             total_after_discounts: string | null;
+        };
+        /**
+         * Category input
+         * @description Create or update ONE of the store's collections (dashboard `vendor/categories`, Merchant API
+         *     `PUT collections/{collection}`). `metafields` are the collection's typed custom fields, checked
+         *     against the store's `collection` definitions and saved together with the collection.
+         */
+        CategoryRequest: {
+            /** @description Display name. */
+            name: string;
+            /**
+             * @description The URL handle. A rename never changes it; only this field does, and the old address then redirects.
+             *     Never empty, never a duplicate within the store (handles repeat across stores); a deleted collection
+             *     still holds its handle, as it does for the slugger, so a restore never doubles one.
+             */
+            slug?: string;
+            image?: string | null;
+            /** @description URL of the image. */
+            image_url?: string | null;
+            /** Format: binary */
+            image_file?: string | null;
+            active?: boolean | null;
+            featured?: boolean | null;
+            type?: string | null;
+            /** Format: uuid */
+            parent_id?: string | null;
+            service_id?: string | null;
+            /** @enum {string|null} */
+            collection_mode?: "manual" | "smart" | null;
+            /**
+             * @description Smart collections only. {match: all|any, conditions: [{field, operator, value}], sort?, limit?}.
+             *     Rule fields: title, price, compare_at_price, on_sale, weight, inventory_quantity, variant_title,
+             *     date, created_at, tag, published, has_variants, in_stock, num_of_sale, product_rating and
+             *     collection_id (products already in the given collection(s); operators eq or includes, value =
+             *     the id or a list of ids of the store's OWN collections). The taxonomy_category_id rule field is
+             *     retired: a rule that carries it answers 422 "The taxonomy_category_id rule is retired — use collection_id."
+             */
+            collection_rules?: {
+                /** @enum {string|null} */
+                match?: "all" | "any" | null;
+                conditions?: {
+                    field?: string;
+                    operator?: string;
+                    value?: string;
+                }[] | null;
+                /**
+                 * @description "Top N" cap (e.g. a Top Selling collection = sort:popular, limit:20) — SmartCollectionMatcher::applyRankingCap.
+                 *     Optional pair; a limit with no sort defaults to newest there, same as this form's Sort control.
+                 * @enum {string|null}
+                 */
+                sort?: "newest" | "price_low" | "price_high" | "popular" | null;
+                limit?: number | null;
+            };
+            /** @description Descriptive text. */
+            description?: string | null;
+            /** @description The search engine listing the merchant set: a page `title` and `description` (a page adds more keys). Null or empty when nothing is set; readers then fall back to the title and the summary or description. */
+            seo?: {
+                /** @description Display title. */
+                title?: string | null;
+                /** @description Descriptive text. */
+                description?: string | null;
+            };
+            /** @description Custom field values on this object, keyed `namespace.key`; `{}` when none. */
+            metafields?: {
+                /** @description Namespace the key belongs to. */
+                namespace?: string;
+                /** @description Key of the custom field inside its namespace. */
+                key?: string;
+                /** @description The value, typed by the field's definition. `null` clears the field. */
+                value?: string | null;
+            }[] | null;
         };
         /** ClientAuthUserResource */
         ClientAuthUserResource: {
@@ -3809,6 +4673,13 @@ export interface components {
              */
             rider_approved: boolean;
             profile_complete: string;
+            /**
+             * @description The store's custom fields the merchant opted to show THIS customer on their own account
+             *     (`customer_visible`), read-only: `namespace.key => value`, `{}` when none or no store row.
+             *     No eager load: the presenter reads the values only when the store flagged a field, so a
+             *     store that never did costs the sign-in no query.
+             */
+            metafields: string;
         };
         /**
          * Collected definition input
@@ -3897,7 +4768,8 @@ export interface components {
          *     misfiled under another source. Calls are rate-limited per installation, and
          *     a validation failure (422) never consumes budget.
          *
-         *     Types owned by another installation are refused with a 403.
+         *     Types owned by another installation are refused with a 403. The
+         *     `Idempotency-Key` header is optional: sent, a retry replays the first answer.
          */
         CollectedRecordSubmitRequest: {
             definition: string;
@@ -3917,6 +4789,8 @@ export interface components {
             /** @description Descriptive text. */
             description: string | null;
             image: string;
+            /** @description The merchant's search listing, raw: null when nothing is set. The reader applies the fallback. */
+            seo: string;
             /**
              * @description Pre-sized copies of the image, resolved from its URL (categories
              *     and collections store no media id).
@@ -3934,6 +4808,11 @@ export interface components {
             sort: string;
             rules_count: number;
             products_count: number;
+            /**
+             * @description Only the definitions the merchant opted in to the storefront (`storefront_visible`): collection
+             *     fields are private until then. `{}` when none. Read from the eager-loaded values, never a query per row.
+             */
+            metafields: string;
             children: string[];
         };
         /** CouponResource */
@@ -4018,6 +4897,10 @@ export interface components {
                 /** @description The customer's phone, with or without the country code. Needs the merchant-customers-contact-read scope. */
                 phone: string | null;
             };
+            /** @description Optional. In a store with several locations the order is routed to one that can cover it, else the one holding the most, and marked short there. Send `false` to be refused instead when the location is short, `true` to sell anyway. Left out, the order is created. */
+            sell_anyway?: boolean | null;
+            /** @description Optional. Why the order was sold short, kept with it (200 characters). */
+            sell_anyway_reason?: string | null;
             /**
              * @description `instore`, `pickup` or `delivery`. Delivery orders are paid online.
              * @enum {string}
@@ -4036,6 +4919,8 @@ export interface components {
             payment_method: "bank_transfer" | "online";
             /** @description Optional store-funded discount in the store's currency, a decimal string with at most 2 decimals. Refused when it would leave nothing to charge. */
             discount_amount?: number | null;
+            /** @description Optional. One of the store's discount codes, in any case, applied to this order's lines for its customer. Refused with the code's own reason when it does not apply; not allowed together with `discount_amount`. */
+            coupon_code?: string | null;
             /** @description An internal note kept on the order (up to 2000 characters). */
             note?: string | null;
         };
@@ -4082,6 +4967,8 @@ export interface components {
              * @description When this object was last changed (ISO-8601 timestamp).
              */
             updated_at: string | null;
+        } & {
+            [key: string]: unknown;
         };
         /** CustomerSegmentResource */
         CustomerSegmentResource: {
@@ -4160,6 +5047,7 @@ export interface components {
             auto_apply: boolean;
             /** @enum {string} */
             status: "active" | "inactive";
+            state: string;
             /** @description Whether this object is active. */
             is_active: boolean;
             is_published: boolean;
@@ -4224,6 +5112,17 @@ export interface components {
             /** Format: date-time */
             followed_at: string | null;
         };
+        /**
+         * ImportInventoryBehavior
+         * @description What an order imported through POST orders/import does to stock (the request's `inventory_behavior`). An import is an order the outside platform already took, so by default it claims nothing: a historical or already-fulfilled order must never hold or take today's stock.
+         *     | |
+         *     |---|
+         *     | `bypass` <br/> Claims no stock now or at completion; writes no stock row. The default. |
+         *     | `decrement` <br/> Takes the stock at import with a `sale` row, obeying the store's tracking and shortfall policy (a short line under `block` refuses the import). Completion takes nothing more; a cancel or refund restocks it like any order's sale. |
+         *     | `reserve` <br/> Like a Queek order: holds the stock while the order is open and takes it with a `sale` row when the order completes. For a live order the store still fulfils. |
+         * @enum {string}
+         */
+        ImportInventoryBehavior: "bypass" | "decrement" | "reserve";
         /** Import product reviews input */
         ImportProductReviewsRequest: {
             app_id?: string;
@@ -4295,7 +5194,10 @@ export interface components {
              *     caller without an installation may not send it (422).
              */
             publication?: string | null;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description When the outside platform took the order (RFC 3339). On a dev store it becomes the order's `created_at`, so history can be built for testing; it must fall within the dev-store import retention window (422 beyond it). On a live store the order is recorded now and this is kept as its order date. This field is an INPUT (the outside platform's order date): the `placed_at` in the order object the API returns is a different fact, the moment Queek placed the order, which equals this value only on a dev store.
+             */
             placed_at: string;
             customer: {
                 /** @description Display name. */
@@ -4320,12 +5222,15 @@ export interface components {
                  */
                 unit_price: number;
             }[];
+            /** @description Required: send "0.00" when the order has no delivery fee. */
             delivery_fee: number;
+            /** @description Required: send "0.00" when the order has no discount. */
             discount: number;
             total: number;
             /** @enum {string} */
             fulfilment: "delivery" | "pickup";
             notes?: string | null;
+            inventory_behavior?: components["schemas"]["ImportInventoryBehavior"] | null;
         };
         /** InventoryLevelResource */
         InventoryLevelResource: {
@@ -4339,6 +5244,8 @@ export interface components {
                 /** @description Short, stable integer identifier of this object, the human-readable counterpart of its UUID. */
                 p_id: number;
             } | null;
+            /** @description The number of the store location the change was made at; null for a store that keeps no locations. `quantity` is that location's level when the change named one, else the product's online total. */
+            location_id: number | null;
             quantity: number;
             previous_quantity: number;
             reason: string;
@@ -4352,6 +5259,303 @@ export interface components {
             out_of_stock: number;
             low_stock: number;
             negative_stock: number;
+        };
+        /** InvoiceResource */
+        InvoiceResource: {
+            /** @description The invoice's `p_id`. */
+            id: number;
+            /** @description The document number the customer reads (e.g. INV-000042), null on a draft. */
+            number: string | null;
+            /** @description `invoice`, `proforma` (not a tax invoice) or `credit_note`. */
+            kind: string;
+            /** @description `draft`, `pending` (issued, unpaid), `partial`, `paid`, `overdue` (issued, past due, balance left), `void` or `issued` (a credit note). */
+            status: string;
+            /** @description True when a credit note corrects it: nothing is owed, whatever the status says. */
+            credited: boolean;
+            /**
+             * @description `standalone` (made by the merchant) or `order` (mirrors an order's payments and balance).
+             * @enum {string}
+             */
+            source: "order" | "standalone";
+            /** @description The order an order-backed invoice is over (`id` opens GET orders/{order}), else null. */
+            order: {
+                /** @description The order's `p_id`. */
+                id: number;
+                /** @description The order number the customer and the store read. */
+                order_number: string;
+            } | null;
+            /** @description The invoice a credit note corrects, else null. */
+            corrects_invoice: {
+                /** @description The corrected invoice's `p_id`. */
+                id: number;
+                /** @description The corrected invoice's document number. */
+                number: string | null;
+            } | null;
+            /** @description The store customer the invoice is addressed to (their `p_id`), when it was made for one. */
+            customer: {
+                /** @description Unique identifier of this object. */
+                id: number | null;
+            };
+            /** @description Display title. */
+            title: string | null;
+            /** @description ISO 4217 code every amount of this invoice is in. */
+            currency: string;
+            /** @description Who it is addressed to; `name`, `email` and `phone` are null without merchant-customers-contact-read. */
+            buyer: {
+                /** @description Display name. */
+                name: string | null;
+                /** @description Email address. */
+                email: string | null;
+                /** @description Phone number. */
+                phone: string | null;
+                /** @description Postal address. */
+                address: string | null;
+                /** @description The buyer's tax identification number, when one was given. */
+                tax_id: string | null;
+            };
+            /** @description The store as printed on the document at issue (a snapshot: later profile edits do not change it). */
+            seller: {
+                /** @description Display name. */
+                name: string | null;
+                /** @description Postal address. */
+                address: string | null;
+                /** @description The store's business registration number, when it has one on file. */
+                registration_number: string | null;
+                /** @description The store's tax identification number printed on the document. */
+                tax_id: string | null;
+                /** @description What the tax number is called where the store trades (e.g. TIN, VAT). */
+                tax_id_label: string | null;
+            };
+            /** @description The billed lines, in order. */
+            lines?: {
+                /** @description Sort position within the parent list. */
+                position: number;
+                /** @description Descriptive text. */
+                description: string;
+                /** @description Units billed, a decimal string ("2", "1.5"). */
+                quantity: string;
+                /** @description The price of one unit, before tax. */
+                unit_price: string;
+                /** @description The name of the line's tax (e.g. VAT), null when it has none. */
+                tax_name: string | null;
+                /** @description The line's total tax rate in percent, a decimal string with two decimals ("7.50"). */
+                tax_rate: string;
+                /** @description The taxes the line carries, each with its own name, rate (percent) and amount. */
+                taxes: unknown[];
+                /** @description Quantity times unit price, before the invoice discount and tax. */
+                line_total: string;
+                /** @description This line's share of the invoice discount. */
+                discount_amount: string;
+                /** @description The tax charged on this line, after its discount share. */
+                tax_amount: string;
+            }[];
+            /** @description The lines' total before the discount and tax. */
+            subtotal: string;
+            /** @description The invoice-level discount. */
+            discount: {
+                /** @description `fixed`, `percent` or null. */
+                type: string | null;
+                /** @description An amount for `fixed`, a percentage for `percent`. */
+                value: string | null;
+                /** @description The discount taken off the lines. */
+                total: string;
+            };
+            /** @description All the tax on the invoice. */
+            tax_total: string;
+            /** @description Tax summed by name and rate over the lines, as a tax invoice prints it. */
+            tax_breakdown?: unknown[];
+            /** @description What the customer owes in all: lines, less the discount, plus tax. */
+            total_amount: string;
+            /** @description What has been settled so far (an order-backed invoice reads it from its order). */
+            amount_paid: string;
+            /** @description What is still owed; zero once paid or credited. */
+            amount_due: string;
+            /** @description Payment terms printed on the document. */
+            terms: string | null;
+            /** @description A note to the customer printed on the document. */
+            note: string | null;
+            /** @description The language the customer page and PDF are written in: `en`, `fr` or `ar`. */
+            language: string | null;
+            /** @description Payments recorded against it; an order-backed invoice lists its order's payments and refunds (`source` `order`). */
+            payments?: {
+                /** @description The payment's `p_id`. */
+                id: number;
+                /**
+                 * @description `invoice` for a payment recorded against the invoice, `order` for one of its order.
+                 * @constant
+                 */
+                source: "invoice";
+                /**
+                 * @description `payment`; an order-backed invoice also lists the order's `refund` rows.
+                 * @constant
+                 */
+                kind: "payment";
+                /** @description What was received, in the invoice currency. */
+                amount: string;
+                /** @description `bank_transfer`, `cash`, `pos`, `mobile_money`, `other` or `tax_withheld`. */
+                method: string;
+                /** @description False for `tax_withheld`: a settlement against the balance, not money received. */
+                is_cash: boolean;
+                /** @description The payer's or the bank's reference for it, when one was given. */
+                reference: string | null;
+                /**
+                 * Format: date-time
+                 * @description When the money was received.
+                 */
+                paid_at: string;
+                /**
+                 * Format: date-time
+                 * @description When the payment was voided, else null; a voided payment no longer counts toward `amount_paid`.
+                 */
+                voided_at: string | null;
+                /** @description Why it was voided, else null. */
+                void_reason: string | null;
+            }[] | unknown[];
+            /** @description The instalment plan, when it has one. */
+            installments?: {
+                /** @description The instalment's place in the plan, from 1. */
+                sequence_no: number;
+                /** @description What this instalment asks for. */
+                expected_amount: string;
+                /** @description What has been paid against it. */
+                paid_amount: string;
+                /** @description `pending`, `partial`, `paid`, or `overdue` (derived: unpaid and past its date). */
+                status: string;
+                /**
+                 * Format: date-time
+                 * @description The date it falls due (YYYY-MM-DD, store-local).
+                 */
+                due_at: string | null;
+                /**
+                 * Format: date-time
+                 * @description When it was settled in full, else null.
+                 */
+                paid_at: string | null;
+            }[];
+            /** @description The credit notes that correct it (whole invoice only). */
+            credit_notes?: {
+                /** @description The credit note's `p_id`. */
+                id: number;
+                /** @description The credit note's document number. */
+                number: string | null;
+                /** @description What the note credits. */
+                total_amount: string;
+                /**
+                 * Format: date-time
+                 * @description When the note was issued.
+                 */
+                issued_at: string | null;
+            }[];
+            /** @description What a tax authority returned for the document; once set the invoice can only be corrected by a credit note. */
+            fiscal_reference: string | null;
+            /**
+             * Format: date-time
+             * @description When the invoice was issued and numbered, null on a draft.
+             */
+            issued_at: string | null;
+            /**
+             * Format: date-time
+             * @description A due DATE (store-local, Y-m-d), not an instant.
+             */
+            due_at: string | null;
+            /**
+             * Format: date-time
+             * @description When it was paid in full, else null.
+             */
+            paid_at: string | null;
+            /**
+             * Format: date-time
+             * @description When it was voided, else null.
+             */
+            voided_at: string | null;
+            /** @description Why it was voided, else null. */
+            void_reason: string | null;
+            /**
+             * Format: date-time
+             * @description When this object was created (ISO-8601 timestamp).
+             */
+            created_at: string | null;
+            /**
+             * Format: date-time
+             * @description When this object was last changed (ISO-8601 timestamp).
+             */
+            updated_at: string | null;
+        };
+        /**
+         * Issue vendor invoice input
+         * @description Issue a draft: allocates its number and freezes it. May set the due date in the same step.
+         */
+        IssueVendorInvoiceRequest: {
+            /**
+             * Format: date-time
+             * @description Sets or replaces the payment due date in the same step (`Y-m-d` or an RFC 3339 timestamp). Omit it to keep the draft’s own.
+             */
+            due_at?: string | null;
+        };
+        /**
+         * Machine translation quote input
+         * @description POST translations/machine/quote: what a job would translate and cost, before anything runs.
+         */
+        MachineTranslationQuoteRequest: {
+            /** @description The language to translate INTO: a language the store has enabled (never its primary language, which is the source). */
+            locale: string;
+            /**
+             * @description Which texts qualify: `missing` (no translation yet), `outdated` (the source changed since a MACHINE translation was made: a translation a person wrote is never refreshed) or `missing_and_outdated`.
+             * @enum {string}
+             */
+            mode: "missing" | "outdated" | "missing_and_outdated";
+            /** @description The store's own content to translate, by reference (up to 20). The text itself is read from the store; it is never sent. */
+            resources: {
+                /**
+                 * @description The kind of resource, one of the `type` values `GET /translatable-resources` accepts (for example `product`, `collection` or `page`).
+                 * @enum {string}
+                 */
+                type: "product" | "product_variation" | "product_variation_item" | "collection" | "category" | "page" | "post" | "menu" | "theme_string";
+                /** @description The resource's integer `id` as `GET /translatable-resources` returns it for this `type`. An id that belongs to another store answers 404. */
+                id: string;
+                /** @description Translate only these keys of the resource (up to 20). Without it every qualifying key of the resource is translated. */
+                keys: string[] | null;
+            }[];
+        };
+        /**
+         * Machine translation run input
+         * @description POST translations/machine: runs a quoted job. `Idempotency-Key` is required (a retried run would
+         *     otherwise spend the store's credits twice) and is checked, like the gates before it, before validation.
+         */
+        MachineTranslationRunRequest: {
+            quote_id: string;
+            locale: string;
+            /** @enum {string} */
+            mode: "missing" | "outdated" | "missing_and_outdated";
+            resources: {
+                /** @enum {string} */
+                type: "product" | "product_variation" | "product_variation_item" | "collection" | "category" | "page" | "post" | "menu" | "theme_string";
+                /** @description Unique identifier of this object. */
+                id: string;
+                keys: string[] | null;
+            }[];
+        };
+        /** MarketResource */
+        MarketResource: {
+            /** @description The market's integer id. */
+            id: number;
+            /** @description The market's name, unique within the store. */
+            name: string;
+            /** @description The ISO 3166-1 alpha-2 codes of the countries the market sells to; a country belongs to one market of the store. */
+            countries: unknown[];
+            /** @description The ISO 4217 currency shoppers of this market see prices in and are charged in once the market is published; an unpublished market changes nothing a shopper sees or pays. */
+            currency: string;
+            /** @description Whether the merchant has published the market: publishing is refused unless a provider can charge its currency and a current exchange rate exists. */
+            published: boolean;
+            /**
+             * @description `draft` (not published: shoppers cannot see it), `live` (published, and shoppers can pick it and pay in its currency right now) or `not_live` (published, but a blocker stops shoppers from using it, so they still see the store currency). A snapshot of the moment of the read; it can change with no write to the market.
+             * @enum {string}
+             */
+            status: "draft" | "live" | "not_live";
+            /** @description Why the market is not usable right now, in the order they can be fixed: `store_currency` (the market's currency is now the store's own currency, so change the market's currency or delete it; it is the only blocker then), `no_provider` (no payment provider enabled for the store charges the currency), `no_rate` (no exchange rate from the store currency exists) and `rate_stale` (the newest rate is out of date). Empty when nothing blocks. On a draft it lists what would refuse a publish. A snapshot of the moment of the read. */
+            blockers: string | string[];
+            /** @description The store's own currency, whatever the market's `currency`: the currency its prices and orders are kept in, and the one every order outside a published market is charged in. An order placed through a published market is charged in that market's `currency`. */
+            checkout_currency: string;
         };
         /** MerchantAbandonedCheckout */
         MerchantAbandonedCheckout: components["schemas"]["AbandonedCheckoutResource"];
@@ -4548,16 +5752,18 @@ export interface components {
             items: {
                 /** @description The p_id or slug of a product of this store. */
                 product: string;
+                /** @description The variant this line buys (its p_id, a variant of `product`). Optional: a line without one is product-level and names the variant when the goods are received. One line per product and variant. */
+                variant?: number | null;
                 /** @description Units to order, 1 to 1,000,000. */
                 quantity_ordered: number;
-                /** @description Cost of one unit, a decimal in the store currency. */
-                unit_cost: number;
+                /** @description Cost of one unit in the store currency, a decimal string or a number (`"1450.50"` and `1450.5` are the same). Optional: without it the line takes the product's cost price, else 0. */
+                unit_cost?: number | null;
                 /** @description A free note on this line, up to 255 characters. */
                 notes?: string | null;
             }[];
             /**
              * Format: date-time
-             * @description The date the goods are expected; must be after today.
+             * @description The date the goods are expected; must be after the store's today (its own timezone).
              */
             expected_date?: string | null;
             /** @description A free note on the order, up to 1000 characters. */
@@ -4772,6 +5978,8 @@ export interface components {
             level: {
                 product_p_id: number;
                 variant_p_id: number | null;
+                /** @description The number of the store location the level was changed at (the default location when the request named none); null for a store that keeps no locations. */
+                location_id: string;
                 mode: string;
                 before: string;
                 change: string;
@@ -4784,12 +5992,17 @@ export interface components {
         MerchantInventoryLevelAdjustmentRequest: {
             product: string;
             variant?: number | null;
+            /**
+             * @description The location's number: the change lands at that location, and `expected_stock` is read against its level. Left out, the
+             *     change is to the product's online total (the default location holds any increase).
+             */
+            location?: number | null;
             /** @enum {string} */
             mode: "set" | "delta";
             quantity: number;
             expected_stock?: number;
             /** @enum {string} */
-            reason_code: "correction" | "count" | "damage" | "received" | "return" | "theft" | "other";
+            reason_code: "count" | "received" | "damaged" | "lost" | "returned" | "other" | "correction" | "damage" | "return" | "theft";
             note?: string | null;
         };
         /** MerchantInventoryLevels */
@@ -4803,11 +6016,45 @@ export interface components {
             /** @description Barcode of the item, when set. */
             barcode: string;
             stock: number;
+            /** @description Where the quantity sits: one entry per store location that holds a level, by the location's number (`location_id`), with `quantity` at that location and `committed` by open orders there. `stock` is the online total: the levels at active locations that fulfil online orders. */
+            locations: components["schemas"]["MerchantInventoryLocationLevelResource"][];
+            /** @description The online quantity in words: the units shoppers can buy and how many locations they sit in. */
+            online: components["schemas"]["MerchantInventoryOnlineResource"];
             effective_tracking: string;
             variants: string;
         };
+        /** MerchantInventoryLocationLevelResource */
+        MerchantInventoryLocationLevelResource: {
+            /** @description The store location's number. */
+            location_id: number;
+            /** @description Units at this location. It can dip below zero after a sale that took more here than the location held. */
+            quantity: number;
+            /** @description What the location does: `sells_online`, `in_store_only` or `storage`. */
+            mode: string;
+            /** @description True when this level counts toward the online `stock` (the location is active and sells online). */
+            counts_online: string;
+            /** @description Units held at this location by open orders (an order that names no location holds at the default). */
+            committed: number;
+        };
+        /** MerchantInventoryOnlineResource */
+        MerchantInventoryOnlineResource: {
+            /** @description Units shoppers can buy: the online total, the same number as `stock`. */
+            units: number;
+            /** @description How many locations that sell online hold some of it. */
+            locations: string | number;
+            /** @description The same in one plain sentence. */
+            message: string;
+        };
+        /** MerchantInvoice */
+        MerchantInvoice: components["schemas"]["InvoiceResource"];
+        /** MerchantMarket */
+        MerchantMarket: components["schemas"]["MarketResource"];
         /** MerchantMedia */
         MerchantMedia: components["schemas"]["AppMediaResource"];
+        /** MerchantMetafieldDefinition */
+        MerchantMetafieldDefinition: components["schemas"]["MetafieldDefinitionResource"];
+        /** MerchantMetaobjectDefinition */
+        MerchantMetaobjectDefinition: Record<string, never>;
         /** MerchantOrder */
         MerchantOrder: components["schemas"]["OrderResource"];
         /** MerchantPage */
@@ -4831,8 +6078,32 @@ export interface components {
         };
         /** MerchantProductImage */
         MerchantProductImage: components["schemas"]["ProductImageResource"];
+        /**
+         * Product metafields input
+         * @description Metafield values of one product, or of one of its variants
+         *     (products/{product}/variants/{variant}/metafields), and nothing else, so an app
+         *     never resends (or overwrites) the rest of the product, and never needs the broad
+         *     item-update scope, to change its own fields. Each handle must have a definition
+         *     for that owner type and its value is type-checked; a handle you leave out keeps
+         *     its value and `"value": null` deletes one. The platform's dotted namespaces
+         *     (`app.*`, `queek.*`) are refused; an app-owned `app_{slug}` value is written only
+         *     by its app (MetafieldAccess). Any other field is rejected by name rather than ignored.
+         */
+        MerchantProductMetafieldsRequest: {
+            /** @description Custom field values on this object, keyed `namespace.key`; `{}` when none. */
+            metafields: {
+                /** @description Namespace the key belongs to. */
+                namespace?: string;
+                /** @description Key of the custom field inside its namespace. */
+                key?: string;
+                /** @description The value, typed by the field's definition. `null` clears the field. */
+                value?: string | null;
+            }[] | null;
+        };
         /** MerchantProductReview */
         MerchantProductReview: components["schemas"]["StoreReviewResource"];
+        /** MerchantProductVariant */
+        MerchantProductVariant: components["schemas"]["ProductVariantResource"];
         /** MerchantPublication */
         MerchantPublication: components["schemas"]["PublicationResource"];
         /** MerchantPurchaseOrder */
@@ -4936,6 +6207,7 @@ export interface components {
             /** @description URL-safe handle of this object. */
             slug?: string | null;
             sections?: string[];
+            /** @description The search engine listing the merchant set: a page `title` and `description` (a page adds more keys). Null or empty when nothing is set; readers then fall back to the title and the summary or description. */
             seo: {
                 /** @description Display title. */
                 title?: string | null;
@@ -4961,7 +6233,8 @@ export interface components {
          * @description POST posts on the merchant API: a markdown-body blog-post create.
          *
          *     The key authorizes the store; no vendor_id input is read. `slug` is
-         *     normalised to a URL-safe slug only when it arrives as a string.
+         *     normalised to a URL-safe slug only when it arrives as a string. `metafields` are the post's
+         *     custom fields (validated against the store's `post` definitions, saved with the post).
          */
         MerchantStorePostRequest: {
             /** @description Display title. */
@@ -4982,6 +6255,7 @@ export interface components {
             published_at?: string | null;
             /** @description Free-form tags attached to this object. */
             tags?: string[] | null;
+            /** @description The search engine listing the merchant set: a page `title` and `description` (a page adds more keys). Null or empty when nothing is set; readers then fall back to the title and the summary or description. */
             seo: {
                 /** @description Display title. */
                 title?: string | null;
@@ -5001,9 +6275,40 @@ export interface components {
                 /** @description Whether search engines are asked not to index this page. */
                 noindex?: boolean | null;
             };
+            /** @description Custom field values on this object, keyed `namespace.key`; `{}` when none. */
+            metafields?: {
+                /** @description Namespace the key belongs to. */
+                namespace?: string;
+                /** @description Key of the custom field inside its namespace. */
+                key?: string;
+                /** @description The value, typed by the field's definition. `null` clears the field. */
+                value?: string | null;
+            }[] | null;
         };
         /** MerchantSupplier */
         MerchantSupplier: components["schemas"]["SupplierResource"];
+        /**
+         * Supplier input
+         * @description Creates (POST) or changes (PATCH, only the fields sent) a supplier through the Merchant API. Only the fields every
+         *     supplier read shows are writable: the merchant's notes and custom data stay theirs.
+         */
+        MerchantSupplierRequest: {
+            /** @description The supplier's name, up to 255 characters. Required to create. */
+            name: string;
+            /** @description The person to talk to at the supplier. */
+            contact_name?: string | null;
+            /**
+             * Format: email
+             * @description The supplier's email address.
+             */
+            email?: string | null;
+            /** @description The supplier's phone number, up to 50 characters. */
+            phone?: string | null;
+            /** @description The supplier's address, up to 1000 characters. */
+            address?: string | null;
+            /** @description An inactive supplier is hidden when a purchase order is created in the dashboard. */
+            is_active?: boolean;
+        };
         /** MerchantTax */
         MerchantTax: components["schemas"]["TaxResource"];
         /**
@@ -5064,6 +6369,7 @@ export interface components {
             /** @description URL-safe handle of this object. */
             slug?: string | null;
             sections?: string[];
+            /** @description The search engine listing the merchant set: a page `title` and `description` (a page adds more keys). Null or empty when nothing is set; readers then fall back to the title and the summary or description. */
             seo: {
                 /** @description Display title. */
                 title?: string | null;
@@ -5112,6 +6418,7 @@ export interface components {
             published_at?: string | null;
             /** @description Free-form tags attached to this object. */
             tags?: string[] | null;
+            /** @description The search engine listing the merchant set: a page `title` and `description` (a page adds more keys). Null or empty when nothing is set; readers then fall back to the title and the summary or description. */
             seo: {
                 /** @description Display title. */
                 title?: string | null;
@@ -5131,12 +6438,25 @@ export interface components {
                 /** @description Whether search engines are asked not to index this page. */
                 noindex?: boolean | null;
             };
+            /** @description Custom field values on this object, keyed `namespace.key`; `{}` when none. */
+            metafields?: {
+                /** @description Namespace the key belongs to. */
+                namespace?: string;
+                /** @description Key of the custom field inside its namespace. */
+                key?: string;
+                /** @description The value, typed by the field's definition. `null` clears the field. */
+                value?: string | null;
+            }[] | null;
         };
         /** MerchantWishlistItem */
         MerchantWishlistItem: components["schemas"]["CustomerWishlistItemResource"];
         /**
          * Metafield definition input
-         * @description Create/update a metafield definition on the REST developer surface.
+         * @description Create/update/delete a metafield definition on the REST developer surface.
+         *
+         *     Over the Merchant API a key changes or deletes only its OWN installation fields
+         *     (owner type `installation`, PATCH|DELETE metafield-definitions/{definition}); the
+         *     merchant's and other apps' definitions answer 404 there.
          *
          *     `namespace`, `key`, `owner_type` and `type` are immutable after creation: a
          *     stored value denormalises all four, so changing one would silently orphan
@@ -5149,13 +6469,19 @@ export interface components {
          */
         MetafieldDefinitionRequest: {
             /** @enum {string} */
-            owner_type: "product" | "order";
+            owner_type: "product" | "order" | "customer" | "collection" | "post" | "variant" | "installation";
             /** @description Namespace the key belongs to. */
             namespace: string;
             key: string;
             /** @enum {string} */
             type: "single_line_text" | "multi_line_text" | "integer" | "decimal" | "boolean" | "date" | "url" | "json" | "media_id" | "metaobject_reference" | "list.single_line_text" | "list.multi_line_text" | "list.integer" | "list.decimal" | "list.boolean" | "list.date" | "list.url" | "list.media_id" | "list.metaobject_reference";
             storefront_visible?: boolean | null;
+            customer_visible?: boolean | null;
+            /**
+             * @description What the merchant may do with the values of an app-owned definition: `read` or `read_write`.
+             * @enum {string|null}
+             */
+            merchant_access?: "read" | "read_write" | null;
             pinned?: boolean | null;
             pinned_position?: number | null;
             /** @description Display name. */
@@ -5181,6 +6507,14 @@ export interface components {
             key: string;
             type: string;
             storefront_visible: boolean;
+            customer_visible: boolean;
+            /**
+             * @description True while an installation owns the definition (created in its own app_{slug}
+             *     namespace); false for the merchant's own, and after the app is uninstalled.
+             */
+            app_owned: boolean;
+            /** @description What the merchant may do with an app-owned definition's values: read or read_write. */
+            merchant_access: string;
             pinned: boolean;
             pinned_position: number | null;
             /** @description Display name. */
@@ -5269,6 +6603,12 @@ export interface components {
              *     this API.
              */
             data_class: string | "content";
+            /**
+             * @description True while an app installation owns the definition (its records
+             *     are the app's own data); false for merchant-held ones, including
+             *     a former app's after uninstall.
+             */
+            app_owned: boolean;
             entry_cap_override: number | null;
             retention_days: number | null;
             fields: unknown[];
@@ -5325,8 +6665,7 @@ export interface components {
                 image: string | null;
                 /** @description URL of the video. */
                 video_url: string | null;
-                /** @enum {string} */
-                source: "variant" | "product";
+                source: string;
             } | null;
             /** @description ISO-4217 currency code of the amounts on this object. */
             currency: string;
@@ -5334,6 +6673,15 @@ export interface components {
             sale_price: string | null;
             unit_price: string | null;
             base_unit_price: string | null;
+            /** @description Market orders only: this in the market currency the shopper was charged in, beside the shop money above. Absent on every other order. */
+            presentment?: {
+                /** @description The market currency the shopper was charged in (ISO 4217). */
+                currency: string;
+                /** @description The unit price, add-ons included, in the market currency (a decimal string). */
+                unit_price: string;
+                /** @description The line total in the market currency (a decimal string). */
+                total: string;
+            } | null;
             is_backorder: boolean;
             backorder_ready_date: string | null;
             discounted_amount?: string | null;
@@ -5350,6 +6698,10 @@ export interface components {
              *     rider): the order email is their only carrier.
              */
             properties: string;
+            /** @description Declared line-text labels, `{property key: label}`, for the keys in `properties` an installed app declared on this product. Show those keys by label. Present only on the single-order read, and only when the line carries such a key. */
+            property_labels?: {
+                [key: string]: string;
+            };
         };
         /** OrderResource */
         OrderResource: {
@@ -5376,6 +6728,10 @@ export interface components {
              */
             channel: string;
             platform: string | null;
+            /** @description The number of the store location the order is fulfilled from (an order that names none is at the store's default location). */
+            location_id: string;
+            /** @description Why the order is fulfilled from that location: `reason` (`default`, `only_location_with_all_items`, `first_location_with_all_items`, `most_stock_available`, `pos_device`, `manual`, `closest`), a plain `message`, and `short` (true when the location cannot cover every item). */
+            routing: components["schemas"]["OrderRoutingResource"];
             /**
              * @description Import recognition: the sales channel that imported the order
              *     (an app slug or legacy channel — null unless imported) and the
@@ -5401,12 +6757,17 @@ export interface components {
              */
             currency: string;
             subtotal: string;
+            /**
+             * @description subtotal is the items BEFORE their automatic discounts, so those are part of discount_total, as is a delivery coupon (the fee
+             *     reads before it; delivery_fee is stored net): subtotal - discount_total + shipping_total + tax_total equals the total.
+             */
             discount_total: string;
             /**
              * @description The discount code the shopper entered at checkout, null when the order used none.
              *     Additive and read-only: the code only, never the coupon's rules or usage.
              */
             coupon_code: string | null;
+            /** @description The delivery or shipping fee charged for this order. */
             shipping_total: string;
             tax_total: string;
             total: string;
@@ -5446,11 +6807,17 @@ export interface components {
                 /** Format: date-time */
                 delivered_at: string | null;
             } | null;
-            line_items: {
+            line_items: ({
                 /** @description Unique identifier of this object. */
                 id: string;
                 product_id: number | null;
                 product_uid: string | null;
+                /** @description The variant `p_id` the line was sold as (the `id` of `products/{product}/variants`), null for a product without variants or when that variant has since been deleted; match sales per variant on this, never on `variant_title`. */
+                variant_id: number | null;
+                /** @description The variant UUID the line was sold as, kept even after the variant is deleted. */
+                variant_uid: string | null;
+                /** @description The SKU of the variant sold, or of the product for a line without a variant; the store's current SKU, null when none is set or the variant was deleted. */
+                sku: string | null;
                 /** @description Display title. */
                 title: string;
                 variant_title: string;
@@ -5466,7 +6833,9 @@ export interface components {
                  *     app that issued them, never another app or key.
                  */
                 properties: string;
-            }[];
+            } & {
+                [key: string]: unknown;
+            })[];
             note: string;
             /**
              * @description The receiver's own fields coming back to them: typed metafields the
@@ -5484,6 +6853,11 @@ export interface components {
             created_at: string | null;
             /**
              * Format: date-time
+             * @description The moment Queek placed the order: paid, or placed at creation (RFC 3339); null while an unpaid checkout. Not the outside platform's order date an import sends as `placed_at` (that is kept as `order_date` on a live store); the two are equal only on a dev store.
+             */
+            placed_at: string | null;
+            /**
+             * Format: date-time
              * @description When this object was last changed (ISO-8601 timestamp).
              */
             updated_at: string | null;
@@ -5491,6 +6865,19 @@ export interface components {
             fulfilled_at: string | null;
         } & {
             [key: string]: unknown;
+        };
+        /** OrderRoutingResource */
+        OrderRoutingResource: {
+            /** @description Why this location: `default`, `only_location_with_all_items`, `first_location_with_all_items`, `most_stock_available`, `pos_device`, `manual` or `closest`. Tolerate new words. */
+            reason: string;
+            /** @description The reason as one plain sentence. */
+            message: string;
+            /** @description True when the location could not cover every item when the order was routed or sold. */
+            short: boolean;
+            /** @description True when a till sold it from a location that held too little, after being told so. */
+            sell_anyway: boolean;
+            /** @description What the till said when it sold anyway; null otherwise. */
+            sell_anyway_reason: string | null;
         };
         /** PageResource */
         PageResource: {
@@ -5541,7 +6928,7 @@ export interface components {
         PayoutTransactionResource: {
             /** @description Unique identifier of this object. */
             id: string;
-            /** @description Which kind of row this is: `withdrawal` or `rider_settlement`. */
+            /** @description Which kind of row this is: `withdrawal`, `rider_settlement`, `delivery_trip_charge` (a debit for a Queek rider trip the store bought, posted when a rider accepts) `delivery_trip_charge_reversal` (a credit that gives it back when the trip is cancelled before the rider reached the store) or `shipping_label_charge` (a debit for the courier label the store bought, the label's real charge; never given back). */
             type: string | null;
             /** @description The row's status, lowercase: for example `pending`, `completed`, `failed` or `released`. */
             status: string;
@@ -5559,7 +6946,7 @@ export interface components {
             currency: string;
             /** @description True only when a released reversal returned a withdrawal's money. Null for a rider settlement. */
             is_refunded: boolean | null;
-            /** @description The order a rider settlement came from (`id` and `number`), null for a withdrawal. */
+            /** @description The order a rider settlement or a Queek trip charge belongs to (`id` and `number`), null for a withdrawal. */
             order: {
                 /** @description The order's p_id. */
                 id: string;
@@ -5617,6 +7004,8 @@ export interface components {
             status: string;
             tags: string | string[];
             seo: string | string[];
+            /** @description Custom field values on this object, keyed `namespace.key`; `{}` when none. */
+            metafields?: string;
             /** @description Sort position within the parent list. */
             position: number;
             /** @description Whether this page is the store home page. */
@@ -5687,10 +7076,13 @@ export interface components {
         };
         /** Product input */
         ProductRequest: {
+            /** @description Custom field values on this object, keyed `namespace.key`; `{}` when none. */
             metafields?: {
                 /** @description Namespace the key belongs to. */
                 namespace?: string;
+                /** @description Key of the custom field inside its namespace. */
                 key?: string;
+                /** @description The value, typed by the field's definition. `null` clears the field. */
                 value?: string | null;
             }[] | null;
             /**
@@ -5701,7 +7093,7 @@ export interface components {
             metadata?: (string | null)[] | null;
             /** @description Display title. */
             title: string;
-            /** @description Update only: the merchant chose a new URL slug when renaming. Never empty, never a duplicate. */
+            /** @description The URL handle, sent only to change it. Never empty, never a duplicate (a deleted product still holds its handle, as for the slugger). */
             slug?: string;
             stock?: number | null;
             /** @description Whether stock is tracked for this item. */
@@ -5720,6 +7112,13 @@ export interface components {
             description?: string | null;
             /** @description Short summary text. */
             excerpt?: string | null;
+            /** @description The search engine listing the merchant set: a page `title` and `description` (a page adds more keys). Null or empty when nothing is set; readers then fall back to the title and the summary or description. */
+            seo?: {
+                /** @description Display title. */
+                title?: string | null;
+                /** @description Descriptive text. */
+                description?: string | null;
+            };
             /**
              * Format: binary
              * @description Maximum file size: 2048 kilobytes.
@@ -5752,6 +7151,8 @@ export interface components {
                 option_values?: string[];
                 price?: number;
                 compare_at_price?: number | null;
+                /** @description What one unit costs the merchant, in the store currency. Null when no cost has been set. */
+                cost_price?: number | null;
                 stock?: number | null;
                 /** @description Whether stock is tracked for this item. */
                 track_inventory?: boolean | null;
@@ -5764,7 +7165,17 @@ export interface components {
                 is_backorder?: boolean | null;
                 /** Format: date-time */
                 backorder_ready_date?: string | null;
+                /** @description Custom field values on this object, keyed `namespace.key`; `{}` when none. */
+                metafields?: {
+                    /** @description Namespace the key belongs to. */
+                    namespace?: string;
+                    /** @description Key of the custom field inside its namespace. */
+                    key?: string;
+                    /** @description The value, typed by the field's definition. `null` clears the field. */
+                    value?: string | null;
+                }[] | null;
             }[];
+            /** @description What one unit costs the merchant, in the store currency. Null when no cost has been set. */
             cost_price?: number | null;
             /** @description ISO-4217 currency code of the amounts on this object. */
             currency?: string | null;
@@ -5839,6 +7250,8 @@ export interface components {
             excerpt: string | null;
             /** @description Descriptive text. */
             description: string;
+            /** @description The search listing as the merchant set it, `{title, description}` or null. A reader falls back to the title and the excerpt. */
+            seo: string;
             /** @enum {string} */
             status: "active" | "out_of_stock" | "draft" | "archived";
             published: boolean;
@@ -5881,7 +7294,10 @@ export interface components {
             /**
              * @description The receiver's own fields coming back to them: typed metafields
              *     the merchant defined, and the opaque metadata an integrator
-             *     wrote. Same reason the order payload carries both.
+             *     wrote. Same reason the order payload carries both. Storefront-
+             *     hidden values ride only on a Merchant API read by a key holding
+             *     merchant-metafields-read (webhooks and every other render keep
+             *     the public-only set).
              */
             metafields: string;
             metadata: string;
@@ -5993,6 +7409,8 @@ export interface components {
             weight: number | null;
             /** @description Sort position within the parent list. */
             position: number;
+            /** @description Custom field values on this object, keyed `namespace.key`; `{}` when none. */
+            metafields: string;
             /**
              * Format: date-time
              * @description When this object was created (ISO-8601 timestamp).
@@ -6003,6 +7421,8 @@ export interface components {
              * @description When this object was last changed (ISO-8601 timestamp).
              */
             updated_at: string | null;
+        } & {
+            [key: string]: unknown;
         };
         /** PromotionResource */
         PromotionResource: {
@@ -6047,7 +7467,7 @@ export interface components {
             id: string;
             /** @description The order's human reference, such as `PO-20260924-001`. */
             number: string;
-            /** @description One of `draft`, `ordered`, `partial`, `received` or `cancelled`; tolerate unknown words. */
+            /** @description One of `draft`, `ordered`, `partial`, `received`, `closed` (closed short: the rest is not coming) or `cancelled`; tolerate unknown words. */
             status: string;
             /** @description The supplier the goods are bought from, with its `id` and `name`; null when the supplier was removed. */
             supplier: {
@@ -6074,7 +7494,28 @@ export interface components {
             /** @description Units received across all lines so far. */
             quantity_received: number;
             /** @description The order's lines. */
-            line_items: string;
+            line_items: {
+                /** @description Unique identifier of this object. */
+                id: string;
+                product: {
+                    /** @description Unique identifier of this object. */
+                    id: number;
+                    /** @description URL-safe handle of this object. */
+                    slug: string;
+                } | null;
+                variant: {
+                    /** @description Unique identifier of this object. */
+                    id: number;
+                    uid: string;
+                    /** @description Display title. */
+                    title: string;
+                } | null;
+                quantity_ordered: number;
+                quantity_received: number;
+                unit_cost: string;
+                total_cost: string;
+                notes: string | null;
+            }[];
             /**
              * Format: date-time
              * @description When this object was created (ISO-8601 timestamp).
@@ -6085,7 +7526,35 @@ export interface components {
              * @description When this object was last changed (ISO-8601 timestamp).
              */
             updated_at: string | null;
-            receipts: string;
+            /** @description Every receive made against the order, oldest first. Present on the retrieve and the receive answer; absent from the list and the create answer. */
+            receipts?: {
+                /** @description The receive’s opaque identifier. */
+                id: string;
+                /**
+                 * Format: date-time
+                 * @description When the goods were received.
+                 */
+                received_at: string | null;
+                /** @description The note sent with the receive; null when none. */
+                notes: string | null;
+                /** @description What this receive took in, per order line. */
+                line_items: {
+                    /** @description The `id` of the order line these units were received against. */
+                    purchase_order_item: string;
+                    /** @description The variant the goods went to (`id` is its p_id); null for a product without variants. */
+                    variant: {
+                        /** @description Unique identifier of this object. */
+                        id: number;
+                        uid: string;
+                        /** @description Display title. */
+                        title: string;
+                    } | null;
+                    /** @description Units received on this line in this receive. */
+                    quantity_received: number;
+                    /** @description The unit cost recorded on the receipt, a decimal string in the order’s `currency`. */
+                    unit_cost: string;
+                }[];
+            }[];
         };
         /** @description The error envelope every error body answers. Switch on `error.code`, never on the message. The additive legacy-compatibility top-level keys some surfaces emit beside it (`error_code`, `message`, and — on non-reissued surfaces only — `request_id`, `doc_url`) are documented separately under `QueekLegacyErrorKeys`, which no operation references. */
         QueekError: {
@@ -6095,7 +7564,7 @@ export interface components {
                  * @description Stable identifier a client switches on. A new failure mode gets a new code; an existing code never changes meaning.
                  * @enum {string}
                  */
-                code: "ai_unavailable_in_test_mode" | "api_key_expired" | "api_key_mode_mismatch" | "api_key_revoked" | "app_embed_not_ready" | "app_grant_insufficient" | "app_handoff_failed" | "app_installation_gone" | "app_installation_pending" | "app_ip_not_allowed" | "app_proxy_failed" | "app_proxy_gone" | "app_token_revoked" | "bad_request" | "bank_unverifiable" | "bank_unverified" | "channel_gateway_unreachable" | "client_key_required" | "conflict" | "custom_domain_provisioning_failed" | "custom_gateway_forbidden" | "custom_gateway_kyc_required" | "custom_gateway_not_configured" | "custom_gateway_not_verified" | "custom_gateway_plan_required" | "custom_gateway_store_ineligible" | "custom_gateway_verification_failed" | "forbidden" | "gone" | "idempotency_key_in_progress" | "idempotency_key_required" | "idempotency_key_reuse" | "insufficient_scope" | "invalid_client" | "invalid_client_key" | "invalid_pin" | "invalid_refund_amount" | "messaging_window_closed" | "metafield_definition_missing" | "metafield_filter_unsupported_type" | "metafield_namespace_reserved" | "metafield_value_invalid" | "metaobject_definition_missing" | "metaobject_field_invalid" | "metaobject_reference_invalid" | "metaobject_type_reserved" | "method_not_allowed" | "not_found" | "nothing_to_refund" | "order_not_refundable" | "origin_not_allowed" | "origin_required" | "otp_required" | "payload_too_large" | "payment_amount_mismatch" | "payout_hold" | "pin_required" | "plan_inactive" | "private_key_required" | "refund_amount_below_minimum" | "refund_amount_exceeds_refundable" | "refund_line_invalid" | "refund_payment_not_found" | "refund_provider_unavailable" | "refund_provider_unsupported" | "refunds_disabled" | "requires_slot" | "resync_cooldown" | "route_not_available" | "server_error" | "service_unavailable" | "subscription_feature_locked" | "too_many_requests" | "transaction_pin_required" | "translation_digest_stale" | "translation_locale_is_default" | "translation_locale_is_primary" | "translation_locale_not_published" | "translation_max_published_locales" | "translation_unknown_key" | "translation_unknown_locale" | "unauthenticated" | "unknown_product_ref" | "unknown_service" | "unknown_variant_ref" | "unsupported_media_type" | "validation_failed" | "variant_required" | "vendor_access_denied" | "vendor_mail_sender_forbidden" | "vendor_mail_sender_key_unavailable" | "vendor_mail_sender_not_configured" | "vendor_mail_sender_plan_required" | "vendor_mail_sender_verification_failed";
+                code: "account_extensions_unavailable" | "account_pages_limit" | "ai_unavailable_in_test_mode" | "api_key_expired" | "api_key_mode_mismatch" | "api_key_revoked" | "app_already_installed" | "app_embed_not_ready" | "app_grant_insufficient" | "app_handoff_failed" | "app_installation_gone" | "app_installation_pending" | "app_ip_not_allowed" | "app_not_installed" | "app_proxy_failed" | "app_proxy_gone" | "app_session_no_customer" | "app_session_unavailable" | "app_token_revoked" | "bad_request" | "bank_unverifiable" | "bank_unverified" | "channel_gateway_unreachable" | "client_key_required" | "conflict" | "currency_change_blocked_by_orders" | "currency_change_needs_confirmation" | "currency_not_supported" | "custom_domain_provisioning_failed" | "custom_gateway_country_unsupported" | "custom_gateway_forbidden" | "custom_gateway_kyc_required" | "custom_gateway_not_configured" | "custom_gateway_not_verified" | "custom_gateway_plan_required" | "custom_gateway_store_ineligible" | "custom_gateway_verification_failed" | "delivery_backup_rate_required" | "delivery_balance_insufficient" | "delivery_location_unserved" | "delivery_minimum_not_met" | "delivery_option_unavailable" | "delivery_quote_changed" | "delivery_request_no_fleet" | "delivery_request_unavailable" | "delivery_request_unavailable_for_payment" | "delivery_trip_cancel_too_late" | "forbidden" | "fulfillment_unavailable_on_channel" | "gone" | "idempotency_key_in_progress" | "idempotency_key_required" | "idempotency_key_reuse" | "insufficient_credits" | "insufficient_scope" | "invalid_client" | "invalid_client_key" | "invalid_pin" | "invalid_refund_amount" | "invoice_locked" | "invoice_market_order_unsupported" | "invoice_state_conflict" | "location_default_cannot_deactivate" | "location_default_must_fulfil_online_orders" | "location_default_uses_store_address" | "location_inactive_cannot_be_default" | "location_last_active_cannot_deactivate" | "location_limit_exceeded" | "location_move_target_invalid" | "location_out_of_stock" | "location_pickup_needs_address" | "location_pickup_needs_online_fulfilment" | "machine_translation_busy" | "machine_translation_off" | "machine_translation_unavailable" | "market_cart_required" | "market_countries_required" | "market_country_is_store_country" | "market_country_not_available" | "market_country_taken" | "market_country_unknown" | "market_currency_is_shop_currency" | "market_currency_precision" | "market_currency_unsupported" | "market_delivery_unavailable" | "market_limit_exceeded" | "market_method_unavailable" | "market_name_required" | "market_name_taken" | "market_payment_unavailable" | "market_price_unusable" | "market_publish_no_provider" | "market_publish_no_rate" | "market_published_locked" | "market_rate_changed" | "market_rate_expired" | "market_total_unusable" | "market_unavailable" | "messaging_window_closed" | "metafield_definition_missing" | "metafield_filter_unsupported_type" | "metafield_namespace_reserved" | "metafield_value_invalid" | "metaobject_definition_missing" | "metaobject_field_invalid" | "metaobject_reference_invalid" | "metaobject_type_reserved" | "method_not_allowed" | "not_found" | "nothing_to_refund" | "order_location_inactive" | "order_location_not_found" | "order_location_order_fulfilled" | "order_not_refundable" | "organization_trial_cap" | "origin_not_allowed" | "origin_required" | "otp_required" | "payload_too_large" | "payment_amount_mismatch" | "payment_method_unavailable" | "payout_hold" | "pin_required" | "plan_inactive" | "private_key_required" | "quote_already_used" | "quote_expired" | "quote_mismatch" | "quote_stale" | "refund_amount_below_minimum" | "refund_amount_exceeds_refundable" | "refund_line_invalid" | "refund_payment_not_found" | "refund_provider_unavailable" | "refund_provider_unsupported" | "refunds_disabled" | "requires_line_text" | "requires_slot" | "resync_cooldown" | "route_not_available" | "server_error" | "service_unavailable" | "store_build_gated" | "store_limit_reached" | "store_region_missing" | "subscription_feature_locked" | "test_data_in_progress" | "test_store_credits_unavailable" | "too_many_requests" | "transaction_pin_required" | "translation_daily_limit" | "translation_digest_stale" | "translation_locale_is_default" | "translation_locale_is_primary" | "translation_locale_not_published" | "translation_max_published_locales" | "translation_run_too_large" | "translation_unknown_key" | "translation_unknown_locale" | "unauthenticated" | "unknown_product_ref" | "unknown_service" | "unknown_variant_ref" | "unsupported_media_type" | "validation_failed" | "variant_required" | "vendor_access_denied" | "vendor_mail_sender_forbidden" | "vendor_mail_sender_key_unavailable" | "vendor_mail_sender_not_configured" | "vendor_mail_sender_plan_required" | "vendor_mail_sender_verification_failed";
                 /** @description Human-readable explanation. Not stable — never switch on it. */
                 message: string;
                 /** @description First offending field, on validation failures only. */
@@ -6119,7 +7588,7 @@ export interface components {
          *     Limits (shared Postgres, part of the contract): 200 definitions per store, 50 values per resource, 65536 bytes per serialized value. Free-form `metadata`: 50 keys, key ≤ 64 chars, value ≤ 500 chars.
          *
          *     Reserved namespaces (a store may not define in these): `queek`.
-         *     Owner types wired in this version: `product`, `order`.
+         *     Owner types wired in this version: `product`, `order`, `customer`, `collection`, `post`, `variant`, `installation`.
          * @enum {string}
          */
         QueekMetafieldType: "single_line_text" | "multi_line_text" | "integer" | "decimal" | "boolean" | "date" | "url" | "json" | "media_id" | "metaobject_reference" | "list.single_line_text" | "list.multi_line_text" | "list.integer" | "list.decimal" | "list.boolean" | "list.date" | "list.url" | "list.media_id" | "list.metaobject_reference";
@@ -6173,7 +7642,7 @@ export interface components {
              * @description ISO-8601 timestamp of the event.
              */
             created_at: string;
-            /** @description The event payload; its shape depends on the topic. */
+            /** @description The abandoned checkout. `checkouts/create` and `checkouts/update` send carts: `stage` is `cart`, and `completed_at`, `order`, `total` and `recovery_url` are null. `payment_checkouts/create` sends an unpaid order, the same row as `GET abandoned-checkouts?stage=payment`: `stage` is `payment`, `order` carries the order id, `total` the order total and `recovery_url` a payment link that does not expire, except on an order in a market whose exchange rate has expired, where it is null (a secret); `completed_at` is null. */
             data: components["schemas"]["QueekWebhookCheckoutPayload"];
         };
         /** QueekWebhookCheckoutPayload */
@@ -6394,6 +7863,51 @@ export interface components {
         /** QueekWebhookInventoryLevelPayload */
         QueekWebhookInventoryLevelPayload: components["schemas"]["InventoryLevelResource"];
         /**
+         * QueekWebhookInvoiceDeleteEvent
+         * @description The signed body of a webhook delivery. Signed as `{webhook-id}.{webhook-timestamp}.{raw body}` with HMAC-SHA256 over the base64-decoded secret, value `v1,<base64>`; verify before trusting it.
+         */
+        QueekWebhookInvoiceDeleteEvent: {
+            /** @description Event id, identical to the `webhook-id` header. Dedupe on it — a retry reuses it. */
+            id: string;
+            /** @description The event topic, for example `orders/create`. */
+            topic: components["schemas"]["QueekWebhookTopic"];
+            /** @description Payload contract version. Additive within a major. */
+            api_version: string;
+            /**
+             * Format: date-time
+             * @description ISO-8601 timestamp of the event.
+             */
+            created_at: string;
+            /** @description The event payload; its shape depends on the topic. */
+            data: components["schemas"]["QueekWebhookInvoiceDeletePayload"];
+        };
+        /** QueekWebhookInvoiceDeletePayload */
+        QueekWebhookInvoiceDeletePayload: {
+            /** @description The deleted draft's id, the same `p_id` the invoice read answered. */
+            id: number;
+        };
+        /**
+         * QueekWebhookInvoiceEvent
+         * @description The signed body of a webhook delivery. Signed as `{webhook-id}.{webhook-timestamp}.{raw body}` with HMAC-SHA256 over the base64-decoded secret, value `v1,<base64>`; verify before trusting it.
+         */
+        QueekWebhookInvoiceEvent: {
+            /** @description Event id, identical to the `webhook-id` header. Dedupe on it — a retry reuses it. */
+            id: string;
+            /** @description The event topic, for example `orders/create`. */
+            topic: components["schemas"]["QueekWebhookTopic"];
+            /** @description Payload contract version. Additive within a major. */
+            api_version: string;
+            /**
+             * Format: date-time
+             * @description ISO-8601 timestamp of the event.
+             */
+            created_at: string;
+            /** @description The invoice, the same object `GET invoices/{invoice}` answers (p_id ids, money as decimal strings beside `currency`). The buyer's `name`, `email` and `phone` are null unless the receiving app also holds merchant-customers-contact-read (a merchant-owned endpoint always sees them). Never carries the customer link, the order's pay link, payment notices or bank details. */
+            data: components["schemas"]["QueekWebhookInvoicePayload"];
+        };
+        /** QueekWebhookInvoicePayload */
+        QueekWebhookInvoicePayload: components["schemas"]["InvoiceResource"];
+        /**
          * QueekWebhookProductEvent
          * @description The signed body of a webhook delivery. Signed as `{webhook-id}.{webhook-timestamp}.{raw body}` with HMAC-SHA256 over the base64-decoded secret, value `v1,<base64>`; verify before trusting it.
          */
@@ -6456,15 +7970,45 @@ export interface components {
          *     `locales/create` — A locale was added to the store.
          *     `locales/update` — A locale was published or unpublished on the store.
          *     `locales/destroy` — A locale was removed from the store, with its translations.
+         *     `markets/create` — A market was defined on the store. It is created unpublished and changes nothing shoppers see or pay until it is published.
+         *     `markets/update` — A market on the store changed its name, countries or currency, or was published or unpublished. The payload is the market with its current `published` state.
+         *     `markets/destroy` — A market was removed from the store.
          *     `translations/update` — Translations were registered on one resource, for the locales and keys in the payload.
          *     `translations/delete` — Translations were removed from one resource, for the locales and keys in the payload.
          *     `checkouts/create` — A signed-in customer's cart has been unchanged for the abandonment delay, reported for the first time. Fires when the idle delay passes, not when the cart is created or edited.
          *     `checkouts/update` — A previously reported cart changed and has again been unchanged for the abandonment delay. Fires when the idle delay passes, not on every edit.
-         *     `refunds/create` — Queek credited a customer's wallet for a cancelled paid order. Only this automatic wallet credit is reported: refunds made at a payment provider, collected by the merchant or settled offline have no record and send nothing.
+         *     `payment_checkouts/create` — A signed-in customer's order has been left unpaid for the unpaid-checkout delay. Fires when the delay passes, not when the order is created; the payload is the same row `GET abandoned-checkouts?stage=payment` returns, with the order total and `recovery_url`, a payment link that does not expire (null for an order in a market whose exchange rate has expired) and is a secret. Needs both merchant-checkouts-read and merchant-checkouts-payments-read. Recovery is the `orders/create` webhook for the same order id (`order.id`): there is no update event, and an order paid, cancelled or followed by a later order before delivery sends nothing and is not retried. Delivery: sent once per unpaid checkout in normal operation; a delivery can occasionally be missed (infrastructure failure after the checkout is claimed) or arrive twice (retries): deduplicate by (topic, order id), and use GET abandoned-checkouts?stage=payment to reconcile.
+         *     `refunds/create` — A refund was recorded on an order: a credit to the customer's wallet, a refund to the original card or bank through the payment provider (it starts pending and ends success or failed, signalled by `orders/updated`), a refund the merchant recorded after refunding outside Queek, or a refund Queek pays the customer by hand because it could not be sent back automatically (type `manual`, starts pending).
          *     `conversation_messages/create` — A shopper wrote a message in one of the store's messaging conversations. Fires once per message; the payload carries the conversation id, the channel and the message, and the rest of the conversation is read with the conversations API.
+         *     `invoices/create` — An invoice was created in the store's Invoices app: a draft, a duplicate, an invoice of an order, or a credit note (the note itself). The payload is the invoice `GET invoices/{invoice}` returns. Needs merchant-invoices-read, and the buyer's name, email and phone are null unless the installation also holds merchant-customers-contact-read. Nothing is sent when an order-backed invoice follows its order's payments: watch `orders/paid` and `refunds/create` for that. Apply each event as an upsert keyed by `data.id`: ignore it only when its `updated_at` is strictly older than the one you hold (two writes in the same second share a timestamp), and call GET invoices/{invoice} when unsure. A retry can send the same event again.
+         *     `invoices/update` — An invoice changed: edited, issued and numbered, voided, given a tax authority reference, had a payment recorded or voided, or was corrected by a credit note. The payload is the invoice `GET invoices/{invoice}` returns, with the same scope and contact rules as `invoices/create`. A change to an order-backed invoice that only follows its order's payments sends nothing (see `orders/paid` and `refunds/create`); an order cancelled with no payment voids its invoice with no event (watch `orders/cancelled`), and a customer's erasure or the store's deletion clears buyer fields with none (`customers/redact` is the signal). Apply each event as an upsert keyed by `data.id`: ignore it only when its `updated_at` is strictly older than the one you hold (two writes in the same second share a timestamp), and call GET invoices/{invoice} when unsure.
+         *     `invoices/delete` — A draft invoice was deleted (an issued invoice is voided, never deleted: that is `invoices/update`). The payload carries only the invoice id, the same `p_id` the invoice read answers.
          * @enum {string}
          */
-        QueekWebhookTopic: "orders/create" | "orders/paid" | "orders/updated" | "orders/fulfilled" | "orders/cancelled" | "products/create" | "products/update" | "products/delete" | "customers/create" | "customers/update" | "customers/delete" | "customers/data_request" | "customers/redact" | "customers_email_marketing_consent/update" | "customers_marketing_consent/update" | "inventory_levels/update" | "locales/create" | "locales/update" | "locales/destroy" | "translations/update" | "translations/delete" | "checkouts/create" | "checkouts/update" | "refunds/create" | "conversation_messages/create";
+        QueekWebhookTopic: "orders/create" | "orders/paid" | "orders/updated" | "orders/fulfilled" | "orders/cancelled" | "products/create" | "products/update" | "products/delete" | "customers/create" | "customers/update" | "customers/delete" | "customers/data_request" | "customers/redact" | "customers_email_marketing_consent/update" | "customers_marketing_consent/update" | "inventory_levels/update" | "locales/create" | "locales/update" | "locales/destroy" | "markets/create" | "markets/update" | "markets/destroy" | "translations/update" | "translations/delete" | "checkouts/create" | "checkouts/update" | "payment_checkouts/create" | "refunds/create" | "conversation_messages/create" | "invoices/create" | "invoices/update" | "invoices/delete";
+        /**
+         * Record invoice payment input
+         * @description Record money the merchant confirmed receiving. The amount is validated in the invoice's
+         *     own currency and precision; the date cannot be in the future. On the Merchant API the Idempotency-Key is
+         *     required (a retried call would otherwise record the money twice), checked with the permission, before validation;
+         *     the dashboard's own key stays optional.
+         */
+        RecordInvoicePaymentRequest: {
+            /** @description The amount received, a decimal above 0 in the invoice’s currency with no more decimals than that currency has. It may not exceed the balance left. */
+            amount: number;
+            /**
+             * @description How the money arrived: `bank_transfer`, `cash`, `pos`, `mobile_money`, `other` or `tax_withheld` (tax withheld at source).
+             * @enum {string}
+             */
+            method: "bank_transfer" | "cash" | "pos" | "mobile_money" | "other" | "tax_withheld";
+            /** @description Your reference for the payment, such as a transfer or receipt number, up to 120 characters. */
+            reference?: string | null;
+            /**
+             * Format: date-time
+             * @description When the money was received. It cannot be in the future; defaults to now.
+             */
+            paid_at?: string | null;
+        };
         /** RefundCreatedResource */
         RefundCreatedResource: unknown[];
         /**
@@ -6511,7 +8055,7 @@ export interface components {
             order: number;
             /** @description The `id` of the payment that was refunded, as listed in the order's `transactions`. */
             transaction_id: number;
-            /** @description Where the money went: `wallet_credit` (back to the customer's wallet), `original_payment` (back to the card or bank through the payment provider) or `recorded` (the merchant refunded the customer outside Queek; Queek only records it). Tolerate other values. */
+            /** @description Where the money went: `wallet_credit` (back to the customer's wallet), `original_payment` (back to the card or bank through the payment provider), `recorded` (the merchant refunded the customer outside Queek; Queek only records it) or `manual` (Queek could not send it back automatically and pays the customer by hand; `pending` until it does, and the store's share is taken back at once). Tolerate other values. */
             type: string;
             /** @description Who started it: `order_cancelled` (the order was cancelled) or `merchant_refund` (the merchant or an app refunded it). Tolerate other values. */
             reason: string;
@@ -6526,6 +8070,8 @@ export interface components {
              * @description When this object was created (ISO-8601 timestamp).
              */
             created_at: string | null;
+        } & {
+            [key: string]: unknown;
         };
         /**
          * Register publication input
@@ -6677,6 +8223,8 @@ export interface components {
                 slug: string;
             } | null;
             variant: {
+                /** @description The variant's id (p_id), as every other route names it; null when the variant was deleted. */
+                id: string;
                 uid: string;
                 /** @description Display title. */
                 title: string;
@@ -6687,6 +8235,8 @@ export interface components {
                 id: number;
                 uid: string;
             } | null;
+            /** @description The number of the store location the movement was made at; null for a movement written before locations existed (it belongs to the default location). */
+            location_id: string;
             shortfall: string;
             /**
              * Format: date-time
@@ -6725,13 +8275,10 @@ export interface components {
             /** @enum {string} */
             discount_type: "percentage" | "fixed";
             discount_value: number;
-            minimum_order_amount?: number | null;
             /** @enum {string} */
             applies_to: "all_products" | "specific_products" | "specific_categories";
             target_product_ids?: string[] | null;
             target_category_ids?: string[] | null;
-            usage_limit?: number | null;
-            usage_limit_per_user: number;
             /** Format: date-time */
             starts_at?: string | null;
             /**
@@ -6739,6 +8286,15 @@ export interface components {
              * @description When this stops being available (ISO-8601 timestamp).
              */
             expires_at?: string | null;
+            /** @description Whether this object is active. */
+            is_active?: boolean;
+            minimum_order_amount?: number | null;
+            usage_limit?: number | null;
+            usage_limit_per_user?: number | null;
+            /** @enum {string|null} */
+            target?: "subtotal" | "delivery_fee" | null;
+            /** @description Greater than zero: a zero cap would read as "no cap" in the engine; leave it empty for none. */
+            capped_amount?: number | null;
         };
         /** Store discount input */
         StoreDiscountRequest: {
@@ -6774,6 +8330,7 @@ export interface components {
             };
             minimum_order_amount?: number | null;
             minimum_quantity?: number | null;
+            /** @description Maximum discount per item: the most the discount takes off each item's unit price, in the store currency, or null for no cap. */
             capped_amount?: number | null;
             capped_amount_per_user?: number | null;
             max_usage_total?: number | null;
@@ -6834,6 +8391,12 @@ export interface components {
             cover_image_variants: string | null;
             tags: string | string[];
             seo: string | string[];
+            /**
+             * @description Blog posts only (this resource also serves pages, galleries and policies, which carry none), and
+             *     only the definitions the merchant opted in to the storefront (`storefront_visible`): post fields
+             *     are private until then. `{}` when none. Read from the eager-loaded values, never a query per row.
+             */
+            metafields?: string;
             blog_categories: string | string[];
             reading_time: number;
             author?: {
@@ -6884,15 +8447,22 @@ export interface components {
          * Store product variant input
          * @description One variant of a shop product. `title` is not accepted: it is derived from the
          *     option values ("Large / Red") by the variant service, as on every other writer.
+         *     `metafields` are the variant's typed custom fields, checked against the store's `variant`
+         *     definitions and saved with the variant: a key left out keeps its value, a `null` value clears it.
          */
         StoreProductVariantRequest: {
-            option_values: string[];
+            /** @description One to three options as an object of option name to value, for example `{"Size": "Large", "Colour": "Red"}`. Never a list: `["Large"]` is refused, because a value needs its option name. */
+            option_values: {
+                [key: string]: string;
+            };
             /** @description Stock-keeping unit assigned by the store. */
             sku?: string | null;
             /** @description Barcode of the item, when set. */
             barcode?: string | null;
             price: number;
             compare_at_price?: number | null;
+            /** @description Unit cost of this variant; null clears it. Readable only with the merchant-items-cost-read scope. */
+            cost_price?: number | null;
             stock?: number;
             /** @description Whether stock is tracked for this item. */
             track_inventory?: boolean;
@@ -6908,6 +8478,15 @@ export interface components {
             weight?: number | null;
             /** @description Sort position within the parent list. */
             position?: number;
+            /** @description Custom field values on this object, keyed `namespace.key`; `{}` when none. */
+            metafields?: {
+                /** @description Namespace the key belongs to. */
+                namespace?: string;
+                /** @description Key of the custom field inside its namespace. */
+                key?: string;
+                /** @description The value, typed by the field's definition. `null` clears the field. */
+                value?: string | null;
+            }[] | null;
         };
         /** StoreResource */
         StoreResource: {
@@ -6919,6 +8498,30 @@ export interface components {
             name: string;
             /** @description The URL-safe store handle. Unique across Queek. */
             slug: string;
+            /** @description The store’s currency (ISO 4217, e.g. `NGN`): the currency of its orders, its analytics and its purchase orders, and of its products unless a product names its own. */
+            currency: string;
+            /** @description How the store currency is written: `code`, `symbol` and `precision`, the number of decimals every amount in it carries (2 for `NGN`, 0 for `JPY`). */
+            currency_meta: {
+                /** @description The ISO 4217 currency code, the same as `currency`. */
+                code: string;
+                /** @description The currency symbol for display. */
+                symbol: string;
+                /** @description Decimal places in an amount of this currency. */
+                precision: number;
+            };
+            /** @description The store’s IANA timezone (e.g. `Africa/Lagos`), the platform default when the store set none. Every day-based read (analytics ranges, order date filters, “today”) uses the store’s own calendar in this zone; every `*_at` timestamp is an instant with its offset, so render it in this zone to show the store’s local time. */
+            timezone: string;
+            /** @description The store-wide stock mode, a gate over each product's own tracking flag: `track` (products whose own flag is on move stock and write a `sale` movement), `untrack` (unlimited stock) or `disabled` (stock not tracked; where every store starts, dev stores included). Changing it never changes a product's own flag. A product tracks only when this is `track` and its own flag is on (`effective_tracking` on inventory levels). */
+            inventory_tracking: string | "disabled";
+            /** @description The plan the store is on, and what it unlocks. Null only for a store with no billing owner. On a dev store it is the developer's Test as choice (every feature by default), never a subscription. */
+            plan: {
+                /** @description The plan code (e.g. `free`). Tolerate codes you do not know. */
+                code: string;
+                /** @description Every plan-gated feature as `true` or `false`, keyed by feature name (e.g. `purchase_orders`, `supplier_management`). Check the key before calling a feature-gated route; tolerate keys you do not know. */
+                features: {
+                    [key: string]: boolean;
+                };
+            } | null;
             /** @description How shoppers reach the store. */
             contact: {
                 /** @description The public support email printed on receipts and store pages. */
@@ -6995,8 +8598,10 @@ export interface components {
                 queek_logistics_enabled: boolean;
                 /** @description Whether the store delivers. */
                 delivery_enabled: boolean;
-                /** @description Whether delivery is free at this store. */
+                /** @description True while the store's own delivery is free from an amount it sets (derived from the free-over rate, never a setting). */
                 offers_free_delivery: boolean;
+                /** @description The order amount from which the store's own delivery is free (a decimal string in the store currency), null when it is not. */
+                free_delivery_over: string;
                 /** @description Whether shoppers can pick up. */
                 pickup_enabled: boolean;
                 /** @description Whether in-store (QR) ordering is on. */
@@ -7071,6 +8676,102 @@ export interface components {
             edited_at: string | null;
         };
         /**
+         * Store vendor invoice input
+         * @description Create a draft invoice (or proforma). Only what the merchant types is accepted; the
+         *     server computes subtotal, discount, tax and total and ignores anything else sent.
+         */
+        StoreVendorInvoiceRequest: {
+            /**
+             * @description The document type: `invoice` (a tax invoice, the default) or `proforma` (a quotation-style document that is not a tax invoice and takes no payment).
+             * @enum {string}
+             */
+            kind?: "invoice" | "proforma";
+            /**
+             * @description ISO-4217 currency code of the amounts on this object.
+             * @enum {string|null}
+             */
+            currency?: "NGN" | "GHS" | "KES" | "ZAR" | "USD" | "EUR" | "GBP" | "CAD" | "EGP" | "MAD" | "DZD" | "TZS" | "ETB" | "AOA" | "MZN" | "UGX" | "XOF" | "XAF" | "TND" | "KWD" | "BHD" | "JPY" | "KRW" | "VND" | "BIF" | "CLP" | "DJF" | "GNF" | "KMF" | "MGA" | "PYG" | "RWF" | "UYI" | "VUV" | "XPF" | "JOD" | "OMR" | "LYD" | "IQD" | null;
+            /** @description One of this store’s customers, by p_id or UUID. Their details fill the buyer; a `buyer` you send alongside overrides the fields it names. A customer that is not this store’s answers 422. */
+            customer_id?: string | null;
+            /** @description Who is billed: `name`, `email`, `phone`, `address` and `tax_id`, each optional. Omit it to bill the customer named by `customer_id`. */
+            buyer?: {
+                /** @description Display name. */
+                name?: string | null;
+                /**
+                 * Format: email
+                 * @description Email address.
+                 */
+                email?: string | null;
+                /** @description Phone number. */
+                phone?: string | null;
+                /** @description Postal address. */
+                address?: string | null;
+                /** @description The buyer’s tax registration number, printed on the invoice (up to 60 characters). */
+                tax_id?: string | null;
+            };
+            /** @description Display title. */
+            title?: string | null;
+            /**
+             * Format: date-time
+             * @description The payment due date (`Y-m-d` or an RFC 3339 timestamp). Null leaves the invoice with no due date.
+             */
+            due_at?: string | null;
+            /** @description Payment terms printed on the invoice, up to 2000 characters. */
+            terms?: string | null;
+            /** @description A free-text note printed on the invoice, up to 2000 characters. */
+            note?: string | null;
+            /**
+             * @description The language the document is rendered in: `en`, `fr` or `ar`. Defaults to the store’s invoice language.
+             * @enum {string|null}
+             */
+            language?: "en" | "fr" | "ar" | null;
+            /** @description An invoice-level discount applied to the subtotal before tax: send `type` and `value` together. */
+            discount?: {
+                /**
+                 * @description How `value` is read: `fixed` (an amount in the invoice currency) or `percent` (0 to 100, up to 4 decimals).
+                 * @enum {string|null}
+                 */
+                type?: "fixed" | "percent" | null;
+                /** @description The discount: a decimal amount at the invoice currency’s precision when `type` is `fixed`, a percentage from 0 to 100 when it is `percent`. */
+                value?: number | null;
+            };
+            /**
+             * @description A payment plan: each instalment is a due date plus an amount, a percent of the total, or
+             *     (the last one only) nothing, which takes the remainder. The server makes them add up.
+             */
+            installments?: {
+                /**
+                 * Format: date-time
+                 * @description The date this instalment is due.
+                 */
+                due_at: string;
+                /** @description The amount due in this instalment, a decimal in the invoice currency. Send this or `percent`; the last instalment may send neither and takes the remainder. */
+                amount?: number | null;
+                /** @description The share of the invoice total due in this instalment, above 0 and up to 100 (up to 4 decimals). Send this or `amount`. */
+                percent?: number | null;
+            }[] | null;
+            /** @description The billed lines, 1 to 100. The server computes every line total, the tax and the invoice total from them. */
+            lines: {
+                /** @description Descriptive text. */
+                description: string;
+                /** @description How many units, above 0 and up to 1,000,000, with up to 4 decimals. */
+                quantity: number;
+                /** @description The price of one unit, before tax, a decimal in the invoice currency with no more decimals than that currency has. */
+                unit_price: number;
+                /** @description Absent = the store's own tax; a number, zero included, is the merchant's explicit rate. */
+                tax_rate?: number | null;
+                /** @description The name printed for this line’s tax (for example `VAT`), up to 80 characters. */
+                tax_name?: string | null;
+                /** @description Several named components on one line (Ghana: VAT, NHIL, GETFund); an empty list is an exemption. */
+                taxes?: {
+                    /** @description This tax component’s rate as a percentage from 0 to 100, up to 4 decimals. */
+                    rate: number;
+                    /** @description Display name. */
+                    name?: string | null;
+                }[];
+            }[];
+        };
+        /**
          * Store vendor locale input
          * @description POST locales {locale} — enable a catalogue locale on the store. The code
          *     must be a supported catalogue code; anything else is a 422, never a guess.
@@ -7078,6 +8779,19 @@ export interface components {
         StoreVendorLocaleRequest: {
             /** @enum {string} */
             locale: "en" | "fr" | "es" | "pt" | "pt-BR" | "de" | "it" | "nl" | "pl" | "ru" | "uk" | "tr" | "ar" | "ur" | "fa" | "he" | "hi" | "ja" | "ko" | "zh-CN" | "zh-TW" | "id" | "ms" | "vi" | "th" | "tl" | "sw" | "ha" | "yo" | "ig" | "pcm";
+        };
+        /**
+         * Store vendor market input
+         * @description Define a market: a unique `name`, the `countries` it sells to and the `currency` shoppers there will see
+         *     prices in. A rule the market breaks answers 422 with its own code. A market is created unpublished.
+         */
+        StoreVendorMarketRequest: {
+            /** @description The market's name, unique within the store (1 to 100 characters). */
+            name: string;
+            /** @description The countries it sells to, ISO 3166-1 alpha-2 codes; a country belongs to one market of the store. */
+            countries: string[];
+            /** @description The currency shoppers in those countries will see prices in (ISO 4217, not the store's own). */
+            currency: string;
         };
         /** SupplierResource */
         SupplierResource: {
@@ -7172,7 +8886,7 @@ export interface components {
         };
         /** Update coupon input */
         UpdateCouponRequest: {
-            /** @description The coupon's name, up to 255 characters. */
+            /** @description The code's name, up to 255 characters. */
             title?: string;
             /** @description A longer description, or null to clear it. */
             description?: string | null;
@@ -7183,33 +8897,37 @@ export interface components {
             discount_type?: "percentage" | "fixed";
             /** @description The discount: a percentage between 0 and 100 with up to 2 decimals when the type is `percentage`, otherwise an amount in the store currency. Never negative. */
             discount_value?: number;
-            /** @description The least an order must total for the coupon to apply, in the store currency. */
-            minimum_order_amount?: number | null;
             /**
-             * @description `all_products`, `specific_products` (needs `target_product_ids`) or `specific_categories` (needs `target_category_ids`). Changing it replaces the stored targets.
+             * @description `all_products`, `specific_products` (needs `target_product_ids`) or `specific_categories` (needs `target_category_ids`). Changing it replaces the stored targets; a code cannot switch between all products and chosen ones (create a new one).
              * @enum {string}
              */
             applies_to?: "all_products" | "specific_products" | "specific_categories";
-            /** @description Products the coupon targets, as product UUIDs of this store. */
+            /** @description Products the code targets, as product UUIDs of this store. */
             target_product_ids?: string[] | null;
-            /** @description Collections the coupon targets, as collection ids of this store. */
+            /** @description Collections the code targets, as collection ids of this store. */
             target_category_ids?: string[] | null;
-            /** @description How many times the coupon may be used in all, or null for unlimited. Never below the times it has already been used (422). */
-            usage_limit?: number | null;
-            /** @description How many times one customer may use it, 1 to 10. */
-            usage_limit_per_user?: number;
             /**
              * Format: date-time
-             * @description When the coupon starts, an ISO 8601 date-time, or null.
+             * @description When the code starts, an ISO 8601 date-time, or null.
              */
             starts_at?: string | null;
             /**
              * Format: date-time
-             * @description When the coupon expires, an ISO 8601 date-time after `starts_at`. Sending null removes the expiry: the coupon then never expires.
+             * @description When the code expires, an ISO 8601 date-time after `starts_at`. Sending null removes the expiry: the code then never expires.
              */
             expires_at?: string | null;
-            /** @description Whether the coupon can be used. */
+            /** @description Whether the code can be used. */
             is_active?: boolean;
+            /** @description The least the covered items must total for the code to apply, in the store currency. */
+            minimum_order_amount?: number | null;
+            /** @description How many times the code may be used in all, or null for unlimited. Never below the times it has already been used (422). */
+            usage_limit?: number | null;
+            /** @description How many times one customer may use it (1 to 1000), or null for unlimited. */
+            usage_limit_per_user?: number | null;
+            /** @enum {string|null} */
+            target?: "subtotal" | "delivery_fee" | null;
+            /** @description Greater than zero: a zero cap would read as "no cap" in the engine; leave it empty for none. */
+            capped_amount?: number | null;
         };
         /** Update customer email marketing consent input */
         UpdateCustomerEmailMarketingConsentRequest: {
@@ -7293,7 +9011,7 @@ export interface components {
             minimum_order_amount?: number | null;
             /** @description The least quantity of a product for the discount to apply, 1 to 1,000,000. */
             minimum_quantity?: number | null;
-            /** @description The most the discount takes off in total, in the store currency, or null for no cap. */
+            /** @description Maximum discount per item: the most the discount takes off each item's unit price, in the store currency, or null for no cap. */
             capped_amount?: number | null;
             /** @description The most the discount takes off one customer, in the store currency, or null for no cap. */
             capped_amount_per_user?: number | null;
@@ -7339,13 +9057,18 @@ export interface components {
          * @description Same fields as a new variant, every one optional: only what is sent changes.
          */
         UpdateProductVariantRequest: {
-            option_values?: string[];
+            /** @description One to three options as an object of option name to value, for example `{"Size": "Large", "Colour": "Red"}`. Never a list: `["Large"]` is refused, because a value needs its option name. */
+            option_values?: {
+                [key: string]: string;
+            };
             /** @description Stock-keeping unit assigned by the store. */
             sku?: string | null;
             /** @description Barcode of the item, when set. */
             barcode?: string | null;
             price?: number;
             compare_at_price?: number | null;
+            /** @description Unit cost of this variant; null clears it. Readable only with the merchant-items-cost-read scope. */
+            cost_price?: number | null;
             stock?: number;
             /** @description Whether stock is tracked for this item. */
             track_inventory?: boolean;
@@ -7361,6 +9084,15 @@ export interface components {
             weight?: number | null;
             /** @description Sort position within the parent list. */
             position?: number;
+            /** @description Custom field values on this object, keyed `namespace.key`; `{}` when none. */
+            metafields?: {
+                /** @description Namespace the key belongs to. */
+                namespace?: string;
+                /** @description Key of the custom field inside its namespace. */
+                key?: string;
+                /** @description The value, typed by the field's definition. `null` clears the field. */
+                value?: string | null;
+            }[] | null;
         };
         /**
          * Update publication resources input
@@ -7407,11 +9139,28 @@ export interface components {
         UpdateVendorLocaleRequest: {
             published: boolean;
         };
+        /**
+         * Update vendor market input
+         * @description Change any of `name`, `countries` and `currency`; fields left out keep their value. At least one field is
+         *     required. `published` publishes or unpublishes: publishing answers 422 `market_publish_no_provider` or
+         *     `market_publish_no_rate` when it cannot be done yet.
+         */
+        UpdateVendorMarketRequest: {
+            /** @description The market's new name, unique within the store (1 to 100 characters). */
+            name?: string;
+            /** @description The full replacement list of countries, ISO 3166-1 alpha-2 codes; a country belongs to one market of the store. */
+            countries?: string[];
+            /** @description The new currency (ISO 4217, not the store's own). */
+            currency?: string;
+            /** @description `true` publishes the market (422 `market_publish_no_provider` or `market_publish_no_rate` unless a provider can charge its currency and a current rate exists); `false` unpublishes it. */
+            published?: boolean;
+        };
         /** Update vendor order status input */
         UpdateVendorOrderStatusRequest: {
             /** @enum {string} */
-            status: "approve_payment" | "accept" | "rejected" | "mark_received" | "ready_for_pickup" | "picked_up" | "ready_to_serve" | "served" | "complete";
+            status: "approve_payment" | "accept" | "rejected" | "mark_received" | "ready_for_pickup" | "picked_up" | "ready_to_serve" | "served" | "complete" | "out_for_delivery" | "mark_delivered";
             reason?: string | null;
+            pin?: string | null;
             /** Format: date-time */
             earliest_delivery_time?: string | null;
             /** Format: date-time */
@@ -7444,7 +9193,7 @@ export interface components {
             orders_count?: string;
             assigned_orders_count?: string;
             completed_orders_count?: string;
-            date_joined: string;
+            date_joined: string | null;
             last_seen: string | null;
             wallet?: components["schemas"]["WalletResource"];
         };
@@ -7534,7 +9283,7 @@ export interface components {
          *     the error, not from an order that shipped anyway.
          *
          *     `metafields` must reference an existing definition for orders and never use
-         *     an app-owned (`app.*`, `queek.*`) namespace on this endpoint. `metadata` is
+         *     a platform (`app.*`, `queek.*`) namespace on this endpoint. `metadata` is
          *     free-form integrator bookkeeping — replaced wholesale (`null` clears it),
          *     capped in size and count, with no namespace rule and no definitions.
          *     `line_items` merges per-line properties by key: an app mirrors what it
@@ -7545,10 +9294,13 @@ export interface components {
          *     values obey the documented caps.
          */
         VendorOrderExtensionRequest: {
+            /** @description Custom field values on this object, keyed `namespace.key`; `{}` when none. */
             metafields?: {
                 /** @description Namespace the key belongs to. */
                 namespace?: string;
+                /** @description Key of the custom field inside its namespace. */
                 key?: string;
+                /** @description The value, typed by the field's definition. `null` clears the field. */
                 value?: string | null;
             }[] | null;
             /**
@@ -7626,7 +9378,7 @@ export interface components {
             };
             /** @description ISO-4217 currency code of the amounts on this object. */
             currency: string;
-            commission: number;
+            commission: number | null;
             store_details: {
                 support_phone: string;
                 support_email: string;
@@ -7666,26 +9418,30 @@ export interface components {
                 queek_logistics_enabled: boolean;
                 delivery_enabled: boolean;
                 offers_free_delivery: boolean;
+                /** @description The order amount from which the store's own delivery is free (a decimal string in the store currency); null when it is not. */
+                free_delivery_over: string;
                 pickup_enabled: boolean;
                 instore_order: string;
-                risk_level: string | "Not assessed";
+                risk_level: string | null | "Not assessed";
             };
             commission_charges: {
                 settlement_schedule: string;
                 instore_price: string;
-                commission: string;
+                commission: string | null;
                 instore_order: string;
                 instore_order_commission: number;
                 service_charge: {
-                    percent: number;
+                    percent: number | null;
                     cap: string | null;
                 };
-                risk_level: string | "Not assessed";
+                risk_level: string | null | "Not assessed";
             };
             /**
-             * @description Team contacts on a store-profile read: a store-key caller receives
-             *     names only — contact details and roles are never included,
-             *     whatever scopes the key holds.
+             * @description Team contacts on a store-profile read: a store-key caller, and anyone without
+             *     the contact rule, receives names only — contact details and roles are never
+             *     included, whatever scopes the key holds. The manager and the onboarder are the
+             *     Queek-internal ids VendorResource masks (manager_id, onboarded_by): they follow
+             *     the internal rule, not the contact one.
              */
             management: {
                 owner: {
@@ -7699,7 +9455,7 @@ export interface components {
                     id: string;
                     /** @description Display name. */
                     name: string;
-                } | string | "Not assigned";
+                } | string | null | "Not assigned";
                 onboarded_by: {
                     /** @description Unique identifier of this object. */
                     id: string;
@@ -7791,8 +9547,9 @@ export interface components {
             region_id?: string | null;
             min_order_price?: string | null;
             /**
-             * @description A sandbox store is publicly reachable at `{slug}-test`; the storefront
-             *     keeps it out of crawlers and AI discovery (robots, sitemap, agents.md).
+             * @description A dev store is reachable at its own slug (`{slug}-dev` by default, behind a
+             *     storefront password); the storefront keeps it out of crawlers and AI
+             *     discovery (robots, sitemap, agents.md).
              */
             is_test?: boolean;
             /**
@@ -7815,7 +9572,8 @@ export interface components {
                 phone: string | null;
                 /** @description Email address. */
                 email: string | null;
-                whatsapp: string | null;
+                /** @description The WhatsApp chat app's first agent: published only while the store has the app installed. */
+                whatsapp: string;
             };
             brand?: {
                 logo: string | null;
@@ -7928,7 +9686,7 @@ export interface operations {
             };
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -8006,7 +9764,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -8085,7 +9843,7 @@ export interface operations {
             query?: never;
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -8187,7 +9945,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -8285,7 +10043,7 @@ export interface operations {
             query?: never;
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -8368,7 +10126,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -8441,7 +10199,7 @@ export interface operations {
             query?: never;
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -8505,7 +10263,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -8597,7 +10355,7 @@ export interface operations {
             query?: never;
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -8700,7 +10458,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -8817,7 +10575,7 @@ export interface operations {
             query?: never;
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -8918,7 +10676,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -9035,7 +10793,7 @@ export interface operations {
             query?: never;
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -9103,7 +10861,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -9209,7 +10967,7 @@ export interface operations {
             };
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -9271,10 +11029,54 @@ export interface operations {
                     "application/json": {
                         /** @constant */
                         status: "success";
-                        /** @constant */
-                        message: "Traffic retrieved.";
-                        data: Record<string, never>;
-                        meta: string;
+                        message: string;
+                        /** @description The store’s storefront traffic over the last `days` days. */
+                        data: {
+                            range: {
+                                /** @description Days in the range, counted on the store’s own calendar (its `timezone`). */
+                                days: number;
+                                /**
+                                 * Format: date-time
+                                 * @description Start of the first day (the store’s local midnight).
+                                 */
+                                start: string;
+                                /**
+                                 * Format: date-time
+                                 * @description The moment the range was read.
+                                 */
+                                end: string;
+                            };
+                            cards: {
+                                /** @description Page views in the range. */
+                                views: number;
+                                /** @description Visits in the range. */
+                                visits: number;
+                                /** @description Requests identified as bots. */
+                                bot_requests: number;
+                            };
+                            charts: {
+                                views_trend: {
+                                    /**
+                                     * Format: date
+                                     * @description The day, `YYYY-MM-DD`.
+                                     */
+                                    date: string;
+                                    views: number;
+                                    visits: number;
+                                }[];
+                            };
+                            meta: {
+                                /**
+                                 * Format: date-time
+                                 * @description When Queek started recording traffic for the store; null before the first event.
+                                 */
+                                collecting_since: string | null;
+                                /** @description How long raw events are kept. */
+                                raw_retention_days: number;
+                                /** @description Repeat views inside this window count once. */
+                                dedupe_window_minutes: number;
+                            };
+                        };
                     };
                 };
             };
@@ -9288,7 +11090,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -9384,7 +11186,7 @@ export interface operations {
             };
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -9485,10 +11287,71 @@ export interface operations {
                     "application/json": {
                         /** @constant */
                         status: "success";
-                        /** @constant */
-                        message: "Sales analytics retrieved.";
-                        data: Record<string, never>;
-                        meta: string;
+                        message: string;
+                        /** @description Order and revenue aggregates for a date range. */
+                        data: {
+                            range: {
+                                /**
+                                 * Format: date
+                                 * @description First day, `YYYY-MM-DD`, on the store’s own calendar (its `timezone`).
+                                 */
+                                start: string;
+                                /**
+                                 * Format: date
+                                 * @description Last day, `YYYY-MM-DD`.
+                                 */
+                                end: string;
+                                days: number;
+                            };
+                            /** @description The ISO 4217 code every amount here is in. */
+                            currency: string;
+                            currency_meta: {
+                                code: string;
+                                symbol: string;
+                                /** @description Decimal places in an amount of this currency. */
+                                precision: number;
+                            };
+                            cards: {
+                                total_orders: number;
+                                completed_orders: number;
+                                cancelled_orders: number;
+                                /** @description Sales before Queek’s commission, in the store currency. A decimal string at the currency’s precision. */
+                                gross_revenue: string;
+                                /** @description Average order value in the store currency. A decimal string at the currency’s precision. */
+                                avg_order_value: string;
+                            };
+                            charts: {
+                                order_trends: {
+                                    /** @description The bucket: a day, a week or a month, as `meta.period` says. */
+                                    period: string;
+                                    orders: number;
+                                }[];
+                                revenue_trends: {
+                                    period: string;
+                                    /** @description Revenue in the bucket. A decimal string at the currency’s precision. */
+                                    revenue: string;
+                                }[];
+                                status_distribution: {
+                                    /** @description `completed`, `pending`, `cancelled` or `rejected`. */
+                                    status: string;
+                                    orders: number;
+                                }[];
+                                channel_distribution: {
+                                    /** @description The sales channel key, such as `storefront` or `pos`. */
+                                    channel: string;
+                                    /** @description The channel’s display name. */
+                                    name: string;
+                                    orders: number;
+                                }[];
+                            };
+                            meta: {
+                                /**
+                                 * @description The width of a trend bucket: daily up to 31 days, weekly up to 90, monthly beyond.
+                                 * @enum {string}
+                                 */
+                                period: "daily" | "weekly" | "monthly";
+                            };
+                        };
                     };
                 };
             };
@@ -9502,7 +11365,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -9598,7 +11461,7 @@ export interface operations {
             };
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -9676,10 +11539,59 @@ export interface operations {
                     "application/json": {
                         /** @constant */
                         status: "success";
-                        /** @constant */
-                        message: "Product analytics retrieved.";
-                        data: Record<string, never>;
-                        meta: string;
+                        message: string;
+                        /** @description Product aggregates for a date range: the top ten by revenue and by quantity, by title only, with no per-day series and no variants. */
+                        data: {
+                            range: {
+                                /**
+                                 * Format: date
+                                 * @description First day, `YYYY-MM-DD`, on the store’s own calendar (its `timezone`).
+                                 */
+                                start: string;
+                                /**
+                                 * Format: date
+                                 * @description Last day, `YYYY-MM-DD`.
+                                 */
+                                end: string;
+                                days: number;
+                            };
+                            /** @description The ISO 4217 code every amount here is in. */
+                            currency: string;
+                            currency_meta: {
+                                code: string;
+                                symbol: string;
+                                /** @description Decimal places in an amount of this currency. */
+                                precision: number;
+                            };
+                            cards: {
+                                /** @description Units sold in the range. */
+                                total_products_sold: number;
+                                /** @description The product title with the most revenue; null when nothing sold. */
+                                bestselling_product: string | null;
+                                /** @description That product’s revenue. A decimal string at the currency’s precision. */
+                                bestselling_product_revenue: string;
+                                /** @description The product title with the most units; null when nothing sold. */
+                                most_popular_product: string | null;
+                                most_popular_product_quantity: number;
+                            };
+                            charts: {
+                                top_products_by_revenue: {
+                                    /** @description The product title. Products carry no id here. */
+                                    name: string;
+                                    /** @description Revenue in the range. A decimal string at the currency’s precision. */
+                                    revenue: string;
+                                }[];
+                                top_products_by_quantity: {
+                                    name: string;
+                                    quantity: number;
+                                }[];
+                                category_distribution: {
+                                    /** @description The collection name, or `Uncategorized`. */
+                                    name: string;
+                                    order_lines: number;
+                                }[];
+                            };
+                        };
                     };
                 };
             };
@@ -9693,7 +11605,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -9789,7 +11701,7 @@ export interface operations {
             };
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -9857,10 +11769,52 @@ export interface operations {
                     "application/json": {
                         /** @constant */
                         status: "success";
-                        /** @constant */
-                        message: "Customer analytics retrieved.";
-                        data: Record<string, never>;
-                        meta: string;
+                        message: string;
+                        /** @description Customer aggregates for a date range: counts, shares and one average; no customer, name or contact. */
+                        data: {
+                            range: {
+                                /**
+                                 * Format: date
+                                 * @description First day, `YYYY-MM-DD`, on the store’s own calendar (its `timezone`).
+                                 */
+                                start: string;
+                                /**
+                                 * Format: date
+                                 * @description Last day, `YYYY-MM-DD`.
+                                 */
+                                end: string;
+                                days: number;
+                            };
+                            /** @description The ISO 4217 code every amount here is in. */
+                            currency: string;
+                            currency_meta: {
+                                code: string;
+                                symbol: string;
+                                /** @description Decimal places in an amount of this currency. */
+                                precision: number;
+                            };
+                            cards: {
+                                new_customers: number;
+                                returning_customers: number;
+                                /** @description Percent of customers active in the last 7 days who had ordered before, two decimals. */
+                                retention_7_days: number;
+                                /** @description The same for the last 30 days. */
+                                retention_30_days: number;
+                                /** @description Average lifetime value of a customer, in the store currency. A decimal string at the currency’s precision. */
+                                avg_customer_ltv: string;
+                            };
+                            charts: {
+                                customer_segments: {
+                                    /** @enum {string} */
+                                    segment: "first_time" | "loyal";
+                                    customers: number;
+                                }[];
+                                payment_methods: {
+                                    method: string;
+                                    orders: number;
+                                }[];
+                            };
+                        };
                     };
                 };
             };
@@ -9874,7 +11828,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -9953,7 +11907,7 @@ export interface operations {
             query?: never;
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -10033,7 +11987,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -10126,12 +12080,284 @@ export interface operations {
             };
         };
     };
+    "app.metafields_get": {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @example {{merchantKey}}
+                 */
+                "X-Client-Key": string;
+                /** @description Your own correlation id (8–128 chars, `^[A-Za-z0-9_.:-]+$`). Echoed back on the response and on every log line of the request; one is generated when you omit it. */
+                "X-Request-Id"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "status": "success",
+                     *       "message": "App metafields",
+                     *       "data": {
+                     *         "metafields": {
+                     *           "app_example_channel.busy_season_starts": "2026-12-01",
+                     *           "app_example_channel.default_lead_days": 4
+                     *         }
+                     *       }
+                     *     }
+                     */
+                    "application/json": {
+                        /** @constant */
+                        status: "success";
+                        /** @constant */
+                        message: "App metafields";
+                        data: Record<string, never>;
+                        meta: string;
+                    };
+                };
+            };
+            /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "invalid_client_key",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Forbidden — the key cannot call this operation. Switch on `error.code`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "insufficient_scope",
+                     *         "message": "This API key does not carry the 'merchant-app_metafields-read' scope it was called with.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Too many requests — slow down and retry. Switch on `error.code`. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "too_many_requests",
+                     *         "message": "Too Many Attempts.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+        };
+    };
+    "app.metafields_update": {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @example {{merchantKey}}
+                 */
+                "X-Client-Key": string;
+                /** @description Your own correlation id (8–128 chars, `^[A-Za-z0-9_.:-]+$`). Echoed back on the response and on every log line of the request; one is generated when you omit it. */
+                "X-Request-Id"?: string;
+                /** @description Retry-safe write key. The same key with the same body replays the stored response for 24h with `Idempotent-Replayed: true`; with a different body it is `409 idempotency_key_reuse`; while the first call is still running it is `409 idempotency_key_in_progress`. */
+                "Idempotency-Key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "metafields": [
+                 *         {
+                 *           "namespace": "app_example_channel",
+                 *           "key": "default_lead_days",
+                 *           "value": 4
+                 *         },
+                 *         {
+                 *           "namespace": "app_example_channel",
+                 *           "key": "busy_season_starts",
+                 *           "value": "2026-12-01"
+                 *         }
+                 *       ]
+                 *     }
+                 */
+                "application/json": components["schemas"]["AppInstallationMetafieldsRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "status": "success",
+                     *       "message": "App metafields saved.",
+                     *       "data": {
+                     *         "metafields": {
+                     *           "app_example_channel.busy_season_starts": "2026-12-01",
+                     *           "app_example_channel.default_lead_days": 4
+                     *         }
+                     *       }
+                     *     }
+                     */
+                    "application/json": {
+                        /** @constant */
+                        status: "success";
+                        /** @constant */
+                        message: "App metafields saved.";
+                        data: Record<string, never>;
+                        meta: string;
+                    };
+                };
+            };
+            /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "invalid_client_key",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Forbidden — the key cannot call this operation. Switch on `error.code`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "insufficient_scope",
+                     *         "message": "This API key does not carry the 'merchant-app_metafields-update' scope it was called with.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Idempotency conflict — `idempotency_key_reuse` or `idempotency_key_in_progress`. Switch on `error.code`. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "idempotency_key_reuse",
+                     *         "message": "This Idempotency-Key was already used for a different request body. Use a new key for a new request.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#idempotency_key_reuse",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Validation failed — `error.errors` carries per-field detail. Switch on `error.code`. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "validation_failed",
+                     *         "message": "No metafield definition 'app_example_channel.unknown' exists for installation. Create it with POST /api/v1/biz/vendor/metafield-definitions before sending a value.",
+                     *         "field": "metafields.0.key",
+                     *         "errors": {
+                     *           "metafields.0.key": [
+                     *             "No metafield definition 'app_example_channel.unknown' exists for installation. Create it with POST /api/v1/biz/vendor/metafield-definitions before sending a value."
+                     *           ]
+                     *         },
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Too many requests — slow down and retry. Switch on `error.code`. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "too_many_requests",
+                     *         "message": "Too Many Attempts.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+        };
+    };
     "app.alerts_create": {
         parameters: {
             query?: never;
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -10177,10 +12403,18 @@ export interface operations {
                     "application/json": {
                         /** @constant */
                         status: "success";
-                        /** @enum {string} */
-                        message: "Alert already sent." | "Alert sent.";
-                        data: Record<string, never>;
-                        meta: string;
+                        message: string;
+                        /** @description The alert that was recorded for the merchant. */
+                        data: {
+                            /** @constant */
+                            type: "app_alert";
+                            /** @description The severity that was sent. */
+                            severity: string;
+                            /** @description True when the same `dedupe_key` was already sent and nothing new was created. */
+                            deduped: boolean;
+                            /** @description The notification created; null for a deduped repeat and for a dev store, which sends nothing. */
+                            notification_id: string | null;
+                        };
                     };
                 };
             };
@@ -10194,7 +12428,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -10292,7 +12526,7 @@ export interface operations {
             query?: never;
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -10359,7 +12593,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -10455,6 +12689,187 @@ export interface operations {
             };
         };
     };
+    "app.line_inputs_write": {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @example {{merchantKey}}
+                 */
+                "X-Client-Key": string;
+                /** @description Your own correlation id (8–128 chars, `^[A-Za-z0-9_.:-]+$`). Echoed back on the response and on every log line of the request; one is generated when you omit it. */
+                "X-Request-Id"?: string;
+                /** @description Retry-safe write key. The same key with the same body replays the stored response for 24h with `Idempotent-Replayed: true`; with a different body it is `409 idempotency_key_reuse`; while the first call is still running it is `409 idempotency_key_in_progress`. */
+                "Idempotency-Key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "items": [
+                 *         {
+                 *           "product_p_id": 20418,
+                 *           "fields": [
+                 *             {
+                 *               "key": "engraving",
+                 *               "required": true,
+                 *               "max_length": 30
+                 *             }
+                 *           ]
+                 *         }
+                 *       ]
+                 *     }
+                 */
+                "application/json": components["schemas"]["AppLineInputStoreRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "status": "success",
+                     *       "message": "Line inputs saved.",
+                     *       "data": {
+                     *         "line_inputs": [
+                     *           {
+                     *             "product_p_id": 20418,
+                     *             "fields": [
+                     *               {
+                     *                 "key": "engraving",
+                     *                 "label": "Engraving text",
+                     *                 "required": true,
+                     *                 "max_length": 30
+                     *               }
+                     *             ]
+                     *           }
+                     *         ]
+                     *       }
+                     *     }
+                     */
+                    "application/json": {
+                        /** @constant */
+                        status: "success";
+                        /** @constant */
+                        message: "Line inputs saved.";
+                        data: Record<string, never>;
+                        meta: string;
+                    };
+                };
+            };
+            /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "invalid_client_key",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Forbidden — the key cannot call this operation. Switch on `error.code`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "insufficient_scope",
+                     *         "message": "This API key does not carry the 'merchant-app-requirements-write' scope it was called with.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Idempotency conflict — `idempotency_key_reuse` or `idempotency_key_in_progress`. Switch on `error.code`. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "idempotency_key_reuse",
+                     *         "message": "This Idempotency-Key was already used for a different request body. Use a new key for a new request.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#idempotency_key_reuse",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Validation failed — `error.errors` carries per-field detail. Switch on `error.code`. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "validation_failed",
+                     *         "message": "Product p_id 999999 was not found on this store.",
+                     *         "field": "items.0.product_p_id",
+                     *         "errors": {
+                     *           "items.0.product_p_id": [
+                     *             "Product p_id 999999 was not found on this store."
+                     *           ],
+                     *           "items.0.fields.0.key": [
+                     *             "This key is not a line_text field of the extensions this installation was granted."
+                     *           ]
+                     *         },
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Too many requests — slow down and retry. Switch on `error.code`. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "too_many_requests",
+                     *         "message": "Too Many Attempts.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+        };
+    };
     "app.collected_definitions_list": {
         parameters: {
             query?: {
@@ -10468,7 +12883,7 @@ export interface operations {
             };
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -10497,6 +12912,7 @@ export interface operations {
                      *           "storefront_visible": false,
                      *           "has_pages": false,
                      *           "data_class": "collected",
+                     *           "app_owned": false,
                      *           "entry_cap_override": null,
                      *           "retention_days": null,
                      *           "fields": [
@@ -10547,7 +12963,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -10626,7 +13042,7 @@ export interface operations {
             query?: never;
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -10690,6 +13106,7 @@ export interface operations {
                      *         "storefront_visible": false,
                      *         "has_pages": false,
                      *         "data_class": "collected",
+                     *         "app_owned": false,
                      *         "entry_cap_override": null,
                      *         "retention_days": null,
                      *         "fields": [
@@ -10737,7 +13154,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -10835,7 +13252,7 @@ export interface operations {
             query?: never;
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -10882,6 +13299,7 @@ export interface operations {
                      *         "storefront_visible": false,
                      *         "has_pages": false,
                      *         "data_class": "collected",
+                     *         "app_owned": false,
                      *         "entry_cap_override": null,
                      *         "retention_days": null,
                      *         "fields": [
@@ -10929,7 +13347,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -11069,7 +13487,7 @@ export interface operations {
             };
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -11126,7 +13544,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -11205,7 +13623,7 @@ export interface operations {
             query?: never;
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -11276,7 +13694,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -11374,7 +13792,7 @@ export interface operations {
             query?: never;
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -11438,7 +13856,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -11511,7 +13929,7 @@ export interface operations {
             query?: never;
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -11590,7 +14008,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -11731,7 +14149,7 @@ export interface operations {
             };
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -11757,6 +14175,7 @@ export interface operations {
                      *           "name": "Party Packs",
                      *           "slug": "party-packs",
                      *           "description": "Trays that feed a crowd.",
+                     *           "seo": null,
                      *           "image": "https://media.usequeek.com/uploads/stores/1095/collections/party-packs.jpg",
                      *           "logo": null,
                      *           "featured": true,
@@ -11764,6 +14183,7 @@ export interface operations {
                      *           "collection_mode": "manual",
                      *           "parent_uid": null,
                      *           "products_count": 6,
+                     *           "metafields": {},
                      *           "children": [],
                      *           "created_at": "2026-07-01T12:00:00+01:00",
                      *           "updated_at": "2026-09-20T09:15:00+01:00"
@@ -11774,6 +14194,7 @@ export interface operations {
                      *           "name": "Drinks",
                      *           "slug": "drinks",
                      *           "description": "Chapman, zobo and fresh juices.",
+                     *           "seo": null,
                      *           "image": null,
                      *           "logo": null,
                      *           "featured": false,
@@ -11781,6 +14202,7 @@ export interface operations {
                      *           "collection_mode": "smart",
                      *           "parent_uid": null,
                      *           "products_count": 3,
+                     *           "metafields": {},
                      *           "children": [],
                      *           "created_at": "2026-07-01T12:00:00+01:00",
                      *           "updated_at": "2026-09-20T09:15:00+01:00"
@@ -11807,7 +14229,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -11881,12 +14303,358 @@ export interface operations {
             };
         };
     };
+    "collections.retrieve": {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @example {{merchantKey}}
+                 */
+                "X-Client-Key": string;
+                /** @description Your own correlation id (8–128 chars, `^[A-Za-z0-9_.:-]+$`). Echoed back on the response and on every log line of the request; one is generated when you omit it. */
+                "X-Request-Id"?: string;
+            };
+            path: {
+                /**
+                 * @description Identifier of the collection, as returned by the Merchant API.
+                 * @example 3108
+                 */
+                collection: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "status": "success",
+                     *       "message": "collection",
+                     *       "data": {
+                     *         "id": 3108,
+                     *         "uid": "019a1c10-2b4d-7e8f-9a01-3c5d7e9f1b21",
+                     *         "name": "Party Packs",
+                     *         "slug": "party-packs",
+                     *         "description": "Trays that feed a crowd.",
+                     *         "seo": null,
+                     *         "image": "https://media.usequeek.com/uploads/stores/1095/collections/party-packs.jpg",
+                     *         "logo": null,
+                     *         "featured": true,
+                     *         "position": 1,
+                     *         "collection_mode": "manual",
+                     *         "parent_uid": null,
+                     *         "products_count": 6,
+                     *         "metafields": {},
+                     *         "children": [],
+                     *         "created_at": "2026-07-01T12:00:00+01:00",
+                     *         "updated_at": "2026-09-20T09:15:00+01:00"
+                     *       }
+                     *     }
+                     */
+                    "application/json": {
+                        /** @constant */
+                        status: "success";
+                        /** @constant */
+                        message: "collection";
+                        data: Record<string, never>;
+                        meta: string;
+                    };
+                };
+            };
+            /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "invalid_client_key",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Forbidden — the key cannot call this operation. Switch on `error.code`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "insufficient_scope",
+                     *         "message": "This API key does not carry the 'merchant-collections-detail' scope it was called with.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Not found — the addressed record does not exist at this store. Switch on `error.code`. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "not_found",
+                     *         "message": "Collection not found",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#not_found",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Too many requests — slow down and retry. Switch on `error.code`. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "too_many_requests",
+                     *         "message": "Too Many Attempts.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+        };
+    };
+    "collections.update": {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @example {{merchantKey}}
+                 */
+                "X-Client-Key": string;
+                /** @description Your own correlation id (8–128 chars, `^[A-Za-z0-9_.:-]+$`). Echoed back on the response and on every log line of the request; one is generated when you omit it. */
+                "X-Request-Id"?: string;
+                /** @description Retry-safe write key. The same key with the same body replays the stored response for 24h with `Idempotent-Replayed: true`; with a different body it is `409 idempotency_key_reuse`; while the first call is still running it is `409 idempotency_key_in_progress`. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                /**
+                 * @description Identifier of the collection, as returned by the Merchant API.
+                 * @example 3108
+                 */
+                collection: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "name": "Party Packs",
+                 *       "description": "Trays that feed a crowd.",
+                 *       "featured": true,
+                 *       "metafields": [
+                 *         {
+                 *           "namespace": "custom",
+                 *           "key": "banner_text",
+                 *           "value": "Feeds 10 or more"
+                 *         }
+                 *       ]
+                 *     }
+                 */
+                "multipart/form-data": components["schemas"]["CategoryRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "status": "success",
+                     *       "message": "collection updated",
+                     *       "data": {
+                     *         "id": 3108,
+                     *         "uid": "019a1c10-2b4d-7e8f-9a01-3c5d7e9f1b21",
+                     *         "name": "Party Packs",
+                     *         "slug": "party-packs",
+                     *         "description": "Trays that feed a crowd.",
+                     *         "seo": null,
+                     *         "image": "https://media.usequeek.com/uploads/stores/1095/collections/party-packs.jpg",
+                     *         "logo": null,
+                     *         "featured": true,
+                     *         "position": 1,
+                     *         "collection_mode": "manual",
+                     *         "parent_uid": null,
+                     *         "products_count": 6,
+                     *         "metafields": {},
+                     *         "children": [],
+                     *         "created_at": "2026-07-01T12:00:00+01:00",
+                     *         "updated_at": "2026-09-20T09:15:00+01:00"
+                     *       }
+                     *     }
+                     */
+                    "application/json": {
+                        /** @constant */
+                        status: "success";
+                        /** @constant */
+                        message: "collection updated";
+                        data: Record<string, never>;
+                        meta: string;
+                    };
+                };
+            };
+            /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "invalid_client_key",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Forbidden — the key cannot call this operation. Switch on `error.code`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "insufficient_scope",
+                     *         "message": "This API key does not carry the 'merchant-collections-update' scope it was called with.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Not found — the addressed record does not exist at this store. Switch on `error.code`. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "not_found",
+                     *         "message": "Collection not found",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#not_found",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Idempotency conflict — `idempotency_key_reuse` or `idempotency_key_in_progress`. Switch on `error.code`. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "idempotency_key_reuse",
+                     *         "message": "This Idempotency-Key was already used for a different request body. Use a new key for a new request.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#idempotency_key_reuse",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Validation failed — `error.errors` carries per-field detail. Switch on `error.code`. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "validation_failed",
+                     *         "message": "The name field is required.",
+                     *         "field": "name",
+                     *         "errors": {
+                     *           "name": [
+                     *             "The name field is required."
+                     *           ]
+                     *         },
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Too many requests — slow down and retry. Switch on `error.code`. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "too_many_requests",
+                     *         "message": "Too Many Attempts.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+        };
+    };
     "collections.bulk_create": {
         parameters: {
             query?: never;
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -11946,6 +14714,7 @@ export interface operations {
                      *           "name": "Drinks",
                      *           "slug": "drinks",
                      *           "description": "Chapman, zobo and fresh juices.",
+                     *           "seo": null,
                      *           "image": null,
                      *           "logo": null,
                      *           "featured": false,
@@ -11953,6 +14722,7 @@ export interface operations {
                      *           "collection_mode": "smart",
                      *           "parent_uid": null,
                      *           "products_count": 3,
+                     *           "metafields": {},
                      *           "children": [],
                      *           "created_at": "2026-07-01T12:00:00+01:00",
                      *           "updated_at": "2026-07-01T12:00:00+01:00"
@@ -11980,7 +14750,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -12078,7 +14848,7 @@ export interface operations {
             query?: never;
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -12144,7 +14914,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -12261,7 +15031,7 @@ export interface operations {
             query?: never;
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -12328,7 +15098,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -12460,7 +15230,7 @@ export interface operations {
             };
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -12508,6 +15278,7 @@ export interface operations {
                      *             "title": "How we smoke our party jollof | Adeyemi Foods",
                      *             "description": "Inside the Adeyemi Foods kitchen."
                      *           },
+                     *           "metafields": {},
                      *           "position": 1,
                      *           "is_home": false,
                      *           "chrome": "full",
@@ -12571,7 +15342,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -12650,7 +15421,7 @@ export interface operations {
             query?: never;
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -12678,7 +15449,14 @@ export interface operations {
                  *       "seo": {
                  *         "title": "How we smoke our party jollof | Adeyemi Foods",
                  *         "description": "Inside the Adeyemi Foods kitchen."
-                 *       }
+                 *       },
+                 *       "metafields": [
+                 *         {
+                 *           "namespace": "custom",
+                 *           "key": "reading_level",
+                 *           "value": "beginner"
+                 *         }
+                 *       ]
                  *     }
                  */
                 "application/json": components["schemas"]["MerchantStorePostRequest"];
@@ -12722,6 +15500,7 @@ export interface operations {
                      *           "title": "How we smoke our party jollof | Adeyemi Foods",
                      *           "description": "Inside the Adeyemi Foods kitchen."
                      *         },
+                     *         "metafields": {},
                      *         "position": 1,
                      *         "is_home": false,
                      *         "chrome": "full",
@@ -12750,7 +15529,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -12848,7 +15627,7 @@ export interface operations {
             query?: never;
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -12903,6 +15682,7 @@ export interface operations {
                      *           "title": "How we smoke our party jollof | Adeyemi Foods",
                      *           "description": "Inside the Adeyemi Foods kitchen."
                      *         },
+                     *         "metafields": {},
                      *         "position": 1,
                      *         "is_home": false,
                      *         "chrome": "full",
@@ -12931,7 +15711,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -13004,7 +15784,7 @@ export interface operations {
             query?: never;
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -13032,7 +15812,14 @@ export interface operations {
                  *         "jollof",
                  *         "kitchen"
                  *       ],
-                 *       "status": "published"
+                 *       "status": "published",
+                 *       "metafields": [
+                 *         {
+                 *           "namespace": "custom",
+                 *           "key": "reading_level",
+                 *           "value": "beginner"
+                 *         }
+                 *       ]
                  *     }
                  */
                 "application/json": components["schemas"]["MerchantUpdatePostRequest"];
@@ -13076,6 +15863,7 @@ export interface operations {
                      *           "title": "How we smoke our party jollof | Adeyemi Foods",
                      *           "description": "Inside the Adeyemi Foods kitchen."
                      *         },
+                     *         "metafields": {},
                      *         "position": 1,
                      *         "is_home": false,
                      *         "chrome": "full",
@@ -13104,7 +15892,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -13221,7 +16009,7 @@ export interface operations {
             query?: never;
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -13282,7 +16070,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -13387,7 +16175,7 @@ export interface operations {
             };
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -13494,7 +16282,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -13573,7 +16361,7 @@ export interface operations {
             query?: never;
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -13669,7 +16457,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -13767,7 +16555,7 @@ export interface operations {
             query?: never;
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -13855,7 +16643,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -13928,7 +16716,7 @@ export interface operations {
             query?: never;
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -13989,7 +16777,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -14081,7 +16869,7 @@ export interface operations {
             query?: never;
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -14194,7 +16982,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -14335,7 +17123,7 @@ export interface operations {
             };
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -14429,7 +17217,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -14508,7 +17296,7 @@ export interface operations {
             query?: never;
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -14581,7 +17369,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -14672,7 +17460,7 @@ export interface operations {
             };
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -14762,7 +17550,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -14860,7 +17648,7 @@ export interface operations {
             query?: never;
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -14943,7 +17731,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -15079,7 +17867,7 @@ export interface operations {
             query?: never;
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -15140,7 +17928,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -15252,7 +18040,7 @@ export interface operations {
             };
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -15320,7 +18108,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -15399,7 +18187,7 @@ export interface operations {
             query?: never;
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -15485,7 +18273,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -15583,7 +18371,7 @@ export interface operations {
             query?: never;
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -15668,7 +18456,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -15817,7 +18605,7 @@ export interface operations {
             };
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -15845,6 +18633,7 @@ export interface operations {
                      *           "phone": "+2348059876543",
                      *           "avatar": null,
                      *           "tags": [],
+                     *           "metafields": {},
                      *           "created_at": "2026-08-11T08:40:00+01:00",
                      *           "updated_at": "2026-09-18T20:02:00+01:00",
                      *           "email_marketing_consent": {
@@ -15868,6 +18657,7 @@ export interface operations {
                      *             "vip",
                      *             "wholesale"
                      *           ],
+                     *           "metafields": {},
                      *           "created_at": "2026-07-03T19:12:00+01:00",
                      *           "updated_at": "2026-09-24T12:58:00+01:00",
                      *           "email_marketing_consent": {
@@ -15902,7 +18692,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -15991,7 +18781,7 @@ export interface operations {
             };
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -16055,7 +18845,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -16134,7 +18924,7 @@ export interface operations {
             query?: never;
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -16172,6 +18962,7 @@ export interface operations {
                      *           "vip",
                      *           "wholesale"
                      *         ],
+                     *         "metafields": {},
                      *         "created_at": "2026-07-03T19:12:00+01:00",
                      *         "updated_at": "2026-09-24T12:58:00+01:00",
                      *         "email_marketing_consent": {
@@ -16206,7 +18997,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -16279,7 +19070,7 @@ export interface operations {
             query?: never;
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -16344,7 +19135,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -16461,7 +19252,7 @@ export interface operations {
             query?: never;
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -16542,7 +19333,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -16670,7 +19461,7 @@ export interface operations {
             };
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -16697,7 +19488,7 @@ export interface operations {
                      * @example {
                      *       "data": [
                      *         {
-                     *           "created_at": "2026-09-20T09:00:00.000000Z",
+                     *           "created_at": "2026-09-20T11:00:00+01:00",
                      *           "product": {
                      *             "shop_id": "019a0b3a-af57-72d0-9c13-7036c3805892",
                      *             "id": "019a1d52-3c8e-7f41-b0d2-6a3e9c1f4b22",
@@ -16812,7 +19603,7 @@ export interface operations {
                      *               "quantity": 60,
                      *               "allow_backorder": false,
                      *               "low_stock_threshold": 5,
-                     *               "updated_at": "2026-09-22 16:05:00"
+                     *               "updated_at": "2026-09-22T16:05:00+01:00"
                      *             },
                      *             "variant_summary": {
                      *               "count": 2,
@@ -16831,8 +19622,8 @@ export interface operations {
                      *               "is_new": false
                      *             },
                      *             "metafields": {},
-                     *             "created_at": "2026-07-15 11:30:00",
-                     *             "updated_at": "2026-09-22 16:05:00",
+                     *             "created_at": "2026-07-15T11:30:00+01:00",
+                     *             "updated_at": "2026-09-22T16:05:00+01:00",
                      *             "shop": {
                      *               "id": "019a0b3a-af57-72d0-9c13-7036c3805892",
                      *               "name": "Adeyemi Foods",
@@ -16979,7 +19770,8 @@ export interface operations {
                      *                   ],
                      *                   "video_url": null,
                      *                   "source": "product"
-                     *                 }
+                     *                 },
+                     *                 "metafields": {}
                      *               },
                      *               {
                      *                 "id": "019a1d52-5f10-7a02-8c61-0b2d4e6f8a32",
@@ -17077,7 +19869,8 @@ export interface operations {
                      *                   ],
                      *                   "video_url": null,
                      *                   "source": "product"
-                     *                 }
+                     *                 },
+                     *                 "metafields": {}
                      *               }
                      *             ],
                      *             "fulfillment": {
@@ -17093,12 +19886,7 @@ export interface operations {
                      *               "country_of_origin": null,
                      *               "safety_notes": null
                      *             },
-                     *             "seo": {
-                     *               "meta_title": null,
-                     *               "meta_description": null,
-                     *               "canonical_url": null,
-                     *               "keywords": []
-                     *             },
+                     *             "seo": null,
                      *             "analytics": {
                      *               "sales_count": 31,
                      *               "view_count": 218,
@@ -17137,7 +19925,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -17250,7 +20038,7 @@ export interface operations {
             };
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -17319,7 +20107,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -17398,7 +20186,7 @@ export interface operations {
             query?: never;
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -17471,7 +20259,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -17569,7 +20357,7 @@ export interface operations {
             query?: never;
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -17633,7 +20421,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -17706,7 +20494,7 @@ export interface operations {
             query?: never;
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -17767,7 +20555,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -17859,7 +20647,7 @@ export interface operations {
             query?: never;
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -17936,7 +20724,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -18053,7 +20841,7 @@ export interface operations {
             query?: never;
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -18102,6 +20890,7 @@ export interface operations {
                      *               "vip",
                      *               "wholesale"
                      *             ],
+                     *             "metafields": {},
                      *             "created_at": "2026-07-03T19:12:00+01:00",
                      *             "updated_at": "2026-09-24T12:58:00+01:00"
                      *           },
@@ -18113,6 +20902,7 @@ export interface operations {
                      *             "phone": "+2348059876543",
                      *             "avatar": null,
                      *             "tags": [],
+                     *             "metafields": {},
                      *             "created_at": "2026-08-11T08:40:00+01:00",
                      *             "updated_at": "2026-09-18T20:02:00+01:00"
                      *           }
@@ -18143,7 +20933,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -18253,16 +21043,24 @@ export interface operations {
                  * @example active
                  */
                 status?: "active" | "inactive" | null;
+                /** @description Only discounts in this state: `active` (applying now), `scheduled` (starts later), `expired` (ended, or its usage limit is used up), `draft` (unpublished) or `inactive` (switched off). */
+                state?: "inactive" | "draft" | "expired" | "scheduled" | "active" | null;
                 /** @description Only discounts that are published (`true`) or still unpublished (`false`). A discount reaches shoppers only while it is both active and published. */
                 is_published?: boolean | null;
                 /** @description Free-text filter: only items matching this text are returned. */
                 search?: string | null;
                 /** @description One of `all`, `discount`, `promotion`. */
                 campaign_type?: "all" | "discount" | "promotion" | null;
+                /** @description `automatic` (the default: discounts applied at the price), `code` (discount codes) or `all` (both, one list: each row carries `method`, `kind` and `value_type`, and the response a `counts` object). */
+                method?: "all" | "automatic" | "code" | null;
+                /** @description Field to sort the list by. One of `created_at`, `title`, `usage_count`, `valid_from`, `valid_until`. */
+                sort_by?: "created_at" | "title" | "usage_count" | "valid_from" | "valid_until" | null;
+                /** @description Sort direction. One of `asc`, `desc`. */
+                sort_order?: "asc" | "desc" | null;
             };
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -18303,6 +21101,7 @@ export interface operations {
                      *           "usage_count": 0,
                      *           "auto_apply": false,
                      *           "status": "active",
+                     *           "state": "inactive",
                      *           "is_active": true,
                      *           "is_published": false,
                      *           "image_url": null,
@@ -18333,6 +21132,7 @@ export interface operations {
                      *           "usage_count": 274,
                      *           "auto_apply": true,
                      *           "status": "active",
+                     *           "state": "active",
                      *           "is_active": true,
                      *           "is_published": true,
                      *           "image_url": "https://media.usequeek.com/uploads/stores/1095/discounts/party-pack-season.jpg",
@@ -18364,7 +21164,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -18443,7 +21243,7 @@ export interface operations {
             query?: never;
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -18510,6 +21310,7 @@ export interface operations {
                      *         "usage_count": 0,
                      *         "auto_apply": false,
                      *         "status": "active",
+                     *         "state": "inactive",
                      *         "is_active": true,
                      *         "is_published": false,
                      *         "image_url": null,
@@ -18539,7 +21340,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -18637,7 +21438,7 @@ export interface operations {
             query?: never;
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -18685,6 +21486,7 @@ export interface operations {
                      *         "usage_count": 274,
                      *         "auto_apply": true,
                      *         "status": "active",
+                     *         "state": "active",
                      *         "is_active": true,
                      *         "is_published": true,
                      *         "image_url": "https://media.usequeek.com/uploads/stores/1095/discounts/party-pack-season.jpg",
@@ -18714,7 +21516,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -18787,7 +21589,7 @@ export interface operations {
             query?: never;
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -18848,6 +21650,7 @@ export interface operations {
                      *         "usage_count": 274,
                      *         "auto_apply": true,
                      *         "status": "active",
+                     *         "state": "active",
                      *         "is_active": true,
                      *         "is_published": true,
                      *         "image_url": "https://media.usequeek.com/uploads/stores/1095/discounts/party-pack-season.jpg",
@@ -18877,7 +21680,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -18994,7 +21797,7 @@ export interface operations {
             query?: never;
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -19049,7 +21852,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -19141,7 +21944,7 @@ export interface operations {
             query?: never;
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -19196,7 +21999,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -19296,7 +22099,7 @@ export interface operations {
             };
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -19381,7 +22184,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -19460,7 +22263,7 @@ export interface operations {
             query?: never;
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -19613,7 +22416,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -19711,7 +22514,7 @@ export interface operations {
             query?: never;
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -19769,7 +22572,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -19861,7 +22664,7 @@ export interface operations {
             query?: never;
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -19962,7 +22765,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -20079,7 +22882,7 @@ export interface operations {
             query?: never;
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -20163,7 +22966,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -20244,7 +23047,7 @@ export interface operations {
             };
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -20374,7 +23177,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -20472,7 +23275,7 @@ export interface operations {
             query?: never;
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -20632,7 +23435,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -20749,7 +23552,7 @@ export interface operations {
             query?: never;
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -20809,7 +23612,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -20901,7 +23704,7 @@ export interface operations {
             query?: never;
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -21007,7 +23810,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -21124,7 +23927,7 @@ export interface operations {
             query?: never;
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -21171,7 +23974,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -21240,7 +24043,7 @@ export interface operations {
             };
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -21265,6 +24068,20 @@ export interface operations {
                      *           "slug": "homemade-chapman",
                      *           "barcode": null,
                      *           "stock": 60,
+                     *           "locations": [
+                     *             {
+                     *               "location_id": 1000,
+                     *               "quantity": 60,
+                     *               "mode": "sells_online",
+                     *               "counts_online": true,
+                     *               "committed": 0
+                     *             }
+                     *           ],
+                     *           "online": {
+                     *             "units": 60,
+                     *             "locations": 1,
+                     *             "message": "60 units can be sold online."
+                     *           },
                      *           "effective_tracking": true,
                      *           "variants": [
                      *             {
@@ -21273,6 +24090,27 @@ export interface operations {
                      *               "barcode": "615625300050",
                      *               "title": "50cl",
                      *               "stock": 36,
+                     *               "locations": [
+                     *                 {
+                     *                   "location_id": 1000,
+                     *                   "quantity": 30,
+                     *                   "mode": "sells_online",
+                     *                   "counts_online": true,
+                     *                   "committed": 0
+                     *                 },
+                     *                 {
+                     *                   "location_id": 1001,
+                     *                   "quantity": 6,
+                     *                   "mode": "sells_online",
+                     *                   "counts_online": true,
+                     *                   "committed": 0
+                     *                 }
+                     *               ],
+                     *               "online": {
+                     *                 "units": 36,
+                     *                 "locations": 2,
+                     *                 "message": "36 units can be sold online, from 2 locations."
+                     *               },
                      *               "is_active": true,
                      *               "effective_tracking": true
                      *             },
@@ -21282,6 +24120,20 @@ export interface operations {
                      *               "barcode": null,
                      *               "title": "1 litre",
                      *               "stock": 24,
+                     *               "locations": [
+                     *                 {
+                     *                   "location_id": 1000,
+                     *                   "quantity": 24,
+                     *                   "mode": "sells_online",
+                     *                   "counts_online": true,
+                     *                   "committed": 0
+                     *                 }
+                     *               ],
+                     *               "online": {
+                     *                 "units": 24,
+                     *                 "locations": 1,
+                     *                 "message": "24 units can be sold online."
+                     *               },
                      *               "is_active": true,
                      *               "effective_tracking": true
                      *             }
@@ -21309,7 +24161,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -21388,7 +24240,7 @@ export interface operations {
             query?: never;
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -21429,6 +24281,7 @@ export interface operations {
                      *         "level": {
                      *           "product_p_id": 20417,
                      *           "variant_p_id": null,
+                     *           "location_id": null,
                      *           "mode": "set",
                      *           "before": 42,
                      *           "change": 2,
@@ -21452,6 +24305,7 @@ export interface operations {
                      *           },
                      *           "variant": null,
                      *           "order": null,
+                     *           "location_id": null,
                      *           "shortfall": {
                      *             "captured": false,
                      *             "quantity": 0
@@ -21479,7 +24333,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -21582,12 +24436,14 @@ export interface operations {
                 limit?: number | null;
                 /** @description Cursor for the next page: pass `next_cursor` from the previous response unchanged. Keep walking while `has_more` is true. */
                 starting_after?: string | null;
-                /** @description Only movements of this kind: `initial`, `restock`, `sale`, `adjustment`, `damage`, `return` or `purchase_order_received`. */
+                /** @description Only movements of these kinds, one or a comma list: `initial`, `restock`, `sale`, `adjustment`, `damage`, `return` or `purchase_order_received`. */
                 type?: string | null;
+                /** @description Only movements made at this location (its number); one that is not the store's matches nothing. Older movements belong to the default location. */
+                location_id?: number | null;
             };
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -21633,6 +24489,7 @@ export interface operations {
                      *             "id": 58213,
                      *             "uid": "019a3a0e-1c2d-7e3f-8a4b-5c6d7e8f9a01"
                      *           },
+                     *           "location_id": null,
                      *           "shortfall": {
                      *             "captured": false,
                      *             "quantity": 0
@@ -21656,6 +24513,7 @@ export interface operations {
                      *           },
                      *           "variant": null,
                      *           "order": null,
+                     *           "location_id": null,
                      *           "shortfall": {
                      *             "captured": false,
                      *             "quantity": 0
@@ -21684,7 +24542,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -21787,10 +24645,12 @@ export interface operations {
                 limit?: number | null;
                 /** @description Cursor for the next page: pass `next_cursor` from the previous response unchanged. Keep walking while `has_more` is true. */
                 starting_after?: string | null;
-                /** @description Only movements of this kind: `initial`, `restock`, `sale`, `adjustment`, `damage`, `return` or `purchase_order_received`. */
+                /** @description Only movements of these kinds, comma-separated (`sale,return`): `initial`, `restock`, `sale`, `adjustment`, `damage`, `return` or `purchase_order_received`. */
                 type?: string | null;
-                /** @description Only movements of this product, by its UUID (the `product.id` on each movement). */
+                /** @description Only movements of this product: its id (the `product.id` on each movement), slug or uid. */
                 product_id?: string | null;
+                /** @description Only movements made at this location (its number); one that is not the store's matches nothing. Older movements belong to the default location. */
+                location_id?: number | null;
                 /**
                  * @description Only movements recorded on or after this day (the date part of an ISO-8601 date or timestamp is used).
                  * @example 2026-09-24T00:00:00+01:00
@@ -21804,7 +24664,7 @@ export interface operations {
             };
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -21840,6 +24700,7 @@ export interface operations {
                      *             "slug": "homemade-chapman"
                      *           },
                      *           "variant": {
+                     *             "id": null,
                      *             "uid": "019a1d52-5f10-7a02-8c61-0b2d4e6f8a31",
                      *             "title": "50cl",
                      *             "option_values": {
@@ -21847,6 +24708,7 @@ export interface operations {
                      *             }
                      *           },
                      *           "order": null,
+                     *           "location_id": null,
                      *           "shortfall": {
                      *             "captured": false,
                      *             "quantity": 0
@@ -21873,6 +24735,7 @@ export interface operations {
                      *             "id": 58213,
                      *             "uid": "019a3a0e-1c2d-7e3f-8a4b-5c6d7e8f9a01"
                      *           },
+                     *           "location_id": null,
                      *           "shortfall": {
                      *             "captured": false,
                      *             "quantity": 0
@@ -21901,7 +24764,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -21980,7 +24843,7 @@ export interface operations {
             query?: never;
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -22034,6 +24897,7 @@ export interface operations {
                      *           "slug": "homemade-chapman"
                      *         },
                      *         "variant": {
+                     *           "id": null,
                      *           "uid": "019a1d52-5f10-7a02-8c61-0b2d4e6f8a31",
                      *           "title": "50cl",
                      *           "option_values": {
@@ -22041,6 +24905,7 @@ export interface operations {
                      *           }
                      *         },
                      *         "order": null,
+                     *         "location_id": null,
                      *         "shortfall": {
                      *           "captured": false,
                      *           "quantity": 0
@@ -22079,7 +24944,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -22190,7 +25055,7 @@ export interface operations {
             };
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -22266,7 +25131,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -22355,7 +25220,7 @@ export interface operations {
             };
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -22431,7 +25296,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -22520,7 +25385,7 @@ export interface operations {
             };
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -22584,7 +25449,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -22658,6 +25523,357 @@ export interface operations {
             };
         };
     };
+    "suppliers.create": {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @example {{merchantKey}}
+                 */
+                "X-Client-Key": string;
+                /** @description Your own correlation id (8–128 chars, `^[A-Za-z0-9_.:-]+$`). Echoed back on the response and on every log line of the request; one is generated when you omit it. */
+                "X-Request-Id"?: string;
+                /** @description Retry-safe write key. The same key with the same body replays the stored response for 24h with `Idempotent-Replayed: true`; with a different body it is `409 idempotency_key_reuse`; while the first call is still running it is `409 idempotency_key_in_progress`. */
+                "Idempotency-Key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "name": "Mile 12 Produce",
+                 *       "contact_name": "Tunde Bakare",
+                 *       "phone": "+2348039990011",
+                 *       "address": "Mile 12 Market, Lagos"
+                 *     }
+                 */
+                "application/json": components["schemas"]["MerchantSupplierRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "status": "success",
+                     *       "message": "Supplier created.",
+                     *       "data": {
+                     *         "id": "019a4c10-2b11-7d90-a3b5-6c8d0e2f4a01",
+                     *         "name": "Lagos Fresh Foods",
+                     *         "contact_name": "Kemi Adeyemi",
+                     *         "email": "orders@lagosfresh.example",
+                     *         "phone": "+2348031112233",
+                     *         "address": "14 Isolo Industrial Estate, Lagos",
+                     *         "is_active": true,
+                     *         "created_at": "2026-08-02T10:00:00+01:00",
+                     *         "updated_at": "2026-09-01T09:30:00+01:00"
+                     *       }
+                     *     }
+                     */
+                    "application/json": {
+                        /** @constant */
+                        status: "success";
+                        message: string;
+                        data: components["schemas"]["MerchantSupplier"];
+                    };
+                };
+            };
+            /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "invalid_client_key",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Forbidden — the key cannot call this operation. Switch on `error.code`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "insufficient_scope",
+                     *         "message": "This API key does not carry the 'merchant-suppliers-create' scope it was called with.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Idempotency conflict — `idempotency_key_reuse` or `idempotency_key_in_progress`. Switch on `error.code`. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "idempotency_key_reuse",
+                     *         "message": "This Idempotency-Key was already used for a different request body. Use a new key for a new request.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#idempotency_key_reuse",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Validation failed — `error.errors` carries per-field detail. Switch on `error.code`. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "validation_failed",
+                     *         "message": "The name field is required.",
+                     *         "field": "name",
+                     *         "errors": {
+                     *           "name": [
+                     *             "The name field is required."
+                     *           ]
+                     *         },
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Too many requests — slow down and retry. Switch on `error.code`. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "too_many_requests",
+                     *         "message": "Too Many Attempts.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+        };
+    };
+    "suppliers.update": {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @example {{merchantKey}}
+                 */
+                "X-Client-Key": string;
+                /** @description Your own correlation id (8–128 chars, `^[A-Za-z0-9_.:-]+$`). Echoed back on the response and on every log line of the request; one is generated when you omit it. */
+                "X-Request-Id"?: string;
+                /** @description Retry-safe write key. The same key with the same body replays the stored response for 24h with `Idempotent-Replayed: true`; with a different body it is `409 idempotency_key_reuse`; while the first call is still running it is `409 idempotency_key_in_progress`. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                /**
+                 * @description Identifier of the supplier, as returned by the Merchant API.
+                 * @example 019a4c10-2b11-7d90-a3b5-6c8d0e2f4a01
+                 */
+                supplier: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "phone": "+2348039990022",
+                 *       "is_active": true
+                 *     }
+                 */
+                "application/json": components["schemas"]["MerchantSupplierRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "status": "success",
+                     *       "message": "Supplier updated.",
+                     *       "data": {
+                     *         "id": "019a4c10-2b11-7d90-a3b5-6c8d0e2f4a01",
+                     *         "name": "Lagos Fresh Foods",
+                     *         "contact_name": "Kemi Adeyemi",
+                     *         "email": "orders@lagosfresh.example",
+                     *         "phone": "+2348031112233",
+                     *         "address": "14 Isolo Industrial Estate, Lagos",
+                     *         "is_active": true,
+                     *         "created_at": "2026-08-02T10:00:00+01:00",
+                     *         "updated_at": "2026-09-01T09:30:00+01:00"
+                     *       }
+                     *     }
+                     */
+                    "application/json": {
+                        /** @constant */
+                        status: "success";
+                        message: string;
+                        data: components["schemas"]["MerchantSupplier"];
+                    };
+                };
+            };
+            /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "invalid_client_key",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Forbidden — the key cannot call this operation. Switch on `error.code`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "insufficient_scope",
+                     *         "message": "This API key does not carry the 'merchant-suppliers-update' scope it was called with.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Not found — the addressed record does not exist at this store. Switch on `error.code`. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "not_found",
+                     *         "message": "Supplier not found.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#not_found",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Idempotency conflict — `idempotency_key_reuse` or `idempotency_key_in_progress`. Switch on `error.code`. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "idempotency_key_reuse",
+                     *         "message": "This Idempotency-Key was already used for a different request body. Use a new key for a new request.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#idempotency_key_reuse",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Validation failed — `error.errors` carries per-field detail. Switch on `error.code`. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "validation_failed",
+                     *         "message": "The email field must be a valid email address.",
+                     *         "field": "email",
+                     *         "errors": {
+                     *           "email": [
+                     *             "The email field must be a valid email address."
+                     *           ]
+                     *         },
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Too many requests — slow down and retry. Switch on `error.code`. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "too_many_requests",
+                     *         "message": "Too Many Attempts.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+        };
+    };
     "purchase_orders.list": {
         parameters: {
             query?: {
@@ -22669,14 +25885,14 @@ export interface operations {
                 /** @description Cursor for the next page: pass `next_cursor` from the previous response unchanged. Keep walking while `has_more` is true. */
                 starting_after?: string | null;
                 /**
-                 * @description Only items with this status. One of `draft`, `ordered`, `partial`, `received`, `cancelled`.
+                 * @description Only items with this status. One of `draft`, `ordered`, `partial`, `received`, `closed`, `cancelled`.
                  * @example ordered
                  */
-                status?: "draft" | "ordered" | "partial" | "received" | "cancelled";
+                status?: "draft" | "ordered" | "partial" | "received" | "closed" | "cancelled";
             };
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -22718,6 +25934,7 @@ export interface operations {
                      *                 "id": 20418,
                      *                 "slug": "homemade-chapman"
                      *               },
+                     *               "variant": null,
                      *               "quantity_ordered": 24,
                      *               "quantity_received": 0,
                      *               "unit_cost": "1450.00",
@@ -22750,7 +25967,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -22829,7 +26046,7 @@ export interface operations {
             query?: never;
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -22849,6 +26066,7 @@ export interface operations {
                  *       "items": [
                  *         {
                  *           "product": "20418",
+                 *           "variant": 51207,
                  *           "quantity_ordered": 24,
                  *           "unit_cost": "1450.00",
                  *           "notes": "Chilled"
@@ -22893,6 +26111,7 @@ export interface operations {
                      *               "id": 20418,
                      *               "slug": "homemade-chapman"
                      *             },
+                     *             "variant": null,
                      *             "quantity_ordered": 24,
                      *             "quantity_received": 0,
                      *             "unit_cost": "1450.00",
@@ -22923,7 +26142,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -23021,7 +26240,7 @@ export interface operations {
             query?: never;
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -23070,6 +26289,7 @@ export interface operations {
                      *               "id": 20418,
                      *               "slug": "homemade-chapman"
                      *             },
+                     *             "variant": null,
                      *             "quantity_ordered": 24,
                      *             "quantity_received": 10,
                      *             "unit_cost": "1450.00",
@@ -23087,6 +26307,7 @@ export interface operations {
                      *             "line_items": [
                      *               {
                      *                 "purchase_order_item": "019a4c10-4d22-7e01-b4c6-7d9e1f3a5b11",
+                     *                 "variant": null,
                      *                 "quantity_received": 10,
                      *                 "unit_cost": "1450.00"
                      *               }
@@ -23114,7 +26335,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -23182,12 +26403,549 @@ export interface operations {
             };
         };
     };
+    "purchase_orders.cancel": {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @example {{merchantKey}}
+                 */
+                "X-Client-Key": string;
+                /** @description Your own correlation id (8–128 chars, `^[A-Za-z0-9_.:-]+$`). Echoed back on the response and on every log line of the request; one is generated when you omit it. */
+                "X-Request-Id"?: string;
+                /** @description Retry-safe write key. The same key with the same body replays the stored response for 24h with `Idempotent-Replayed: true`; with a different body it is `409 idempotency_key_reuse`; while the first call is still running it is `409 idempotency_key_in_progress`. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                /**
+                 * @description Identifier of the purchase order, as returned by the Merchant API.
+                 * @example 019a4c10-4d22-7e01-b4c6-7d9e1f3a5b03
+                 */
+                po: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "status": "success",
+                     *       "message": "Purchase order cancelled.",
+                     *       "data": {
+                     *         "id": "019a4c10-4d22-7e01-b4c6-7d9e1f3a5b03",
+                     *         "number": "PO-20260924-001",
+                     *         "status": "cancelled",
+                     *         "supplier": {
+                     *           "id": "019a4c10-2b11-7d90-a3b5-6c8d0e2f4a01",
+                     *           "name": "Lagos Fresh Foods"
+                     *         },
+                     *         "currency": "NGN",
+                     *         "total_cost": "34800.00",
+                     *         "expected_date": "2026-09-30",
+                     *         "ordered_at": "2026-09-24T09:10:00+01:00",
+                     *         "notes": "Deliver to the Yaba kitchen.",
+                     *         "quantity_ordered": 24,
+                     *         "quantity_received": 0,
+                     *         "line_items": [
+                     *           {
+                     *             "id": "019a4c10-4d22-7e01-b4c6-7d9e1f3a5b11",
+                     *             "product": {
+                     *               "id": 20418,
+                     *               "slug": "homemade-chapman"
+                     *             },
+                     *             "variant": null,
+                     *             "quantity_ordered": 24,
+                     *             "quantity_received": 0,
+                     *             "unit_cost": "1450.00",
+                     *             "total_cost": "34800.00",
+                     *             "notes": "Chilled"
+                     *           }
+                     *         ],
+                     *         "created_at": "2026-09-24T09:10:00+01:00",
+                     *         "updated_at": "2026-09-24T09:10:00+01:00"
+                     *       }
+                     *     }
+                     */
+                    "application/json": {
+                        /** @constant */
+                        status: "success";
+                        message: string;
+                        data: components["schemas"]["MerchantPurchaseOrder"];
+                    };
+                };
+            };
+            /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "invalid_client_key",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Forbidden — the key cannot call this operation. Switch on `error.code`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "insufficient_scope",
+                     *         "message": "This API key does not carry the 'merchant-purchase_orders-update' scope it was called with.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Not found — the addressed record does not exist at this store. Switch on `error.code`. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "not_found",
+                     *         "message": "Purchase order not found.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#not_found",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Idempotency conflict — `idempotency_key_reuse` or `idempotency_key_in_progress`. Switch on `error.code`. An order that is not a draft also answers 409, with `error.code` `conflict` and `data.status` naming its status: nothing is cancelled. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "idempotency_key_reuse",
+                     *         "message": "This Idempotency-Key was already used for a different request body. Use a new key for a new request.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#idempotency_key_reuse",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Too many requests — slow down and retry. Switch on `error.code`. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "too_many_requests",
+                     *         "message": "Too Many Attempts.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+        };
+    };
+    "purchase_orders.order": {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @example {{merchantKey}}
+                 */
+                "X-Client-Key": string;
+                /** @description Your own correlation id (8–128 chars, `^[A-Za-z0-9_.:-]+$`). Echoed back on the response and on every log line of the request; one is generated when you omit it. */
+                "X-Request-Id"?: string;
+                /** @description Retry-safe write key. The same key with the same body replays the stored response for 24h with `Idempotent-Replayed: true`; with a different body it is `409 idempotency_key_reuse`; while the first call is still running it is `409 idempotency_key_in_progress`. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                /**
+                 * @description Identifier of the purchase order, as returned by the Merchant API.
+                 * @example 019a4c10-4d22-7e01-b4c6-7d9e1f3a5b03
+                 */
+                po: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "status": "success",
+                     *       "message": "Purchase order marked as ordered.",
+                     *       "data": {
+                     *         "id": "019a4c10-4d22-7e01-b4c6-7d9e1f3a5b03",
+                     *         "number": "PO-20260924-001",
+                     *         "status": "ordered",
+                     *         "supplier": {
+                     *           "id": "019a4c10-2b11-7d90-a3b5-6c8d0e2f4a01",
+                     *           "name": "Lagos Fresh Foods"
+                     *         },
+                     *         "currency": "NGN",
+                     *         "total_cost": "34800.00",
+                     *         "expected_date": "2026-09-30",
+                     *         "ordered_at": "2026-09-24T09:10:00+01:00",
+                     *         "notes": "Deliver to the Yaba kitchen.",
+                     *         "quantity_ordered": 24,
+                     *         "quantity_received": 0,
+                     *         "line_items": [
+                     *           {
+                     *             "id": "019a4c10-4d22-7e01-b4c6-7d9e1f3a5b11",
+                     *             "product": {
+                     *               "id": 20418,
+                     *               "slug": "homemade-chapman"
+                     *             },
+                     *             "variant": null,
+                     *             "quantity_ordered": 24,
+                     *             "quantity_received": 0,
+                     *             "unit_cost": "1450.00",
+                     *             "total_cost": "34800.00",
+                     *             "notes": "Chilled"
+                     *           }
+                     *         ],
+                     *         "created_at": "2026-09-24T09:10:00+01:00",
+                     *         "updated_at": "2026-09-24T09:10:00+01:00"
+                     *       }
+                     *     }
+                     */
+                    "application/json": {
+                        /** @constant */
+                        status: "success";
+                        message: string;
+                        data: components["schemas"]["MerchantPurchaseOrder"];
+                    };
+                };
+            };
+            /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "invalid_client_key",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Forbidden — the key cannot call this operation. Switch on `error.code`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "insufficient_scope",
+                     *         "message": "This API key does not carry the 'merchant-purchase_orders-update' scope it was called with.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Not found — the addressed record does not exist at this store. Switch on `error.code`. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "not_found",
+                     *         "message": "Purchase order not found.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#not_found",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Idempotency conflict — `idempotency_key_reuse` or `idempotency_key_in_progress`. Switch on `error.code`. An order that is not a draft also answers 409, with `error.code` `conflict` and `data.status` naming its status: nothing changes. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "idempotency_key_reuse",
+                     *         "message": "This Idempotency-Key was already used for a different request body. Use a new key for a new request.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#idempotency_key_reuse",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Too many requests — slow down and retry. Switch on `error.code`. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "too_many_requests",
+                     *         "message": "Too Many Attempts.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+        };
+    };
+    "purchase_orders.close": {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @example {{merchantKey}}
+                 */
+                "X-Client-Key": string;
+                /** @description Your own correlation id (8–128 chars, `^[A-Za-z0-9_.:-]+$`). Echoed back on the response and on every log line of the request; one is generated when you omit it. */
+                "X-Request-Id"?: string;
+                /** @description Retry-safe write key. The same key with the same body replays the stored response for 24h with `Idempotent-Replayed: true`; with a different body it is `409 idempotency_key_reuse`; while the first call is still running it is `409 idempotency_key_in_progress`. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                /**
+                 * @description Identifier of the purchase order, as returned by the Merchant API.
+                 * @example 019a4c10-4d22-7e01-b4c6-7d9e1f3a5b03
+                 */
+                po: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "status": "success",
+                     *       "message": "Purchase order closed.",
+                     *       "data": {
+                     *         "id": "019a4c10-4d22-7e01-b4c6-7d9e1f3a5b03",
+                     *         "number": "PO-20260924-001",
+                     *         "status": "closed",
+                     *         "supplier": {
+                     *           "id": "019a4c10-2b11-7d90-a3b5-6c8d0e2f4a01",
+                     *           "name": "Lagos Fresh Foods"
+                     *         },
+                     *         "currency": "NGN",
+                     *         "total_cost": "34800.00",
+                     *         "expected_date": "2026-09-30",
+                     *         "ordered_at": "2026-09-24T09:10:00+01:00",
+                     *         "notes": "Deliver to the Yaba kitchen.",
+                     *         "quantity_ordered": 24,
+                     *         "quantity_received": 10,
+                     *         "line_items": [
+                     *           {
+                     *             "id": "019a4c10-4d22-7e01-b4c6-7d9e1f3a5b11",
+                     *             "product": {
+                     *               "id": 20418,
+                     *               "slug": "homemade-chapman"
+                     *             },
+                     *             "variant": null,
+                     *             "quantity_ordered": 24,
+                     *             "quantity_received": 10,
+                     *             "unit_cost": "1450.00",
+                     *             "total_cost": "34800.00",
+                     *             "notes": "Chilled"
+                     *           }
+                     *         ],
+                     *         "created_at": "2026-09-24T09:10:00+01:00",
+                     *         "updated_at": "2026-09-25T11:45:00+01:00",
+                     *         "receipts": [
+                     *           {
+                     *             "id": "019a4c11-0a33-7f12-b5d7-8e0f2a4b6c21",
+                     *             "received_at": "2026-09-25T11:45:00+01:00",
+                     *             "notes": "First crate; the rest follows Monday.",
+                     *             "line_items": [
+                     *               {
+                     *                 "purchase_order_item": "019a4c10-4d22-7e01-b4c6-7d9e1f3a5b11",
+                     *                 "variant": null,
+                     *                 "quantity_received": 10,
+                     *                 "unit_cost": "1450.00"
+                     *               }
+                     *             ]
+                     *           }
+                     *         ]
+                     *       }
+                     *     }
+                     */
+                    "application/json": {
+                        /** @constant */
+                        status: "success";
+                        message: string;
+                        data: components["schemas"]["MerchantPurchaseOrder"];
+                    };
+                };
+            };
+            /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "invalid_client_key",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Forbidden — the key cannot call this operation. Switch on `error.code`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "insufficient_scope",
+                     *         "message": "This API key does not carry the 'merchant-purchase_orders-update' scope it was called with.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Not found — the addressed record does not exist at this store. Switch on `error.code`. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "not_found",
+                     *         "message": "Purchase order not found.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#not_found",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Idempotency conflict — `idempotency_key_reuse` or `idempotency_key_in_progress`. Switch on `error.code`. An order that is not `ordered` or `partial` also answers 409, with `error.code` `conflict` and `data.status` naming its status: nothing changes. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "idempotency_key_reuse",
+                     *         "message": "This Idempotency-Key was already used for a different request body. Use a new key for a new request.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#idempotency_key_reuse",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Too many requests — slow down and retry. Switch on `error.code`. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "too_many_requests",
+                     *         "message": "Too Many Attempts.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+        };
+    };
     "purchase_orders.receive": {
         parameters: {
             query?: never;
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -23254,6 +27012,7 @@ export interface operations {
                      *               "id": 20418,
                      *               "slug": "homemade-chapman"
                      *             },
+                     *             "variant": null,
                      *             "quantity_ordered": 24,
                      *             "quantity_received": 10,
                      *             "unit_cost": "1450.00",
@@ -23271,6 +27030,7 @@ export interface operations {
                      *             "line_items": [
                      *               {
                      *                 "purchase_order_item": "019a4c10-4d22-7e01-b4c6-7d9e1f3a5b11",
+                     *                 "variant": null,
                      *                 "quantity_received": 10,
                      *                 "unit_cost": "1450.00"
                      *               }
@@ -23298,7 +27058,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -23345,7 +27105,7 @@ export interface operations {
                     "application/json": components["schemas"]["QueekError"];
                 };
             };
-            /** @description Idempotency conflict — `idempotency_key_reuse` or `idempotency_key_in_progress`. Switch on `error.code`. A cancelled or fully received order also answers 409, with `error.code` `conflict`: nothing is received. A line that would take in more than it has left answers 422. */
+            /** @description Idempotency conflict — `idempotency_key_reuse` or `idempotency_key_in_progress`. Switch on `error.code`. A cancelled, closed or fully received order also answers 409, with `error.code` `conflict`: nothing is received. A line that would take in more than it has left answers 422. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -23410,6 +27170,2593 @@ export interface operations {
             };
         };
     };
+    "invoices.list": {
+        parameters: {
+            query?: {
+                /**
+                 * @description Maximum number of items to return in one page.
+                 * @example 2
+                 */
+                limit?: number | null;
+                /** @description Cursor for the next page: pass `next_cursor` from the previous response unchanged. Keep walking while `has_more` is true. */
+                starting_after?: string | null;
+                /**
+                 * @description `overdue` is a derived state (issued, past due, balance left), filterable like a stored one.
+                 * @example pending
+                 */
+                status?: "draft" | "pending" | "partial" | "paid" | "overdue" | "void" | "expired" | "issued" | null;
+                /**
+                 * @description `invoice`, `proforma` (not a tax invoice) or `credit_note`.
+                 * @example invoice
+                 */
+                kind?: "invoice" | "proforma" | "credit_note" | null;
+                /** @description Number, title or buyer name/phone. On the Merchant API it needs merchant-customers-contact-read (403 without it). */
+                q?: string | null;
+                /** @description Only the invoices addressed to this store customer. */
+                customer_id?: string | null;
+                /** @description Only the invoice of this order. */
+                order_id?: string | null;
+                /** @description First creation day to include (YYYY-MM-DD). */
+                from?: string | null;
+                /** @description Last creation day to include (YYYY-MM-DD), on or after `from`. */
+                to?: string | null;
+                /**
+                 * @description Only items last changed at or after this RFC 3339 timestamp with an explicit offset, for example `2026-10-14T09:30:00+01:00`. Poll with it and deduplicate on `id` plus `updated_at`.
+                 * @example 2026-09-24T09:00:00+01:00
+                 */
+                updated_since?: string | null;
+            };
+            header: {
+                /**
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @example {{merchantKey}}
+                 */
+                "X-Client-Key": string;
+                /** @description Your own correlation id (8–128 chars, `^[A-Za-z0-9_.:-]+$`). Echoed back on the response and on every log line of the request; one is generated when you omit it. */
+                "X-Request-Id"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "data": [
+                     *         {
+                     *           "id": 1042,
+                     *           "number": "INV-000042",
+                     *           "kind": "invoice",
+                     *           "status": "partial",
+                     *           "credited": false,
+                     *           "source": "standalone",
+                     *           "order": null,
+                     *           "corrects_invoice": null,
+                     *           "customer": {
+                     *             "id": 90341
+                     *           },
+                     *           "title": "Wedding catering, 12 October",
+                     *           "currency": "NGN",
+                     *           "buyer": {
+                     *             "name": "Chiamaka Obi",
+                     *             "email": "chiamaka.obi@example.com",
+                     *             "phone": "+2348031234567",
+                     *             "address": "7 Ologun Agbaje Street, Victoria Island, Lagos",
+                     *             "tax_id": null
+                     *           },
+                     *           "seller": {
+                     *             "name": "Adeyemi Foods",
+                     *             "address": "14 Admiralty Way, Lekki Phase 1",
+                     *             "registration_number": "RC 1849302",
+                     *             "tax_id": "23456789-0001",
+                     *             "tax_id_label": "TIN"
+                     *           },
+                     *           "lines": [
+                     *             {
+                     *               "position": 1,
+                     *               "description": "Jollof Rice Party Pack",
+                     *               "quantity": "10",
+                     *               "unit_price": "18500.00",
+                     *               "tax_name": "VAT",
+                     *               "tax_rate": "7.50",
+                     *               "taxes": [
+                     *                 {
+                     *                   "name": "VAT",
+                     *                   "rate": "7.50",
+                     *                   "amount": "12487.50"
+                     *                 }
+                     *               ],
+                     *               "line_total": "185000.00",
+                     *               "discount_amount": "18500.00",
+                     *               "tax_amount": "12487.50"
+                     *             }
+                     *           ],
+                     *           "subtotal": "185000.00",
+                     *           "discount": {
+                     *             "type": "percent",
+                     *             "value": "10.00",
+                     *             "total": "18500.00"
+                     *           },
+                     *           "tax_total": "12487.50",
+                     *           "tax_breakdown": [
+                     *             {
+                     *               "name": "VAT",
+                     *               "rate": "7.50",
+                     *               "taxable": "166500.00",
+                     *               "amount": "12487.50"
+                     *             }
+                     *           ],
+                     *           "total_amount": "178987.50",
+                     *           "amount_paid": "90000.00",
+                     *           "amount_due": "88987.50",
+                     *           "terms": "Balance due before the event.",
+                     *           "note": null,
+                     *           "language": "en",
+                     *           "payments": [
+                     *             {
+                     *               "id": 2001,
+                     *               "source": "invoice",
+                     *               "kind": "payment",
+                     *               "amount": "90000.00",
+                     *               "method": "bank_transfer",
+                     *               "is_cash": true,
+                     *               "reference": "GTB-2210-8841",
+                     *               "paid_at": "2026-09-24T11:05:00+01:00",
+                     *               "voided_at": null,
+                     *               "void_reason": null
+                     *             }
+                     *           ],
+                     *           "installments": [
+                     *             {
+                     *               "sequence_no": 1,
+                     *               "expected_amount": "90000.00",
+                     *               "paid_amount": "90000.00",
+                     *               "status": "paid",
+                     *               "due_at": "2026-09-26",
+                     *               "paid_at": "2026-09-24T11:05:00+01:00"
+                     *             },
+                     *             {
+                     *               "sequence_no": 2,
+                     *               "expected_amount": "88987.50",
+                     *               "paid_amount": "0.00",
+                     *               "status": "pending",
+                     *               "due_at": "2026-10-10",
+                     *               "paid_at": null
+                     *             }
+                     *           ],
+                     *           "credit_notes": [],
+                     *           "fiscal_reference": null,
+                     *           "issued_at": "2026-09-24T09:50:00+01:00",
+                     *           "due_at": "2026-10-10",
+                     *           "paid_at": null,
+                     *           "voided_at": null,
+                     *           "void_reason": null,
+                     *           "created_at": "2026-09-24T09:40:00+01:00",
+                     *           "updated_at": "2026-09-24T11:05:00+01:00"
+                     *         }
+                     *       ],
+                     *       "has_more": true,
+                     *       "next_cursor": "eyJjcmVhdGVkX2F0IjoiMjAyNi0wOS0yNCAwOTo0MDowMCIsImlkIjoiMDE5YTViMTAtMmMzZC03ZTRmLThhNWItNmM3ZDhlOWYwYTAxIiwiX3BvaW50c1RvTmV4dEl0ZW1zIjp0cnVlfQ"
+                     *     }
+                     */
+                    "application/json": {
+                        data: components["schemas"]["MerchantInvoice"][];
+                        has_more: boolean;
+                        next_cursor?: string | null;
+                    };
+                };
+            };
+            /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "invalid_client_key",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Forbidden — the key cannot call this operation. Switch on `error.code`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "insufficient_scope",
+                     *         "message": "This API key does not carry the 'merchant-invoices-read' scope it was called with.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Validation failed — `error.errors` carries per-field detail. Switch on `error.code`. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "validation_failed",
+                     *         "message": "The selected status is invalid.",
+                     *         "field": "status",
+                     *         "errors": {
+                     *           "status": [
+                     *             "The selected status is invalid."
+                     *           ]
+                     *         },
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Too many requests — slow down and retry. Switch on `error.code`. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "too_many_requests",
+                     *         "message": "Too Many Attempts.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+        };
+    };
+    "invoices.create": {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @example {{merchantKey}}
+                 */
+                "X-Client-Key": string;
+                /** @description Your own correlation id (8–128 chars, `^[A-Za-z0-9_.:-]+$`). Echoed back on the response and on every log line of the request; one is generated when you omit it. */
+                "X-Request-Id"?: string;
+                /** @description Retry-safe write key. The same key with the same body replays the stored response for 24h with `Idempotent-Replayed: true`; with a different body it is `409 idempotency_key_reuse`; while the first call is still running it is `409 idempotency_key_in_progress`. */
+                "Idempotency-Key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "title": "Wedding catering, 12 October",
+                 *       "buyer": {
+                 *         "name": "Chiamaka Obi",
+                 *         "email": "chiamaka.obi@example.com",
+                 *         "phone": "+2348031234567",
+                 *         "address": "7 Ologun Agbaje Street, Victoria Island, Lagos"
+                 *       },
+                 *       "lines": [
+                 *         {
+                 *           "description": "Jollof Rice Party Pack",
+                 *           "quantity": "10",
+                 *           "unit_price": "18500.00",
+                 *           "tax_name": "VAT",
+                 *           "tax_rate": "7.5"
+                 *         }
+                 *       ],
+                 *       "discount": {
+                 *         "type": "percent",
+                 *         "value": "10"
+                 *       },
+                 *       "due_at": "2026-10-10",
+                 *       "terms": "Balance due before the event."
+                 *     }
+                 */
+                "application/json": components["schemas"]["StoreVendorInvoiceRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "status": "success",
+                     *       "message": "Invoice draft created.",
+                     *       "data": {
+                     *         "id": 1044,
+                     *         "number": null,
+                     *         "kind": "invoice",
+                     *         "status": "draft",
+                     *         "credited": false,
+                     *         "source": "standalone",
+                     *         "order": null,
+                     *         "corrects_invoice": null,
+                     *         "customer": {
+                     *           "id": null
+                     *         },
+                     *         "title": "Wedding catering, 12 October",
+                     *         "currency": "NGN",
+                     *         "buyer": {
+                     *           "name": "Chiamaka Obi",
+                     *           "email": "chiamaka.obi@example.com",
+                     *           "phone": "+2348031234567",
+                     *           "address": "7 Ologun Agbaje Street, Victoria Island, Lagos",
+                     *           "tax_id": null
+                     *         },
+                     *         "seller": {
+                     *           "name": null,
+                     *           "address": null,
+                     *           "registration_number": null,
+                     *           "tax_id": null,
+                     *           "tax_id_label": null
+                     *         },
+                     *         "lines": [
+                     *           {
+                     *             "position": 1,
+                     *             "description": "Jollof Rice Party Pack",
+                     *             "quantity": "10",
+                     *             "unit_price": "18500.00",
+                     *             "tax_name": "VAT",
+                     *             "tax_rate": "7.50",
+                     *             "taxes": [
+                     *               {
+                     *                 "name": "VAT",
+                     *                 "rate": "7.50",
+                     *                 "amount": "12487.50"
+                     *               }
+                     *             ],
+                     *             "line_total": "185000.00",
+                     *             "discount_amount": "18500.00",
+                     *             "tax_amount": "12487.50"
+                     *           }
+                     *         ],
+                     *         "subtotal": "185000.00",
+                     *         "discount": {
+                     *           "type": "percent",
+                     *           "value": "10.00",
+                     *           "total": "18500.00"
+                     *         },
+                     *         "tax_total": "12487.50",
+                     *         "tax_breakdown": [
+                     *           {
+                     *             "name": "VAT",
+                     *             "rate": "7.50",
+                     *             "taxable": "166500.00",
+                     *             "amount": "12487.50"
+                     *           }
+                     *         ],
+                     *         "total_amount": "178987.50",
+                     *         "amount_paid": "0.00",
+                     *         "amount_due": "178987.50",
+                     *         "terms": "Balance due before the event.",
+                     *         "note": null,
+                     *         "language": "en",
+                     *         "payments": [],
+                     *         "installments": [],
+                     *         "credit_notes": [],
+                     *         "fiscal_reference": null,
+                     *         "issued_at": null,
+                     *         "due_at": "2026-10-10",
+                     *         "paid_at": null,
+                     *         "voided_at": null,
+                     *         "void_reason": null,
+                     *         "created_at": "2026-09-24T09:40:00+01:00",
+                     *         "updated_at": "2026-09-24T09:40:00+01:00"
+                     *       }
+                     *     }
+                     */
+                    "application/json": {
+                        /** @constant */
+                        status: "success";
+                        message: string;
+                        data: components["schemas"]["MerchantInvoice"];
+                    };
+                };
+            };
+            /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "invalid_client_key",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Forbidden — the key cannot call this operation. Switch on `error.code`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "insufficient_scope",
+                     *         "message": "This API key does not carry the 'merchant-invoices-create' scope it was called with.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Idempotency conflict — `idempotency_key_reuse` or `idempotency_key_in_progress`. Switch on `error.code`. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "idempotency_key_reuse",
+                     *         "message": "This Idempotency-Key was already used for a different request body. Use a new key for a new request.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#idempotency_key_reuse",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Validation failed — `error.errors` carries per-field detail. Switch on `error.code`. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "validation_failed",
+                     *         "message": "The lines field is required.",
+                     *         "field": "lines",
+                     *         "errors": {
+                     *           "lines": [
+                     *             "The lines field is required."
+                     *           ]
+                     *         },
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Too many requests — slow down and retry. Switch on `error.code`. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "too_many_requests",
+                     *         "message": "Too Many Attempts.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+        };
+    };
+    "invoices.retrieve": {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @example {{merchantKey}}
+                 */
+                "X-Client-Key": string;
+                /** @description Your own correlation id (8–128 chars, `^[A-Za-z0-9_.:-]+$`). Echoed back on the response and on every log line of the request; one is generated when you omit it. */
+                "X-Request-Id"?: string;
+            };
+            path: {
+                /**
+                 * @description Identifier of the invoice, as returned by the Merchant API.
+                 * @example 1042
+                 */
+                invoice: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "status": "success",
+                     *       "message": "Invoice retrieved.",
+                     *       "data": {
+                     *         "id": 1042,
+                     *         "number": "INV-000042",
+                     *         "kind": "invoice",
+                     *         "status": "partial",
+                     *         "credited": false,
+                     *         "source": "standalone",
+                     *         "order": null,
+                     *         "corrects_invoice": null,
+                     *         "customer": {
+                     *           "id": 90341
+                     *         },
+                     *         "title": "Wedding catering, 12 October",
+                     *         "currency": "NGN",
+                     *         "buyer": {
+                     *           "name": "Chiamaka Obi",
+                     *           "email": "chiamaka.obi@example.com",
+                     *           "phone": "+2348031234567",
+                     *           "address": "7 Ologun Agbaje Street, Victoria Island, Lagos",
+                     *           "tax_id": null
+                     *         },
+                     *         "seller": {
+                     *           "name": "Adeyemi Foods",
+                     *           "address": "14 Admiralty Way, Lekki Phase 1",
+                     *           "registration_number": "RC 1849302",
+                     *           "tax_id": "23456789-0001",
+                     *           "tax_id_label": "TIN"
+                     *         },
+                     *         "lines": [
+                     *           {
+                     *             "position": 1,
+                     *             "description": "Jollof Rice Party Pack",
+                     *             "quantity": "10",
+                     *             "unit_price": "18500.00",
+                     *             "tax_name": "VAT",
+                     *             "tax_rate": "7.50",
+                     *             "taxes": [
+                     *               {
+                     *                 "name": "VAT",
+                     *                 "rate": "7.50",
+                     *                 "amount": "12487.50"
+                     *               }
+                     *             ],
+                     *             "line_total": "185000.00",
+                     *             "discount_amount": "18500.00",
+                     *             "tax_amount": "12487.50"
+                     *           }
+                     *         ],
+                     *         "subtotal": "185000.00",
+                     *         "discount": {
+                     *           "type": "percent",
+                     *           "value": "10.00",
+                     *           "total": "18500.00"
+                     *         },
+                     *         "tax_total": "12487.50",
+                     *         "tax_breakdown": [
+                     *           {
+                     *             "name": "VAT",
+                     *             "rate": "7.50",
+                     *             "taxable": "166500.00",
+                     *             "amount": "12487.50"
+                     *           }
+                     *         ],
+                     *         "total_amount": "178987.50",
+                     *         "amount_paid": "90000.00",
+                     *         "amount_due": "88987.50",
+                     *         "terms": "Balance due before the event.",
+                     *         "note": null,
+                     *         "language": "en",
+                     *         "payments": [
+                     *           {
+                     *             "id": 2001,
+                     *             "source": "invoice",
+                     *             "kind": "payment",
+                     *             "amount": "90000.00",
+                     *             "method": "bank_transfer",
+                     *             "is_cash": true,
+                     *             "reference": "GTB-2210-8841",
+                     *             "paid_at": "2026-09-24T11:05:00+01:00",
+                     *             "voided_at": null,
+                     *             "void_reason": null
+                     *           }
+                     *         ],
+                     *         "installments": [
+                     *           {
+                     *             "sequence_no": 1,
+                     *             "expected_amount": "90000.00",
+                     *             "paid_amount": "90000.00",
+                     *             "status": "paid",
+                     *             "due_at": "2026-09-26",
+                     *             "paid_at": "2026-09-24T11:05:00+01:00"
+                     *           },
+                     *           {
+                     *             "sequence_no": 2,
+                     *             "expected_amount": "88987.50",
+                     *             "paid_amount": "0.00",
+                     *             "status": "pending",
+                     *             "due_at": "2026-10-10",
+                     *             "paid_at": null
+                     *           }
+                     *         ],
+                     *         "credit_notes": [],
+                     *         "fiscal_reference": null,
+                     *         "issued_at": "2026-09-24T09:50:00+01:00",
+                     *         "due_at": "2026-10-10",
+                     *         "paid_at": null,
+                     *         "voided_at": null,
+                     *         "void_reason": null,
+                     *         "created_at": "2026-09-24T09:40:00+01:00",
+                     *         "updated_at": "2026-09-24T11:05:00+01:00"
+                     *       }
+                     *     }
+                     */
+                    "application/json": {
+                        /** @constant */
+                        status: "success";
+                        message: string;
+                        data: components["schemas"]["MerchantInvoice"];
+                    };
+                };
+            };
+            /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "invalid_client_key",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Forbidden — the key cannot call this operation. Switch on `error.code`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "insufficient_scope",
+                     *         "message": "This API key does not carry the 'merchant-invoices-read' scope it was called with.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Not found — the addressed record does not exist at this store. Switch on `error.code`. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "not_found",
+                     *         "message": "Invoice not found.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#not_found",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Too many requests — slow down and retry. Switch on `error.code`. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "too_many_requests",
+                     *         "message": "Too Many Attempts.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+        };
+    };
+    "invoices.retrieve_for_order": {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @example {{merchantKey}}
+                 */
+                "X-Client-Key": string;
+                /** @description Your own correlation id (8–128 chars, `^[A-Za-z0-9_.:-]+$`). Echoed back on the response and on every log line of the request; one is generated when you omit it. */
+                "X-Request-Id"?: string;
+            };
+            path: {
+                /**
+                 * @description Identifier of the order, as returned by the Merchant API.
+                 * @example 58213
+                 */
+                order: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "status": "success",
+                     *       "message": "Invoice retrieved.",
+                     *       "data": {
+                     *         "id": 1043,
+                     *         "number": "INV-000043",
+                     *         "kind": "invoice",
+                     *         "status": "paid",
+                     *         "credited": false,
+                     *         "source": "order",
+                     *         "order": {
+                     *           "id": 58213,
+                     *           "order_number": "26-0924-58213"
+                     *         },
+                     *         "corrects_invoice": null,
+                     *         "customer": {
+                     *           "id": 90341
+                     *         },
+                     *         "title": null,
+                     *         "currency": "NGN",
+                     *         "buyer": {
+                     *           "name": "Chiamaka Obi",
+                     *           "email": "chiamaka.obi@example.com",
+                     *           "phone": "+2348031234567",
+                     *           "address": "7 Ologun Agbaje Street, Victoria Island, Lagos",
+                     *           "tax_id": null
+                     *         },
+                     *         "seller": {
+                     *           "name": "Adeyemi Foods",
+                     *           "address": "14 Admiralty Way, Lekki Phase 1",
+                     *           "registration_number": "RC 1849302",
+                     *           "tax_id": "23456789-0001",
+                     *           "tax_id_label": "TIN"
+                     *         },
+                     *         "lines": [
+                     *           {
+                     *             "position": 1,
+                     *             "description": "Jollof Rice Party Pack",
+                     *             "quantity": "2",
+                     *             "unit_price": "18500.00",
+                     *             "tax_name": null,
+                     *             "tax_rate": "0.00",
+                     *             "taxes": [],
+                     *             "line_total": "37000.00",
+                     *             "discount_amount": "3700.00",
+                     *             "tax_amount": "0.00"
+                     *           }
+                     *         ],
+                     *         "subtotal": "35800.00",
+                     *         "discount": {
+                     *           "type": null,
+                     *           "value": null,
+                     *           "total": "0.00"
+                     *         },
+                     *         "tax_total": "0.00",
+                     *         "tax_breakdown": [],
+                     *         "total_amount": "35800.00",
+                     *         "amount_paid": "35800.00",
+                     *         "amount_due": "0.00",
+                     *         "terms": "Balance due before the event.",
+                     *         "note": null,
+                     *         "language": "en",
+                     *         "payments": [],
+                     *         "installments": [],
+                     *         "credit_notes": [],
+                     *         "fiscal_reference": null,
+                     *         "issued_at": "2026-09-24T09:50:00+01:00",
+                     *         "due_at": null,
+                     *         "paid_at": "2026-09-24T13:41:00+01:00",
+                     *         "voided_at": null,
+                     *         "void_reason": null,
+                     *         "created_at": "2026-09-24T14:00:00+01:00",
+                     *         "updated_at": "2026-09-24T14:00:00+01:00"
+                     *       }
+                     *     }
+                     */
+                    "application/json": {
+                        /** @constant */
+                        status: "success";
+                        message: string;
+                        data: components["schemas"]["MerchantInvoice"];
+                    };
+                };
+            };
+            /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "invalid_client_key",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Forbidden — the key cannot call this operation. Switch on `error.code`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "insufficient_scope",
+                     *         "message": "This API key does not carry the 'merchant-invoices-read' scope it was called with.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Not found — the addressed record does not exist at this store. Switch on `error.code`. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "not_found",
+                     *         "message": "Invoice not found.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#not_found",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Too many requests — slow down and retry. Switch on `error.code`. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "too_many_requests",
+                     *         "message": "Too Many Attempts.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+        };
+    };
+    "invoices.create_for_order": {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @example {{merchantKey}}
+                 */
+                "X-Client-Key": string;
+                /** @description Your own correlation id (8–128 chars, `^[A-Za-z0-9_.:-]+$`). Echoed back on the response and on every log line of the request; one is generated when you omit it. */
+                "X-Request-Id"?: string;
+                /** @description Retry-safe write key. The same key with the same body replays the stored response for 24h with `Idempotent-Replayed: true`; with a different body it is `409 idempotency_key_reuse`; while the first call is still running it is `409 idempotency_key_in_progress`. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                /**
+                 * @description Identifier of the order, as returned by the Merchant API.
+                 * @example 58213
+                 */
+                order: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "status": "success",
+                     *       "message": "Invoice of the order.",
+                     *       "data": {
+                     *         "id": 1043,
+                     *         "number": "INV-000043",
+                     *         "kind": "invoice",
+                     *         "status": "paid",
+                     *         "credited": false,
+                     *         "source": "order",
+                     *         "order": {
+                     *           "id": 58213,
+                     *           "order_number": "26-0924-58213"
+                     *         },
+                     *         "corrects_invoice": null,
+                     *         "customer": {
+                     *           "id": 90341
+                     *         },
+                     *         "title": null,
+                     *         "currency": "NGN",
+                     *         "buyer": {
+                     *           "name": "Chiamaka Obi",
+                     *           "email": "chiamaka.obi@example.com",
+                     *           "phone": "+2348031234567",
+                     *           "address": "7 Ologun Agbaje Street, Victoria Island, Lagos",
+                     *           "tax_id": null
+                     *         },
+                     *         "seller": {
+                     *           "name": "Adeyemi Foods",
+                     *           "address": "14 Admiralty Way, Lekki Phase 1",
+                     *           "registration_number": "RC 1849302",
+                     *           "tax_id": "23456789-0001",
+                     *           "tax_id_label": "TIN"
+                     *         },
+                     *         "lines": [
+                     *           {
+                     *             "position": 1,
+                     *             "description": "Jollof Rice Party Pack",
+                     *             "quantity": "2",
+                     *             "unit_price": "18500.00",
+                     *             "tax_name": null,
+                     *             "tax_rate": "0.00",
+                     *             "taxes": [],
+                     *             "line_total": "37000.00",
+                     *             "discount_amount": "3700.00",
+                     *             "tax_amount": "0.00"
+                     *           }
+                     *         ],
+                     *         "subtotal": "35800.00",
+                     *         "discount": {
+                     *           "type": null,
+                     *           "value": null,
+                     *           "total": "0.00"
+                     *         },
+                     *         "tax_total": "0.00",
+                     *         "tax_breakdown": [],
+                     *         "total_amount": "35800.00",
+                     *         "amount_paid": "35800.00",
+                     *         "amount_due": "0.00",
+                     *         "terms": "Balance due before the event.",
+                     *         "note": null,
+                     *         "language": "en",
+                     *         "payments": [],
+                     *         "installments": [],
+                     *         "credit_notes": [],
+                     *         "fiscal_reference": null,
+                     *         "issued_at": "2026-09-24T09:50:00+01:00",
+                     *         "due_at": null,
+                     *         "paid_at": "2026-09-24T13:41:00+01:00",
+                     *         "voided_at": null,
+                     *         "void_reason": null,
+                     *         "created_at": "2026-09-24T14:00:00+01:00",
+                     *         "updated_at": "2026-09-24T14:00:00+01:00"
+                     *       }
+                     *     }
+                     */
+                    "application/json": {
+                        /** @constant */
+                        status: "success";
+                        message: string;
+                        data: components["schemas"]["MerchantInvoice"];
+                    };
+                };
+            };
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "status": "success",
+                     *       "message": "Invoice created from the order.",
+                     *       "data": {
+                     *         "id": 1043,
+                     *         "number": "INV-000043",
+                     *         "kind": "invoice",
+                     *         "status": "paid",
+                     *         "credited": false,
+                     *         "source": "order",
+                     *         "order": {
+                     *           "id": 58213,
+                     *           "order_number": "26-0924-58213"
+                     *         },
+                     *         "corrects_invoice": null,
+                     *         "customer": {
+                     *           "id": 90341
+                     *         },
+                     *         "title": null,
+                     *         "currency": "NGN",
+                     *         "buyer": {
+                     *           "name": "Chiamaka Obi",
+                     *           "email": "chiamaka.obi@example.com",
+                     *           "phone": "+2348031234567",
+                     *           "address": "7 Ologun Agbaje Street, Victoria Island, Lagos",
+                     *           "tax_id": null
+                     *         },
+                     *         "seller": {
+                     *           "name": "Adeyemi Foods",
+                     *           "address": "14 Admiralty Way, Lekki Phase 1",
+                     *           "registration_number": "RC 1849302",
+                     *           "tax_id": "23456789-0001",
+                     *           "tax_id_label": "TIN"
+                     *         },
+                     *         "lines": [
+                     *           {
+                     *             "position": 1,
+                     *             "description": "Jollof Rice Party Pack",
+                     *             "quantity": "2",
+                     *             "unit_price": "18500.00",
+                     *             "tax_name": null,
+                     *             "tax_rate": "0.00",
+                     *             "taxes": [],
+                     *             "line_total": "37000.00",
+                     *             "discount_amount": "3700.00",
+                     *             "tax_amount": "0.00"
+                     *           }
+                     *         ],
+                     *         "subtotal": "35800.00",
+                     *         "discount": {
+                     *           "type": null,
+                     *           "value": null,
+                     *           "total": "0.00"
+                     *         },
+                     *         "tax_total": "0.00",
+                     *         "tax_breakdown": [],
+                     *         "total_amount": "35800.00",
+                     *         "amount_paid": "35800.00",
+                     *         "amount_due": "0.00",
+                     *         "terms": "Balance due before the event.",
+                     *         "note": null,
+                     *         "language": "en",
+                     *         "payments": [],
+                     *         "installments": [],
+                     *         "credit_notes": [],
+                     *         "fiscal_reference": null,
+                     *         "issued_at": "2026-09-24T09:50:00+01:00",
+                     *         "due_at": null,
+                     *         "paid_at": "2026-09-24T13:41:00+01:00",
+                     *         "voided_at": null,
+                     *         "void_reason": null,
+                     *         "created_at": "2026-09-24T14:00:00+01:00",
+                     *         "updated_at": "2026-09-24T14:00:00+01:00"
+                     *       }
+                     *     }
+                     */
+                    "application/json": {
+                        /** @constant */
+                        status: "success";
+                        message: string;
+                        data: components["schemas"]["MerchantInvoice"];
+                    };
+                };
+            };
+            /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "invalid_client_key",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Forbidden — the key cannot call this operation. Switch on `error.code`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "insufficient_scope",
+                     *         "message": "This API key does not carry the 'merchant-invoices-create' scope it was called with.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Not found — the addressed record does not exist at this store. Switch on `error.code`. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "not_found",
+                     *         "message": "Order not found.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#not_found",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Idempotency conflict — `idempotency_key_reuse` or `idempotency_key_in_progress`. Switch on `error.code`. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "idempotency_key_reuse",
+                     *         "message": "This Idempotency-Key was already used for a different request body. Use a new key for a new request.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#idempotency_key_reuse",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Too many requests — slow down and retry. Switch on `error.code`. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "too_many_requests",
+                     *         "message": "Too Many Attempts.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+        };
+    };
+    "invoices.issue": {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @example {{merchantKey}}
+                 */
+                "X-Client-Key": string;
+                /** @description Your own correlation id (8–128 chars, `^[A-Za-z0-9_.:-]+$`). Echoed back on the response and on every log line of the request; one is generated when you omit it. */
+                "X-Request-Id"?: string;
+                /** @description Retry-safe write key. The same key with the same body replays the stored response for 24h with `Idempotent-Replayed: true`; with a different body it is `409 idempotency_key_reuse`; while the first call is still running it is `409 idempotency_key_in_progress`. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                /**
+                 * @description Identifier of the invoice, as returned by the Merchant API.
+                 * @example 1044
+                 */
+                invoice: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                /**
+                 * @example {
+                 *       "due_at": "2026-10-10"
+                 *     }
+                 */
+                "application/json": components["schemas"]["IssueVendorInvoiceRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "status": "success",
+                     *       "message": "Invoice issued.",
+                     *       "data": {
+                     *         "id": 1044,
+                     *         "number": "INV-000044",
+                     *         "kind": "invoice",
+                     *         "status": "pending",
+                     *         "credited": false,
+                     *         "source": "standalone",
+                     *         "order": null,
+                     *         "corrects_invoice": null,
+                     *         "customer": {
+                     *           "id": 90341
+                     *         },
+                     *         "title": "Wedding catering, 12 October",
+                     *         "currency": "NGN",
+                     *         "buyer": {
+                     *           "name": "Chiamaka Obi",
+                     *           "email": "chiamaka.obi@example.com",
+                     *           "phone": "+2348031234567",
+                     *           "address": "7 Ologun Agbaje Street, Victoria Island, Lagos",
+                     *           "tax_id": null
+                     *         },
+                     *         "seller": {
+                     *           "name": "Adeyemi Foods",
+                     *           "address": "14 Admiralty Way, Lekki Phase 1",
+                     *           "registration_number": "RC 1849302",
+                     *           "tax_id": "23456789-0001",
+                     *           "tax_id_label": "TIN"
+                     *         },
+                     *         "lines": [
+                     *           {
+                     *             "position": 1,
+                     *             "description": "Jollof Rice Party Pack",
+                     *             "quantity": "10",
+                     *             "unit_price": "18500.00",
+                     *             "tax_name": "VAT",
+                     *             "tax_rate": "7.50",
+                     *             "taxes": [
+                     *               {
+                     *                 "name": "VAT",
+                     *                 "rate": "7.50",
+                     *                 "amount": "12487.50"
+                     *               }
+                     *             ],
+                     *             "line_total": "185000.00",
+                     *             "discount_amount": "18500.00",
+                     *             "tax_amount": "12487.50"
+                     *           }
+                     *         ],
+                     *         "subtotal": "185000.00",
+                     *         "discount": {
+                     *           "type": "percent",
+                     *           "value": "10.00",
+                     *           "total": "18500.00"
+                     *         },
+                     *         "tax_total": "12487.50",
+                     *         "tax_breakdown": [
+                     *           {
+                     *             "name": "VAT",
+                     *             "rate": "7.50",
+                     *             "taxable": "166500.00",
+                     *             "amount": "12487.50"
+                     *           }
+                     *         ],
+                     *         "total_amount": "178987.50",
+                     *         "amount_paid": "0.00",
+                     *         "amount_due": "178987.50",
+                     *         "terms": "Balance due before the event.",
+                     *         "note": null,
+                     *         "language": "en",
+                     *         "payments": [],
+                     *         "installments": [],
+                     *         "credit_notes": [],
+                     *         "fiscal_reference": null,
+                     *         "issued_at": "2026-09-24T09:50:00+01:00",
+                     *         "due_at": "2026-10-10",
+                     *         "paid_at": null,
+                     *         "voided_at": null,
+                     *         "void_reason": null,
+                     *         "created_at": "2026-09-24T09:40:00+01:00",
+                     *         "updated_at": "2026-09-24T09:50:00+01:00"
+                     *       }
+                     *     }
+                     */
+                    "application/json": {
+                        /** @constant */
+                        status: "success";
+                        message: string;
+                        data: components["schemas"]["MerchantInvoice"];
+                    };
+                };
+            };
+            /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "invalid_client_key",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Forbidden — the key cannot call this operation. Switch on `error.code`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "insufficient_scope",
+                     *         "message": "This API key does not carry the 'merchant-invoices-update' scope it was called with.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Not found — the addressed record does not exist at this store. Switch on `error.code`. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "not_found",
+                     *         "message": "Invoice not found.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#not_found",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Idempotency conflict — `idempotency_key_reuse` or `idempotency_key_in_progress`. Switch on `error.code`. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "idempotency_key_reuse",
+                     *         "message": "This Idempotency-Key was already used for a different request body. Use a new key for a new request.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#idempotency_key_reuse",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Validation failed — `error.errors` carries per-field detail. Switch on `error.code`. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "validation_failed",
+                     *         "message": "The due at field must be a valid date.",
+                     *         "field": "due_at",
+                     *         "errors": {
+                     *           "due_at": [
+                     *             "The due at field must be a valid date."
+                     *           ]
+                     *         },
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Too many requests — slow down and retry. Switch on `error.code`. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "too_many_requests",
+                     *         "message": "Too Many Attempts.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+        };
+    };
+    "invoices.record_payment": {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @example {{merchantKey}}
+                 */
+                "X-Client-Key": string;
+                /** @description Your own correlation id (8–128 chars, `^[A-Za-z0-9_.:-]+$`). Echoed back on the response and on every log line of the request; one is generated when you omit it. */
+                "X-Request-Id"?: string;
+                /** @description Retry-safe write key. The same key with the same body replays the stored response for 24h with `Idempotent-Replayed: true`; with a different body it is `409 idempotency_key_reuse`; while the first call is still running it is `409 idempotency_key_in_progress`. */
+                "Idempotency-Key": string;
+            };
+            path: {
+                /**
+                 * @description Identifier of the invoice, as returned by the Merchant API.
+                 * @example 1042
+                 */
+                invoice: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "amount": "90000.00",
+                 *       "method": "bank_transfer",
+                 *       "reference": "GTB-2210-8841",
+                 *       "paid_at": "2026-09-24T11:05:00+01:00"
+                 *     }
+                 */
+                "application/json": components["schemas"]["RecordInvoicePaymentRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "status": "success",
+                     *       "message": "Payment recorded.",
+                     *       "data": {
+                     *         "id": 1042,
+                     *         "number": "INV-000042",
+                     *         "kind": "invoice",
+                     *         "status": "partial",
+                     *         "credited": false,
+                     *         "source": "standalone",
+                     *         "order": null,
+                     *         "corrects_invoice": null,
+                     *         "customer": {
+                     *           "id": 90341
+                     *         },
+                     *         "title": "Wedding catering, 12 October",
+                     *         "currency": "NGN",
+                     *         "buyer": {
+                     *           "name": "Chiamaka Obi",
+                     *           "email": "chiamaka.obi@example.com",
+                     *           "phone": "+2348031234567",
+                     *           "address": "7 Ologun Agbaje Street, Victoria Island, Lagos",
+                     *           "tax_id": null
+                     *         },
+                     *         "seller": {
+                     *           "name": "Adeyemi Foods",
+                     *           "address": "14 Admiralty Way, Lekki Phase 1",
+                     *           "registration_number": "RC 1849302",
+                     *           "tax_id": "23456789-0001",
+                     *           "tax_id_label": "TIN"
+                     *         },
+                     *         "lines": [
+                     *           {
+                     *             "position": 1,
+                     *             "description": "Jollof Rice Party Pack",
+                     *             "quantity": "10",
+                     *             "unit_price": "18500.00",
+                     *             "tax_name": "VAT",
+                     *             "tax_rate": "7.50",
+                     *             "taxes": [
+                     *               {
+                     *                 "name": "VAT",
+                     *                 "rate": "7.50",
+                     *                 "amount": "12487.50"
+                     *               }
+                     *             ],
+                     *             "line_total": "185000.00",
+                     *             "discount_amount": "18500.00",
+                     *             "tax_amount": "12487.50"
+                     *           }
+                     *         ],
+                     *         "subtotal": "185000.00",
+                     *         "discount": {
+                     *           "type": "percent",
+                     *           "value": "10.00",
+                     *           "total": "18500.00"
+                     *         },
+                     *         "tax_total": "12487.50",
+                     *         "tax_breakdown": [
+                     *           {
+                     *             "name": "VAT",
+                     *             "rate": "7.50",
+                     *             "taxable": "166500.00",
+                     *             "amount": "12487.50"
+                     *           }
+                     *         ],
+                     *         "total_amount": "178987.50",
+                     *         "amount_paid": "90000.00",
+                     *         "amount_due": "88987.50",
+                     *         "terms": "Balance due before the event.",
+                     *         "note": null,
+                     *         "language": "en",
+                     *         "payments": [
+                     *           {
+                     *             "id": 2001,
+                     *             "source": "invoice",
+                     *             "kind": "payment",
+                     *             "amount": "90000.00",
+                     *             "method": "bank_transfer",
+                     *             "is_cash": true,
+                     *             "reference": "GTB-2210-8841",
+                     *             "paid_at": "2026-09-24T11:05:00+01:00",
+                     *             "voided_at": null,
+                     *             "void_reason": null
+                     *           }
+                     *         ],
+                     *         "installments": [
+                     *           {
+                     *             "sequence_no": 1,
+                     *             "expected_amount": "90000.00",
+                     *             "paid_amount": "90000.00",
+                     *             "status": "paid",
+                     *             "due_at": "2026-09-26",
+                     *             "paid_at": "2026-09-24T11:05:00+01:00"
+                     *           },
+                     *           {
+                     *             "sequence_no": 2,
+                     *             "expected_amount": "88987.50",
+                     *             "paid_amount": "0.00",
+                     *             "status": "pending",
+                     *             "due_at": "2026-10-10",
+                     *             "paid_at": null
+                     *           }
+                     *         ],
+                     *         "credit_notes": [],
+                     *         "fiscal_reference": null,
+                     *         "issued_at": "2026-09-24T09:50:00+01:00",
+                     *         "due_at": "2026-10-10",
+                     *         "paid_at": null,
+                     *         "voided_at": null,
+                     *         "void_reason": null,
+                     *         "created_at": "2026-09-24T09:40:00+01:00",
+                     *         "updated_at": "2026-09-24T11:05:00+01:00"
+                     *       }
+                     *     }
+                     */
+                    "application/json": {
+                        /** @constant */
+                        status: "success";
+                        message: string;
+                        data: components["schemas"]["MerchantInvoice"];
+                    };
+                };
+            };
+            /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "invalid_client_key",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Forbidden — the key cannot call this operation. Switch on `error.code`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "insufficient_scope",
+                     *         "message": "This API key does not carry the 'merchant-invoices-record-payment' scope it was called with.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Not found — the addressed record does not exist at this store. Switch on `error.code`. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "not_found",
+                     *         "message": "Invoice not found.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#not_found",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Idempotency conflict — `idempotency_key_reuse` or `idempotency_key_in_progress`. Switch on `error.code`. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "idempotency_key_reuse",
+                     *         "message": "This Idempotency-Key was already used for a different request body. Use a new key for a new request.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#idempotency_key_reuse",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Validation failed — `error.errors` carries per-field detail. Switch on `error.code`. A payment above the balance, on a draft, a void or fully paid invoice, a proforma or an order-backed invoice answers 409 `invoice_state_conflict`; a missing Idempotency-Key answers 400 `idempotency_key_required`; the same key with another body answers 409 `idempotency_key_reuse`. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "validation_failed",
+                     *         "message": "The selected method is invalid.",
+                     *         "field": "method",
+                     *         "errors": {
+                     *           "method": [
+                     *             "The selected method is invalid."
+                     *           ]
+                     *         },
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Too many requests — slow down and retry. Switch on `error.code`. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "too_many_requests",
+                     *         "message": "Too Many Attempts.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+        };
+    };
+    "markets.list": {
+        parameters: {
+            query?: {
+                /**
+                 * @description Maximum number of items to return in one page.
+                 * @example 10
+                 */
+                limit?: number | null;
+                /** @description Cursor for the next page: pass `next_cursor` from the previous response unchanged. Keep walking while `has_more` is true. */
+                starting_after?: string | null;
+            };
+            header: {
+                /**
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @example {{merchantKey}}
+                 */
+                "X-Client-Key": string;
+                /** @description Your own correlation id (8–128 chars, `^[A-Za-z0-9_.:-]+$`). Echoed back on the response and on every log line of the request; one is generated when you omit it. */
+                "X-Request-Id"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "data": [
+                     *         {
+                     *           "id": 1001,
+                     *           "name": "Ghana",
+                     *           "countries": [
+                     *             "GH"
+                     *           ],
+                     *           "currency": "GHS",
+                     *           "published": false,
+                     *           "status": "draft",
+                     *           "blockers": [
+                     *             "no_provider"
+                     *           ],
+                     *           "checkout_currency": "NGN"
+                     *         },
+                     *         {
+                     *           "id": 1002,
+                     *           "name": "Francophone West Africa",
+                     *           "countries": [
+                     *             "BJ",
+                     *             "CI",
+                     *             "SN",
+                     *             "TG"
+                     *           ],
+                     *           "currency": "XOF",
+                     *           "published": false,
+                     *           "status": "draft",
+                     *           "blockers": [
+                     *             "no_provider"
+                     *           ],
+                     *           "checkout_currency": "NGN"
+                     *         }
+                     *       ],
+                     *       "has_more": true,
+                     *       "next_cursor": "eyJwX2lkIjoxMDAyLCJfcG9pbnRzVG9OZXh0SXRlbXMiOnRydWV9"
+                     *     }
+                     */
+                    "application/json": {
+                        data: components["schemas"]["MerchantMarket"][];
+                        has_more: boolean;
+                        next_cursor?: string | null;
+                    };
+                };
+            };
+            /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "invalid_client_key",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Forbidden — the key cannot call this operation. Switch on `error.code`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "insufficient_scope",
+                     *         "message": "This API key does not carry the 'merchant-markets-read' scope it was called with.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Validation failed — `error.errors` carries per-field detail. Switch on `error.code`. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "validation_failed",
+                     *         "message": "The limit field must be at least 1.",
+                     *         "field": "limit",
+                     *         "errors": {
+                     *           "limit": [
+                     *             "The limit field must be at least 1."
+                     *           ]
+                     *         },
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Too many requests — slow down and retry. Switch on `error.code`. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "too_many_requests",
+                     *         "message": "Too Many Attempts.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+        };
+    };
+    "markets.create": {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @example {{merchantKey}}
+                 */
+                "X-Client-Key": string;
+                /** @description Your own correlation id (8–128 chars, `^[A-Za-z0-9_.:-]+$`). Echoed back on the response and on every log line of the request; one is generated when you omit it. */
+                "X-Request-Id"?: string;
+                /** @description Retry-safe write key. The same key with the same body replays the stored response for 24h with `Idempotent-Replayed: true`; with a different body it is `409 idempotency_key_reuse`; while the first call is still running it is `409 idempotency_key_in_progress`. */
+                "Idempotency-Key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "name": "Ghana",
+                 *       "countries": [
+                 *         "GH"
+                 *       ],
+                 *       "currency": "GHS"
+                 *     }
+                 */
+                "application/json": components["schemas"]["StoreVendorMarketRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "status": "success",
+                     *       "message": "Market created",
+                     *       "data": {
+                     *         "id": 1001,
+                     *         "name": "Ghana",
+                     *         "countries": [
+                     *           "GH"
+                     *         ],
+                     *         "currency": "GHS",
+                     *         "published": false,
+                     *         "status": "draft",
+                     *         "blockers": [
+                     *           "no_provider"
+                     *         ],
+                     *         "checkout_currency": "NGN"
+                     *       }
+                     *     }
+                     */
+                    "application/json": {
+                        /** @constant */
+                        status: "success";
+                        message: string;
+                        data: components["schemas"]["MerchantMarket"];
+                    };
+                };
+            };
+            /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "invalid_client_key",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Forbidden — the key cannot call this operation. Switch on `error.code`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "insufficient_scope",
+                     *         "message": "This API key does not carry the 'merchant-markets-write' scope it was called with.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Idempotency conflict — `idempotency_key_reuse` or `idempotency_key_in_progress`. Switch on `error.code`. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "idempotency_key_reuse",
+                     *         "message": "This Idempotency-Key was already used for a different request body. Use a new key for a new request.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#idempotency_key_reuse",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Validation failed — `error.errors` carries per-field detail. Switch on `error.code`. A rule the market breaks answers 422 with its own code instead of a field error: `market_name_taken`, `market_country_unknown`, `market_country_not_available`, `market_country_taken`, `market_country_is_store_country`, `market_currency_unsupported`, `market_currency_precision`, `market_currency_is_shop_currency` or `market_limit_exceeded`. Market writes are limited to 20 a minute and 100 an hour per store (429). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "validation_failed",
+                     *         "message": "The currency field must be 3 characters.",
+                     *         "field": "currency",
+                     *         "errors": {
+                     *           "currency": [
+                     *             "The currency field must be 3 characters."
+                     *           ]
+                     *         },
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Too many requests — slow down and retry. Switch on `error.code`. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "too_many_requests",
+                     *         "message": "Too Many Attempts.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+        };
+    };
+    "markets.retrieve": {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @example {{merchantKey}}
+                 */
+                "X-Client-Key": string;
+                /** @description Your own correlation id (8–128 chars, `^[A-Za-z0-9_.:-]+$`). Echoed back on the response and on every log line of the request; one is generated when you omit it. */
+                "X-Request-Id"?: string;
+            };
+            path: {
+                /**
+                 * @description Identifier of the market, as returned by the Merchant API.
+                 * @example 1001
+                 */
+                market: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "status": "success",
+                     *       "message": "Market retrieved",
+                     *       "data": {
+                     *         "id": 1001,
+                     *         "name": "Ghana",
+                     *         "countries": [
+                     *           "GH"
+                     *         ],
+                     *         "currency": "GHS",
+                     *         "published": false,
+                     *         "status": "draft",
+                     *         "blockers": [
+                     *           "no_provider"
+                     *         ],
+                     *         "checkout_currency": "NGN"
+                     *       }
+                     *     }
+                     */
+                    "application/json": {
+                        /** @constant */
+                        status: "success";
+                        message: string;
+                        data: components["schemas"]["MerchantMarket"];
+                    };
+                };
+            };
+            /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "invalid_client_key",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Forbidden — the key cannot call this operation. Switch on `error.code`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "insufficient_scope",
+                     *         "message": "This API key does not carry the 'merchant-markets-read' scope it was called with.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Not found — the addressed record does not exist at this store. Switch on `error.code`. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "not_found",
+                     *         "message": "Market not found.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#not_found",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Too many requests — slow down and retry. Switch on `error.code`. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "too_many_requests",
+                     *         "message": "Too Many Attempts.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+        };
+    };
+    "markets.delete": {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @example {{merchantKey}}
+                 */
+                "X-Client-Key": string;
+                /** @description Your own correlation id (8–128 chars, `^[A-Za-z0-9_.:-]+$`). Echoed back on the response and on every log line of the request; one is generated when you omit it. */
+                "X-Request-Id"?: string;
+                /** @description Retry-safe write key. The same key with the same body replays the stored response for 24h with `Idempotent-Replayed: true`; with a different body it is `409 idempotency_key_reuse`; while the first call is still running it is `409 idempotency_key_in_progress`. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                /**
+                 * @description Identifier of the market, as returned by the Merchant API.
+                 * @example 1002
+                 */
+                market: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "status": "success",
+                     *       "message": "Market removed",
+                     *       "data": {
+                     *         "id": 1002,
+                     *         "deleted": true
+                     *       }
+                     *     }
+                     */
+                    "application/json": {
+                        /** @constant */
+                        status: "success";
+                        message: string;
+                        data: {
+                            /** @description The removed market id. */
+                            id: number;
+                            /** @description Always true when this shape answers. */
+                            deleted: boolean;
+                        };
+                    };
+                };
+            };
+            /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "invalid_client_key",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Forbidden — the key cannot call this operation. Switch on `error.code`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "insufficient_scope",
+                     *         "message": "This API key does not carry the 'merchant-markets-write' scope it was called with.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Not found — the addressed record does not exist at this store. Switch on `error.code`. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "not_found",
+                     *         "message": "Market not found.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#not_found",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Idempotency conflict — `idempotency_key_reuse` or `idempotency_key_in_progress`. Switch on `error.code`. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "idempotency_key_reuse",
+                     *         "message": "This Idempotency-Key was already used for a different request body. Use a new key for a new request.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#idempotency_key_reuse",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Too many requests — slow down and retry. Switch on `error.code`. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "too_many_requests",
+                     *         "message": "Too Many Attempts.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+        };
+    };
+    "markets.update": {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @example {{merchantKey}}
+                 */
+                "X-Client-Key": string;
+                /** @description Your own correlation id (8–128 chars, `^[A-Za-z0-9_.:-]+$`). Echoed back on the response and on every log line of the request; one is generated when you omit it. */
+                "X-Request-Id"?: string;
+                /** @description Retry-safe write key. The same key with the same body replays the stored response for 24h with `Idempotent-Replayed: true`; with a different body it is `409 idempotency_key_reuse`; while the first call is still running it is `409 idempotency_key_in_progress`. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                /**
+                 * @description Identifier of the market, as returned by the Merchant API.
+                 * @example 1001
+                 */
+                market: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                /**
+                 * @example {
+                 *       "name": "Ghana storefront"
+                 *     }
+                 */
+                "application/json": components["schemas"]["UpdateVendorMarketRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "status": "success",
+                     *       "message": "Market updated",
+                     *       "data": {
+                     *         "id": 1001,
+                     *         "name": "Ghana storefront",
+                     *         "countries": [
+                     *           "GH"
+                     *         ],
+                     *         "currency": "GHS",
+                     *         "published": false,
+                     *         "status": "draft",
+                     *         "blockers": [
+                     *           "no_provider"
+                     *         ],
+                     *         "checkout_currency": "NGN"
+                     *       }
+                     *     }
+                     */
+                    "application/json": {
+                        /** @constant */
+                        status: "success";
+                        message: string;
+                        data: components["schemas"]["MerchantMarket"];
+                    };
+                };
+            };
+            /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "invalid_client_key",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Forbidden — the key cannot call this operation. Switch on `error.code`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "insufficient_scope",
+                     *         "message": "This API key does not carry the 'merchant-markets-write' scope it was called with.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Not found — the addressed record does not exist at this store. Switch on `error.code`. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "not_found",
+                     *         "message": "Market not found.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#not_found",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Idempotency conflict — `idempotency_key_reuse` or `idempotency_key_in_progress`. Switch on `error.code`. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "idempotency_key_reuse",
+                     *         "message": "This Idempotency-Key was already used for a different request body. Use a new key for a new request.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#idempotency_key_reuse",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Validation failed — `error.errors` carries per-field detail. Switch on `error.code`. Sending `published: true` answers 422 `market_publish_no_provider` or `market_publish_no_rate` while no provider can charge the currency or no current exchange rate exists; changing the `currency` or `countries` of a published market answers 422 `market_published_locked`. The rule codes of a create apply here too. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "validation_failed",
+                     *         "message": "The currency field must be 3 characters.",
+                     *         "field": "currency",
+                     *         "errors": {
+                     *           "currency": [
+                     *             "The currency field must be 3 characters."
+                     *           ]
+                     *         },
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Too many requests — slow down and retry. Switch on `error.code`. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "too_many_requests",
+                     *         "message": "Too Many Attempts.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+        };
+    };
     "metafields.list_definitions": {
         parameters: {
             query?: {
@@ -23420,12 +29767,12 @@ export interface operations {
                 limit?: number | null;
                 /** @description Cursor for the next page: pass `next_cursor` from the previous response unchanged. Keep walking while `has_more` is true. */
                 starting_after?: string | null;
-                /** @description Only definitions for this kind of record: `product` or `order`. */
+                /** @description Only definitions for this kind of record: `product`, `order`, `customer`, `collection`, `post` or `variant`. */
                 owner_type?: string | null;
             };
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -23453,6 +29800,9 @@ export interface operations {
                      *           "key": "event_date",
                      *           "type": "date",
                      *           "storefront_visible": false,
+                     *           "customer_visible": false,
+                     *           "app_owned": false,
+                     *           "merchant_access": "read_write",
                      *           "pinned": false,
                      *           "pinned_position": null,
                      *           "name": "Event date",
@@ -23469,6 +29819,9 @@ export interface operations {
                      *           "key": "spice_level",
                      *           "type": "single_line_text",
                      *           "storefront_visible": true,
+                     *           "customer_visible": false,
+                     *           "app_owned": false,
+                     *           "merchant_access": "read_write",
                      *           "pinned": true,
                      *           "pinned_position": 1,
                      *           "name": "Spice level",
@@ -23489,12 +29842,9 @@ export interface operations {
                      *     }
                      */
                     "application/json": {
-                        /** @constant */
-                        status: "success";
-                        /** @constant */
-                        message: "Metafield definitions";
-                        data: string[];
-                        meta: string;
+                        data: components["schemas"]["MerchantMetafieldDefinition"][];
+                        has_more: boolean;
+                        next_cursor?: string | null;
                     };
                 };
             };
@@ -23508,7 +29858,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -23587,7 +29937,7 @@ export interface operations {
             query?: never;
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -23610,6 +29960,7 @@ export interface operations {
                  *       "name": "Spice level",
                  *       "description": "How hot the dish is: mild, medium or hot.",
                  *       "storefront_visible": true,
+                 *       "customer_visible": false,
                  *       "pinned": true,
                  *       "pinned_position": 1,
                  *       "validations": {
@@ -23642,6 +29993,9 @@ export interface operations {
                      *         "key": "spice_level",
                      *         "type": "single_line_text",
                      *         "storefront_visible": true,
+                     *         "customer_visible": false,
+                     *         "app_owned": false,
+                     *         "merchant_access": "read_write",
                      *         "pinned": true,
                      *         "pinned_position": 1,
                      *         "name": "Spice level",
@@ -23678,7 +30032,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -23771,6 +30125,355 @@ export interface operations {
             };
         };
     };
+    "metafields.delete_definition": {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @example {{merchantKey}}
+                 */
+                "X-Client-Key": string;
+                /** @description Your own correlation id (8–128 chars, `^[A-Za-z0-9_.:-]+$`). Echoed back on the response and on every log line of the request; one is generated when you omit it. */
+                "X-Request-Id"?: string;
+                /** @description Retry-safe write key. The same key with the same body replays the stored response for 24h with `Idempotent-Replayed: true`; with a different body it is `409 idempotency_key_reuse`; while the first call is still running it is `409 idempotency_key_in_progress`. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                /**
+                 * @description Identifier of the definition, as returned by the Merchant API.
+                 * @example 418
+                 */
+                definition: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "status": "success",
+                     *       "message": "Metafield definition deleted",
+                     *       "data": {
+                     *         "deleted_values": 1
+                     *       }
+                     *     }
+                     */
+                    "application/json": {
+                        /** @constant */
+                        status: "success";
+                        /** @constant */
+                        message: "Metafield definition deleted";
+                        data: Record<string, never>;
+                        meta: string;
+                    };
+                };
+            };
+            /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "invalid_client_key",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Forbidden — the key cannot call this operation. Switch on `error.code`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "insufficient_scope",
+                     *         "message": "This API key does not carry the 'merchant-app_metafields-update' scope it was called with.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Not found — the addressed record does not exist at this store. Switch on `error.code`. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "not_found",
+                     *         "message": "Metafield definition not found.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#not_found",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Idempotency conflict — `idempotency_key_reuse` or `idempotency_key_in_progress`. Switch on `error.code`. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "idempotency_key_reuse",
+                     *         "message": "This Idempotency-Key was already used for a different request body. Use a new key for a new request.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#idempotency_key_reuse",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Too many requests — slow down and retry. Switch on `error.code`. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "too_many_requests",
+                     *         "message": "Too Many Attempts.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+        };
+    };
+    "metafields.update_definition": {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @example {{merchantKey}}
+                 */
+                "X-Client-Key": string;
+                /** @description Your own correlation id (8–128 chars, `^[A-Za-z0-9_.:-]+$`). Echoed back on the response and on every log line of the request; one is generated when you omit it. */
+                "X-Request-Id"?: string;
+                /** @description Retry-safe write key. The same key with the same body replays the stored response for 24h with `Idempotent-Replayed: true`; with a different body it is `409 idempotency_key_reuse`; while the first call is still running it is `409 idempotency_key_in_progress`. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                /**
+                 * @description Identifier of the definition, as returned by the Merchant API.
+                 * @example 418
+                 */
+                definition: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "name": "Default lead time (days)",
+                 *       "validations": {
+                 *         "min": 0,
+                 *         "max": 60
+                 *       }
+                 *     }
+                 */
+                "application/json": components["schemas"]["MetafieldDefinitionRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "status": "success",
+                     *       "message": "Metafield definition updated",
+                     *       "data": {
+                     *         "p_id": 418,
+                     *         "handle": "app_example_channel.default_lead_days",
+                     *         "owner_type": "installation",
+                     *         "namespace": "app_example_channel",
+                     *         "key": "default_lead_days",
+                     *         "type": "integer",
+                     *         "storefront_visible": false,
+                     *         "customer_visible": false,
+                     *         "app_owned": true,
+                     *         "merchant_access": "read",
+                     *         "pinned": false,
+                     *         "pinned_position": null,
+                     *         "name": "Default lead time (days)",
+                     *         "description": null,
+                     *         "validations": {
+                     *           "min": 0,
+                     *           "max": 60
+                     *         },
+                     *         "created_at": "2026-10-23T08:00:00.000000Z",
+                     *         "updated_at": "2026-10-23T08:30:00.000000Z"
+                     *       }
+                     *     }
+                     */
+                    "application/json": {
+                        /** @constant */
+                        status: "success";
+                        /** @constant */
+                        message: "Metafield definition updated";
+                        data: Record<string, never>;
+                        meta: string;
+                    };
+                };
+            };
+            /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "invalid_client_key",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Forbidden — the key cannot call this operation. Switch on `error.code`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "insufficient_scope",
+                     *         "message": "This API key does not carry the 'merchant-app_metafields-update' scope it was called with.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Not found — the addressed record does not exist at this store. Switch on `error.code`. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "not_found",
+                     *         "message": "Metafield definition not found.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#not_found",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Idempotency conflict — `idempotency_key_reuse` or `idempotency_key_in_progress`. Switch on `error.code`. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "idempotency_key_reuse",
+                     *         "message": "This Idempotency-Key was already used for a different request body. Use a new key for a new request.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#idempotency_key_reuse",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Validation failed — `error.errors` carries per-field detail. Switch on `error.code`. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "validation_failed",
+                     *         "message": "An installation field is never shown on the storefront.",
+                     *         "field": "storefront_visible",
+                     *         "errors": {
+                     *           "storefront_visible": [
+                     *             "An installation field is never shown on the storefront."
+                     *           ]
+                     *         },
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Too many requests — slow down and retry. Switch on `error.code`. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "too_many_requests",
+                     *         "message": "Too Many Attempts.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+        };
+    };
     "metaobjects.list_definitions": {
         parameters: {
             query?: {
@@ -23784,7 +30487,7 @@ export interface operations {
             };
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -23813,6 +30516,7 @@ export interface operations {
                      *           "storefront_visible": true,
                      *           "has_pages": true,
                      *           "data_class": "content",
+                     *           "app_owned": false,
                      *           "entry_cap_override": null,
                      *           "retention_days": null,
                      *           "fields": [
@@ -23847,12 +30551,9 @@ export interface operations {
                      *     }
                      */
                     "application/json": {
-                        /** @constant */
-                        status: "success";
-                        /** @constant */
-                        message: "Metaobject definitions";
-                        data: string[];
-                        meta: string;
+                        data: components["schemas"]["MerchantMetaobjectDefinition"][];
+                        has_more: boolean;
+                        next_cursor?: string | null;
                     };
                 };
             };
@@ -23866,7 +30567,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -23945,7 +30646,7 @@ export interface operations {
             query?: never;
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -24011,6 +30712,7 @@ export interface operations {
                      *         "storefront_visible": true,
                      *         "has_pages": true,
                      *         "data_class": "content",
+                     *         "app_owned": false,
                      *         "entry_cap_override": null,
                      *         "retention_days": null,
                      *         "fields": [
@@ -24061,7 +30763,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -24179,7 +30881,7 @@ export interface operations {
             };
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -24249,7 +30951,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -24328,7 +31030,7 @@ export interface operations {
             query?: never;
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -24403,7 +31105,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -24500,15 +31202,27 @@ export interface operations {
         parameters: {
             query?: {
                 /**
-                 * @description One of `paid`, `overpaid`, `partially_refunded`, `partially_paid`, `partial`, `unpaid`, `refunded`, `pending`, `awaiting_confirmation`.
+                 * @description A stored payment word (exact match), or `outstanding`: money still owed on an order that is not cancelled or rejected (pending, unpaid, partially_paid, awaiting_confirmation).
                  * @example paid
                  */
-                payment_status?: "paid" | "overpaid" | "partially_refunded" | "partially_paid" | "partial" | "unpaid" | "refunded" | "pending" | "awaiting_confirmation" | null;
+                payment_status?: "paid" | "overpaid" | "partially_refunded" | "partially_paid" | "partial" | "unpaid" | "refunded" | "pending" | "awaiting_confirmation" | "outstanding" | null;
+                /** @description `all` (default), `open` (placed, not cancelled or rejected, not completed: the set the dashboard badge counts), `pending` (not yet accepted), `active`, `completed`, `awaiting_pickup`, `rejected`, `cancelled`, `settled` or `in_progress`. Any other word filters nothing. */
+                status?: string | null;
+                /** @description One stored method (`online`, `bank_transfer`, `pos`, …), or a group word: `offline_all` (offline method: offline, pos, bank_transfer, or an offline payment mode) or `online_all` (every other order that has a method; an order with no method is in neither). */
+                payment_method?: string | null;
                 /**
                  * @description One of `delivery`, `pickup`, `instore`, `shipping`.
                  * @example delivery
                  */
                 delivery_method?: "delivery" | "pickup" | "instore" | "shipping" | null;
+                /** @description Only orders delivered by this rider (a user id). */
+                rider_id?: string | null;
+                /** @description Only orders recorded by this staff member (a user id). */
+                staff_id?: string | null;
+                /** @description Only orders placed by this customer (a user id). */
+                user_id?: string | null;
+                /** @description Only orders with this payment mode (for example `cash`, `manual`, `split`). */
+                payment_mode?: string | null;
                 /** @description Only orders rung up in this point-of-sale register session (a register session UUID). Orders placed outside a register never match. */
                 registry_id?: string | null;
                 /** @description Exact-match filter on an order metafield the store has defined, typed by its definition: `metafield[custom.erp_id]=ERP-42`. Several handles are ANDed. An undefined handle answers 422 `metafield_definition_missing`; a value the definition cannot hold, 422 `metafield_value_invalid`. */
@@ -24521,8 +31235,8 @@ export interface operations {
                  *     the name). The Merchant API list pages the same rows.
                  */
                 custom_channel?: "physical_sale" | "instagram" | "whatsapp" | "facebook" | "flutterwave" | "jiji" | "jumia" | "konga" | "tiktok" | "glovo" | "chowdeck" | "paystack" | "snapchat" | "x_twitter" | "others" | null;
-                /** @description Field to sort the list by. One of `created_at`, `updated_at`, `status`, `payment_status`, `total`. */
-                sort_by?: "created_at" | "updated_at" | "status" | "payment_status" | "total" | null;
+                /** @description Field to sort the list by. One of `created_at`, `placed_at`, `updated_at`, `status`, `payment_status`, `total`. */
+                sort_by?: "created_at" | "placed_at" | "updated_at" | "status" | "payment_status" | "total" | null;
                 /** @description Sort direction. One of `asc`, `desc`. */
                 sort_order?: "asc" | "desc" | null;
                 /**
@@ -24532,6 +31246,12 @@ export interface operations {
                 limit?: number | null;
                 /** @description Cursor for the next page: pass `next_cursor` from the previous response unchanged. Keep walking while `has_more` is true. */
                 starting_after?: string | null;
+                /** @description Only orders placed on or after this day (YYYY-MM-DD), a day on the store's own calendar (its `timezone`). Ignored when `date_range` is sent. */
+                from_date?: string | null;
+                /** @description Only orders placed on or before this day (YYYY-MM-DD), same time zone, so `to_date` is a whole day, not midnight. Must not be before `from_date`. Ignored when `date_range` is sent. */
+                to_date?: string | null;
+                /** @description A named window on the store's own calendar: `today`, `this_week` (Monday to Sunday) or `this_month` (the calendar month). Takes precedence over `from_date` and `to_date`. */
+                date_range?: "today" | "this_week" | "this_month" | null;
                 /**
                  * @description Only items changed after this ISO-8601 timestamp.
                  * @example 2026-10-03T11:55:00Z
@@ -24540,7 +31260,7 @@ export interface operations {
             };
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -24574,6 +31294,14 @@ export interface operations {
                      *           "cancel_reason": null,
                      *           "channel": null,
                      *           "platform": "third_party",
+                     *           "location_id": null,
+                     *           "routing": {
+                     *             "reason": "default",
+                     *             "message": "Fulfilled from the default location.",
+                     *             "short": false,
+                     *             "sell_anyway": false,
+                     *             "sell_anyway_reason": null
+                     *           },
                      *           "custom_channel": "chowdeck",
                      *           "external_ref": "CD-7F3K2Q",
                      *           "publication": null,
@@ -24601,6 +31329,9 @@ export interface operations {
                      *               "id": "019a3a0e-1c2d-7e3f-8a4b-5c6d7e8f9a12",
                      *               "product_id": 20418,
                      *               "product_uid": "019a1d52-3c8e-7f41-b0d2-6a3e9c1f4b22",
+                     *               "variant_id": null,
+                     *               "variant_uid": null,
+                     *               "sku": "ADF-CHP-000",
                      *               "title": "Homemade Chapman",
                      *               "variant_title": "50cl",
                      *               "quantity": 2,
@@ -24614,6 +31345,7 @@ export interface operations {
                      *           "metafields": {},
                      *           "metadata": {},
                      *           "created_at": "2026-09-24T14:05:00+01:00",
+                     *           "placed_at": null,
                      *           "updated_at": "2026-09-24T14:05:00+01:00",
                      *           "fulfilled_at": null,
                      *           "transactions": [
@@ -24659,6 +31391,14 @@ export interface operations {
                      *           "cancel_reason": null,
                      *           "channel": null,
                      *           "platform": "storefront",
+                     *           "location_id": null,
+                     *           "routing": {
+                     *             "reason": "default",
+                     *             "message": "Fulfilled from the default location.",
+                     *             "short": false,
+                     *             "sell_anyway": false,
+                     *             "sell_anyway_reason": null
+                     *           },
                      *           "custom_channel": null,
                      *           "external_ref": null,
                      *           "publication": null,
@@ -24691,6 +31431,9 @@ export interface operations {
                      *               "id": "019a3a0e-1c2d-7e3f-8a4b-5c6d7e8f9a11",
                      *               "product_id": 20417,
                      *               "product_uid": "019a1d52-3c8e-7f41-b0d2-6a3e9c1f4b21",
+                     *               "variant_id": null,
+                     *               "variant_uid": null,
+                     *               "sku": "ADF-JRP-001",
                      *               "title": "Jollof Rice Party Pack",
                      *               "variant_title": null,
                      *               "quantity": 2,
@@ -24708,6 +31451,7 @@ export interface operations {
                      *             "erp_id": "SO-104882"
                      *           },
                      *           "created_at": "2026-09-24T13:40:00+01:00",
+                     *           "placed_at": "2026-09-24T13:40:00+01:00",
                      *           "updated_at": "2026-09-24T13:52:00+01:00",
                      *           "fulfilled_at": null,
                      *           "transactions": [
@@ -24761,7 +31505,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -24799,11 +31543,11 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "validation_failed",
-                     *         "message": "sort_by must be one of: created_at, updated_at, status, payment_status, total.",
+                     *         "message": "sort_by must be one of: created_at, placed_at, updated_at, status, payment_status, total.",
                      *         "field": "sort_by",
                      *         "errors": {
                      *           "sort_by": [
-                     *             "sort_by must be one of: created_at, updated_at, status, payment_status, total."
+                     *             "sort_by must be one of: created_at, placed_at, updated_at, status, payment_status, total."
                      *           ]
                      *         },
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
@@ -24840,7 +31584,7 @@ export interface operations {
             query?: never;
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -24899,6 +31643,14 @@ export interface operations {
                      *         "cancel_reason": null,
                      *         "channel": null,
                      *         "platform": "custom",
+                     *         "location_id": null,
+                     *         "routing": {
+                     *           "reason": "default",
+                     *           "message": "Fulfilled from the default location.",
+                     *           "short": false,
+                     *           "sell_anyway": false,
+                     *           "sell_anyway_reason": null
+                     *         },
                      *         "custom_channel": "others",
                      *         "external_ref": null,
                      *         "publication": null,
@@ -24925,6 +31677,9 @@ export interface operations {
                      *             "id": "019a3a0e-1c2d-7e3f-8a4b-5c6d7e8f9a13",
                      *             "product_id": 20418,
                      *             "product_uid": "019a1d52-3c8e-7f41-b0d2-6a3e9c1f4b22",
+                     *             "variant_id": null,
+                     *             "variant_uid": null,
+                     *             "sku": "ADF-CHP-000",
                      *             "title": "Homemade Chapman",
                      *             "variant_title": "50cl",
                      *             "quantity": 2,
@@ -24938,6 +31693,7 @@ export interface operations {
                      *         "metafields": {},
                      *         "metadata": {},
                      *         "created_at": "2026-09-24T14:30:00+01:00",
+                     *         "placed_at": null,
                      *         "updated_at": "2026-09-24T14:30:00+01:00",
                      *         "fulfilled_at": null
                      *       }
@@ -24961,7 +31717,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -25059,7 +31815,7 @@ export interface operations {
             query?: never;
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -25100,6 +31856,14 @@ export interface operations {
                      *         "cancel_reason": null,
                      *         "channel": null,
                      *         "platform": "storefront",
+                     *         "location_id": null,
+                     *         "routing": {
+                     *           "reason": "default",
+                     *           "message": "Fulfilled from the default location.",
+                     *           "short": false,
+                     *           "sell_anyway": false,
+                     *           "sell_anyway_reason": null
+                     *         },
                      *         "custom_channel": null,
                      *         "external_ref": null,
                      *         "publication": null,
@@ -25132,6 +31896,9 @@ export interface operations {
                      *             "id": "019a3a0e-1c2d-7e3f-8a4b-5c6d7e8f9a11",
                      *             "product_id": 20417,
                      *             "product_uid": "019a1d52-3c8e-7f41-b0d2-6a3e9c1f4b21",
+                     *             "variant_id": null,
+                     *             "variant_uid": null,
+                     *             "sku": "ADF-JRP-001",
                      *             "title": "Jollof Rice Party Pack",
                      *             "variant_title": null,
                      *             "quantity": 2,
@@ -25149,6 +31916,7 @@ export interface operations {
                      *           "erp_id": "SO-104882"
                      *         },
                      *         "created_at": "2026-09-24T13:40:00+01:00",
+                     *         "placed_at": "2026-09-24T13:40:00+01:00",
                      *         "updated_at": "2026-09-24T13:52:00+01:00",
                      *         "fulfilled_at": null,
                      *         "transactions": [
@@ -25202,7 +31970,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -25275,7 +32043,7 @@ export interface operations {
             query?: never;
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -25338,6 +32106,14 @@ export interface operations {
                      *         "cancel_reason": null,
                      *         "channel": null,
                      *         "platform": "storefront",
+                     *         "location_id": null,
+                     *         "routing": {
+                     *           "reason": "default",
+                     *           "message": "Fulfilled from the default location.",
+                     *           "short": false,
+                     *           "sell_anyway": false,
+                     *           "sell_anyway_reason": null
+                     *         },
                      *         "custom_channel": null,
                      *         "external_ref": null,
                      *         "publication": null,
@@ -25370,6 +32146,9 @@ export interface operations {
                      *             "id": "019a3a0e-1c2d-7e3f-8a4b-5c6d7e8f9a11",
                      *             "product_id": 20417,
                      *             "product_uid": "019a1d52-3c8e-7f41-b0d2-6a3e9c1f4b21",
+                     *             "variant_id": null,
+                     *             "variant_uid": null,
+                     *             "sku": "ADF-JRP-001",
                      *             "title": "Jollof Rice Party Pack",
                      *             "variant_title": null,
                      *             "quantity": 2,
@@ -25387,6 +32166,7 @@ export interface operations {
                      *           "erp_id": "SO-104882"
                      *         },
                      *         "created_at": "2026-09-24T13:40:00+01:00",
+                     *         "placed_at": "2026-09-24T13:40:00+01:00",
                      *         "updated_at": "2026-09-24T13:52:00+01:00",
                      *         "fulfilled_at": null
                      *       }
@@ -25410,7 +32190,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -25533,6 +32313,13 @@ export interface operations {
                 /** @description Cursor for the next page: pass `next_cursor` from the previous response unchanged. Keep walking while `has_more` is true. */
                 starting_after?: string | null;
                 /**
+                 * @description Which checkouts to list: `cart` (default) is signed-in customers' idle carts, `payment` is unpaid checkouts (orders whose payment never arrived) and needs the `merchant-checkouts-payments-read` scope. Each stage has its own cursor; a row is keyed by `stage` plus `id`.
+                 * @example cart
+                 */
+                stage?: "cart" | "payment" | null;
+                /** @description `payment` only: also list recovered checkouts, orders paid after being left, with `completed_at` set. Off by default so a recovery app never nudges a shopper who already paid. Ignored for `cart`. */
+                include_completed?: boolean | null;
+                /**
                  * @description Only items last changed at or after this RFC 3339 timestamp with an explicit offset, for example `2026-10-14T09:30:00+01:00`. Poll with it and deduplicate on `id` plus `updated_at`.
                  * @example 2026-09-24T09:00:00+01:00
                  */
@@ -25540,7 +32327,7 @@ export interface operations {
             };
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -25584,7 +32371,13 @@ export interface operations {
                      *               "quantity": 1
                      *             }
                      *           ],
-                     *           "checkout_url": "https://adaeze-crafts.queek.shop/checkout"
+                     *           "checkout_url": "https://adaeze-crafts.queek.shop/checkout",
+                     *           "stage": "cart",
+                     *           "completed_at": null,
+                     *           "order": null,
+                     *           "currency": "NGN",
+                     *           "total": null,
+                     *           "recovery_url": null
                      *         }
                      *       ],
                      *       "has_more": true,
@@ -25608,7 +32401,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -25687,7 +32480,7 @@ export interface operations {
             query?: never;
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -25720,7 +32513,8 @@ export interface operations {
                  *       "delivery_fee": 1500,
                  *       "discount": 0,
                  *       "total": 6500,
-                 *       "fulfilment": "delivery"
+                 *       "fulfilment": "delivery",
+                 *       "inventory_behavior": "decrement"
                  *     }
                  */
                 "application/json": components["schemas"]["ImportThirdPartyOrderRequest"];
@@ -25750,6 +32544,14 @@ export interface operations {
                      *         "cancel_reason": null,
                      *         "channel": null,
                      *         "platform": "third_party",
+                     *         "location_id": null,
+                     *         "routing": {
+                     *           "reason": "default",
+                     *           "message": "Fulfilled from the default location.",
+                     *           "short": false,
+                     *           "sell_anyway": false,
+                     *           "sell_anyway_reason": null
+                     *         },
                      *         "custom_channel": "example-sales-app",
                      *         "external_ref": "APP-7F3K2Q",
                      *         "publication": null,
@@ -25777,6 +32579,9 @@ export interface operations {
                      *             "id": "019a3a0e-1c2d-7e3f-8a4b-5c6d7e8f9a12",
                      *             "product_id": 20418,
                      *             "product_uid": "019a1d52-3c8e-7f41-b0d2-6a3e9c1f4b22",
+                     *             "variant_id": null,
+                     *             "variant_uid": null,
+                     *             "sku": "ADF-CHP-000",
                      *             "title": "Homemade Chapman",
                      *             "variant_title": "50cl",
                      *             "quantity": 2,
@@ -25790,8 +32595,12 @@ export interface operations {
                      *         "metafields": {},
                      *         "metadata": {},
                      *         "created_at": "2026-09-24T14:05:00+01:00",
+                     *         "placed_at": null,
                      *         "updated_at": "2026-09-24T14:05:00+01:00",
                      *         "fulfilled_at": null
+                     *       },
+                     *       "meta": {
+                     *         "inventory_behavior": "decrement"
                      *       }
                      *     }
                      */
@@ -25801,7 +32610,9 @@ export interface operations {
                         /** @constant */
                         message: "Order already imported.";
                         data: Record<string, never>;
-                        meta: string;
+                        meta: {
+                            inventory_behavior: string | null;
+                        };
                     };
                 };
             };
@@ -25828,6 +32639,14 @@ export interface operations {
                      *         "cancel_reason": null,
                      *         "channel": null,
                      *         "platform": "third_party",
+                     *         "location_id": null,
+                     *         "routing": {
+                     *           "reason": "default",
+                     *           "message": "Fulfilled from the default location.",
+                     *           "short": false,
+                     *           "sell_anyway": false,
+                     *           "sell_anyway_reason": null
+                     *         },
                      *         "custom_channel": "example-sales-app",
                      *         "external_ref": "APP-7F3K2Q",
                      *         "publication": null,
@@ -25855,6 +32674,9 @@ export interface operations {
                      *             "id": "019a3a0e-1c2d-7e3f-8a4b-5c6d7e8f9a12",
                      *             "product_id": 20418,
                      *             "product_uid": "019a1d52-3c8e-7f41-b0d2-6a3e9c1f4b22",
+                     *             "variant_id": null,
+                     *             "variant_uid": null,
+                     *             "sku": "ADF-CHP-000",
                      *             "title": "Homemade Chapman",
                      *             "variant_title": "50cl",
                      *             "quantity": 2,
@@ -25868,8 +32690,12 @@ export interface operations {
                      *         "metafields": {},
                      *         "metadata": {},
                      *         "created_at": "2026-09-24T14:05:00+01:00",
+                     *         "placed_at": null,
                      *         "updated_at": "2026-09-24T14:05:00+01:00",
                      *         "fulfilled_at": null
+                     *       },
+                     *       "meta": {
+                     *         "inventory_behavior": "decrement"
                      *       }
                      *     }
                      */
@@ -25878,7 +32704,9 @@ export interface operations {
                         status: "success";
                         message: string;
                         data: Record<string, never>;
-                        meta: string;
+                        meta: {
+                            inventory_behavior: string | null;
+                        };
                     };
                 };
             };
@@ -25892,7 +32720,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -25939,7 +32767,7 @@ export interface operations {
                     "application/json": components["schemas"]["QueekError"];
                 };
             };
-            /** @description Validation failed — `error.errors` carries per-field detail. Switch on `error.code`. An item naming no product or variant of this store answers `unknown_product_ref` or `unknown_variant_ref` instead, with the reference in the message. */
+            /** @description Validation failed — `error.errors` carries per-field detail. Switch on `error.code`. An item naming no product or variant of this store answers `unknown_product_ref` or `unknown_variant_ref` instead, with the reference in the message. With `inventory_behavior: decrement` on a store whose shortfall policy is `block`, a line short of stock answers 409 `conflict` with `data.reason` `insufficient_stock`, `data.product` (the slug, as on POST orders), `data.variant`, `data.requested` and `data.on_hand`, and nothing is imported. */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -25990,7 +32818,7 @@ export interface operations {
             query?: never;
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -26042,6 +32870,14 @@ export interface operations {
                      *         "cancel_reason": null,
                      *         "channel": null,
                      *         "platform": "storefront",
+                     *         "location_id": null,
+                     *         "routing": {
+                     *           "reason": "default",
+                     *           "message": "Fulfilled from the default location.",
+                     *           "short": false,
+                     *           "sell_anyway": false,
+                     *           "sell_anyway_reason": null
+                     *         },
                      *         "custom_channel": null,
                      *         "external_ref": null,
                      *         "publication": null,
@@ -26074,6 +32910,9 @@ export interface operations {
                      *             "id": "019a3a0e-1c2d-7e3f-8a4b-5c6d7e8f9a11",
                      *             "product_id": 20417,
                      *             "product_uid": "019a1d52-3c8e-7f41-b0d2-6a3e9c1f4b21",
+                     *             "variant_id": null,
+                     *             "variant_uid": null,
+                     *             "sku": "ADF-JRP-001",
                      *             "title": "Jollof Rice Party Pack",
                      *             "variant_title": null,
                      *             "quantity": 2,
@@ -26091,6 +32930,7 @@ export interface operations {
                      *           "erp_id": "SO-104882"
                      *         },
                      *         "created_at": "2026-09-24T13:40:00+01:00",
+                     *         "placed_at": "2026-09-24T13:40:00+01:00",
                      *         "updated_at": "2026-09-24T13:52:00+01:00",
                      *         "fulfilled_at": null
                      *       }
@@ -26114,7 +32954,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -26231,7 +33071,7 @@ export interface operations {
             query?: never;
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -26283,6 +33123,14 @@ export interface operations {
                      *         "cancel_reason": null,
                      *         "channel": null,
                      *         "platform": "storefront",
+                     *         "location_id": null,
+                     *         "routing": {
+                     *           "reason": "default",
+                     *           "message": "Fulfilled from the default location.",
+                     *           "short": false,
+                     *           "sell_anyway": false,
+                     *           "sell_anyway_reason": null
+                     *         },
                      *         "custom_channel": null,
                      *         "external_ref": null,
                      *         "publication": null,
@@ -26315,6 +33163,9 @@ export interface operations {
                      *             "id": "019a3a0e-1c2d-7e3f-8a4b-5c6d7e8f9a11",
                      *             "product_id": 20417,
                      *             "product_uid": "019a1d52-3c8e-7f41-b0d2-6a3e9c1f4b21",
+                     *             "variant_id": null,
+                     *             "variant_uid": null,
+                     *             "sku": "ADF-JRP-001",
                      *             "title": "Jollof Rice Party Pack",
                      *             "variant_title": null,
                      *             "quantity": 2,
@@ -26332,6 +33183,7 @@ export interface operations {
                      *           "erp_id": "SO-104882"
                      *         },
                      *         "created_at": "2026-09-24T13:40:00+01:00",
+                     *         "placed_at": "2026-09-24T13:40:00+01:00",
                      *         "updated_at": "2026-09-24T13:52:00+01:00",
                      *         "fulfilled_at": null
                      *       }
@@ -26355,7 +33207,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -26472,7 +33324,7 @@ export interface operations {
             query?: never;
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -26584,7 +33436,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -26701,7 +33553,7 @@ export interface operations {
             query?: never;
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -26758,6 +33610,14 @@ export interface operations {
                      *         "cancel_reason": null,
                      *         "channel": null,
                      *         "platform": "storefront",
+                     *         "location_id": null,
+                     *         "routing": {
+                     *           "reason": "default",
+                     *           "message": "Fulfilled from the default location.",
+                     *           "short": false,
+                     *           "sell_anyway": false,
+                     *           "sell_anyway_reason": null
+                     *         },
                      *         "custom_channel": null,
                      *         "external_ref": null,
                      *         "publication": null,
@@ -26766,7 +33626,7 @@ export interface operations {
                      *         "subtotal": "25200.00",
                      *         "discount_total": "0.00",
                      *         "coupon_code": null,
-                     *         "shipping_total": "6650.00",
+                     *         "shipping_total": "0.00",
                      *         "tax_total": "0.00",
                      *         "total": "31850.00",
                      *         "amount_paid": "31850.00",
@@ -26798,6 +33658,9 @@ export interface operations {
                      *             "id": "019a3a0e-1c2d-7e3f-8a4b-5c6d7e8f9a13",
                      *             "product_id": 20418,
                      *             "product_uid": "019a1d52-3c8e-7f41-b0d2-6a3e9c1f4b22",
+                     *             "variant_id": 7732,
+                     *             "variant_uid": "019a1d52-5f10-7a02-8c61-0b2d4e6f8a32",
+                     *             "sku": "ADF-CHP-1L",
                      *             "title": "Homemade Chapman",
                      *             "variant_title": "1 litre",
                      *             "quantity": 6,
@@ -26811,6 +33674,7 @@ export interface operations {
                      *         "metafields": {},
                      *         "metadata": {},
                      *         "created_at": "2026-09-23T18:22:00+01:00",
+                     *         "placed_at": null,
                      *         "updated_at": "2026-09-24T16:10:00+01:00",
                      *         "fulfilled_at": null
                      *       }
@@ -26834,7 +33698,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -26959,7 +33823,7 @@ export interface operations {
             };
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -27010,7 +33874,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -27089,7 +33953,7 @@ export interface operations {
             query?: never;
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -27156,7 +34020,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -27235,14 +34099,14 @@ export interface operations {
                 /** @description Cursor for the next page: pass `next_cursor` from the previous response unchanged. Keep walking while `has_more` is true. */
                 starting_after?: string | null;
                 /**
-                 * @description One of `withdrawal`, `rider_settlement`.
+                 * @description One of `withdrawal`, `rider_settlement`, `delivery_trip_charge`, `delivery_trip_charge_reversal`, `shipping_label_charge`.
                  * @example withdrawal
                  */
-                type?: "withdrawal" | "rider_settlement" | null;
+                type?: "withdrawal" | "rider_settlement" | "delivery_trip_charge" | "delivery_trip_charge_reversal" | "shipping_label_charge" | null;
             };
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -27324,7 +34188,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -27403,7 +34267,7 @@ export interface operations {
             query?: never;
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -27470,7 +34334,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -27587,7 +34451,7 @@ export interface operations {
             };
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -27614,6 +34478,7 @@ export interface operations {
                      *           "slug": "homemade-chapman",
                      *           "excerpt": "Fresh Chapman with cucumber and orange slices.",
                      *           "description": "Our house Chapman, mixed fresh every morning. Served chilled.",
+                     *           "seo": null,
                      *           "status": "active",
                      *           "published": true,
                      *           "in_stock": true,
@@ -27655,6 +34520,7 @@ export interface operations {
                      *               "backorder_ready_date": null,
                      *               "weight": 0.55,
                      *               "position": 0,
+                     *               "metafields": {},
                      *               "created_at": "2026-07-15T11:30:00+01:00",
                      *               "updated_at": "2026-09-22T16:05:00+01:00"
                      *             },
@@ -27681,6 +34547,7 @@ export interface operations {
                      *               "backorder_ready_date": null,
                      *               "weight": 1.05,
                      *               "position": 1,
+                     *               "metafields": {},
                      *               "created_at": "2026-07-15T11:30:00+01:00",
                      *               "updated_at": "2026-09-22T16:05:00+01:00"
                      *             }
@@ -27753,6 +34620,7 @@ export interface operations {
                      *           "slug": "jollof-rice-party-pack",
                      *           "excerpt": "Smoky party jollof for 10, with fried plantain and grilled chicken.",
                      *           "description": "Firewood-smoked party jollof cooked to order, served with dodo and six pieces of grilled chicken. Feeds 10.",
+                     *           "seo": null,
                      *           "status": "active",
                      *           "published": true,
                      *           "in_stock": true,
@@ -27853,7 +34721,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -27932,7 +34800,7 @@ export interface operations {
             query?: never;
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -27990,6 +34858,7 @@ export interface operations {
                      *         "slug": "jollof-rice-party-pack",
                      *         "excerpt": "Smoky party jollof for 10, with fried plantain and grilled chicken.",
                      *         "description": "Firewood-smoked party jollof cooked to order, served with dodo and six pieces of grilled chicken. Feeds 10.",
+                     *         "seo": null,
                      *         "status": "active",
                      *         "published": true,
                      *         "in_stock": true,
@@ -28082,7 +34951,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -28207,7 +35076,7 @@ export interface operations {
             };
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -28234,6 +35103,7 @@ export interface operations {
                      *           "slug": "homemade-chapman",
                      *           "excerpt": "Fresh Chapman with cucumber and orange slices.",
                      *           "description": "Our house Chapman, mixed fresh every morning. Served chilled.",
+                     *           "seo": null,
                      *           "status": "active",
                      *           "published": true,
                      *           "in_stock": true,
@@ -28275,6 +35145,7 @@ export interface operations {
                      *               "backorder_ready_date": null,
                      *               "weight": 0.55,
                      *               "position": 0,
+                     *               "metafields": {},
                      *               "created_at": "2026-07-15T11:30:00+01:00",
                      *               "updated_at": "2026-09-22T16:05:00+01:00"
                      *             },
@@ -28301,6 +35172,7 @@ export interface operations {
                      *               "backorder_ready_date": null,
                      *               "weight": 1.05,
                      *               "position": 1,
+                     *               "metafields": {},
                      *               "created_at": "2026-07-15T11:30:00+01:00",
                      *               "updated_at": "2026-09-22T16:05:00+01:00"
                      *             }
@@ -28372,6 +35244,7 @@ export interface operations {
                      *           "slug": "jollof-rice-party-pack",
                      *           "excerpt": "Smoky party jollof for 10, with fried plantain and grilled chicken.",
                      *           "description": "Firewood-smoked party jollof cooked to order, served with dodo and six pieces of grilled chicken. Feeds 10.",
+                     *           "seo": null,
                      *           "status": "active",
                      *           "published": true,
                      *           "in_stock": true,
@@ -28465,7 +35338,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -28544,7 +35417,7 @@ export interface operations {
             query?: never;
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -28578,6 +35451,7 @@ export interface operations {
                      *         "slug": "jollof-rice-party-pack",
                      *         "excerpt": "Smoky party jollof for 10, with fried plantain and grilled chicken.",
                      *         "description": "Firewood-smoked party jollof cooked to order, served with dodo and six pieces of grilled chicken. Feeds 10.",
+                     *         "seo": null,
                      *         "status": "active",
                      *         "published": true,
                      *         "in_stock": true,
@@ -28678,7 +35552,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -28751,7 +35625,7 @@ export interface operations {
             query?: never;
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -28814,6 +35688,7 @@ export interface operations {
                      *         "slug": "jollof-rice-party-pack",
                      *         "excerpt": "Smoky party jollof for 10, with fried plantain and grilled chicken.",
                      *         "description": "Firewood-smoked party jollof cooked to order, served with dodo and six pieces of grilled chicken. Feeds 10.",
+                     *         "seo": null,
                      *         "status": "active",
                      *         "published": true,
                      *         "in_stock": true,
@@ -28912,7 +35787,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -29029,7 +35904,7 @@ export interface operations {
             query?: never;
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -29085,7 +35960,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -29172,12 +36047,286 @@ export interface operations {
             };
         };
     };
+    "products.set_metafields": {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @example {{merchantKey}}
+                 */
+                "X-Client-Key": string;
+                /** @description Your own correlation id (8–128 chars, `^[A-Za-z0-9_.:-]+$`). Echoed back on the response and on every log line of the request; one is generated when you omit it. */
+                "X-Request-Id"?: string;
+                /** @description Retry-safe write key. The same key with the same body replays the stored response for 24h with `Idempotent-Replayed: true`; with a different body it is `409 idempotency_key_reuse`; while the first call is still running it is `409 idempotency_key_in_progress`. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                /**
+                 * @description Identifier of the product, as returned by the Merchant API.
+                 * @example 20417
+                 */
+                product: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "metafields": [
+                 *         {
+                 *           "namespace": "custom",
+                 *           "key": "spice_level",
+                 *           "value": "Medium"
+                 *         },
+                 *         {
+                 *           "namespace": "custom",
+                 *           "key": "allergen_note",
+                 *           "value": null
+                 *         }
+                 *       ]
+                 *     }
+                 */
+                "application/json": components["schemas"]["MerchantProductMetafieldsRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "status": "success",
+                     *       "message": "product updated",
+                     *       "data": {
+                     *         "id": 20417,
+                     *         "uid": "019a1d52-3c8e-7f41-b0d2-6a3e9c1f4b21",
+                     *         "title": "Jollof Rice Party Pack",
+                     *         "slug": "jollof-rice-party-pack",
+                     *         "excerpt": "Smoky party jollof for 10, with fried plantain and grilled chicken.",
+                     *         "description": "Firewood-smoked party jollof cooked to order, served with dodo and six pieces of grilled chicken. Feeds 10.",
+                     *         "seo": null,
+                     *         "status": "active",
+                     *         "published": true,
+                     *         "in_stock": true,
+                     *         "price": "18500.00",
+                     *         "storefront_price": "16650.00",
+                     *         "storefront_compare_at_price": "18500.00",
+                     *         "url": "https://adeyemifoods.com/products/jollof-rice-party-pack",
+                     *         "currency": "NGN",
+                     *         "sku": "ADF-JRP-001",
+                     *         "barcode": "6154000102417",
+                     *         "stock": 42,
+                     *         "track_inventory": true,
+                     *         "is_digital": false,
+                     *         "has_variants": false,
+                     *         "image": "https://media.usequeek.com/uploads/stores/1095/jollof-rice-party-pack.jpg",
+                     *         "thumbnail_image": null,
+                     *         "primary_image_url": "https://media.usequeek.com/uploads/stores/1095/jollof-rice-party-pack.jpg",
+                     *         "variants": [],
+                     *         "options": [],
+                     *         "addons": [],
+                     *         "images": [
+                     *           {
+                     *             "id": 88214,
+                     *             "is_primary": true,
+                     *             "position": 0,
+                     *             "url": "https://media.usequeek.com/uploads/stores/1095/jollof-rice-party-pack.jpg",
+                     *             "alt": "Jollof rice party pack in a foil tray",
+                     *             "width": 1200,
+                     *             "height": 1200,
+                     *             "variants": {
+                     *               "thumb": {
+                     *                 "url": "https://media.usequeek.com/uploads/stores/1095/jollof-rice-party-pack-thumb.webp",
+                     *                 "w": null,
+                     *                 "h": null
+                     *               },
+                     *               "card": {
+                     *                 "url": "https://media.usequeek.com/uploads/stores/1095/jollof-rice-party-pack-card.webp",
+                     *                 "w": 480,
+                     *                 "h": 480
+                     *               },
+                     *               "card2x": {
+                     *                 "url": "https://media.usequeek.com/uploads/stores/1095/jollof-rice-party-pack-card2x.webp",
+                     *                 "w": 800,
+                     *                 "h": 800
+                     *               },
+                     *               "view": {
+                     *                 "url": "https://media.usequeek.com/uploads/stores/1095/jollof-rice-party-pack-view.webp",
+                     *                 "w": 1200,
+                     *                 "h": 1200
+                     *               },
+                     *               "wa": {
+                     *                 "url": "https://media.usequeek.com/uploads/stores/1095/jollof-rice-party-pack-wa.jpg",
+                     *                 "w": 1080,
+                     *                 "h": 1080
+                     *               },
+                     *               "original": {
+                     *                 "url": "https://media.usequeek.com/uploads/stores/1095/jollof-rice-party-pack.jpg",
+                     *                 "w": 1200,
+                     *                 "h": 1200
+                     *               }
+                     *             }
+                     *           }
+                     *         ],
+                     *         "publications": [
+                     *           {
+                     *             "id": 1001,
+                     *             "key": "kiosk-lagos",
+                     *             "name": "Lagos kiosk"
+                     *           }
+                     *         ],
+                     *         "metafields": {},
+                     *         "metadata": {
+                     *           "erp_id": "ERP-20417"
+                     *         },
+                     *         "created_at": "2026-07-14T10:20:00+01:00",
+                     *         "updated_at": "2026-09-22T16:05:00+01:00",
+                     *         "deleted_at": null
+                     *       }
+                     *     }
+                     */
+                    "application/json": {
+                        /** @constant */
+                        status: "success";
+                        /** @constant */
+                        message: "product updated";
+                        data: Record<string, never>;
+                        meta: string;
+                    };
+                };
+            };
+            /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "invalid_client_key",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Forbidden — the key cannot call this operation. Switch on `error.code`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "insufficient_scope",
+                     *         "message": "This API key does not carry the 'merchant-metafields-update' scope it was called with.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Not found — the addressed record does not exist at this store. Switch on `error.code`. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "not_found",
+                     *         "message": "Product not found.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#not_found",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Idempotency conflict — `idempotency_key_reuse` or `idempotency_key_in_progress`. Switch on `error.code`. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "idempotency_key_reuse",
+                     *         "message": "This Idempotency-Key was already used for a different request body. Use a new key for a new request.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#idempotency_key_reuse",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Validation failed — `error.errors` carries per-field detail. Switch on `error.code`. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "validation_failed",
+                     *         "message": "No metafield definition 'custom.unknown' exists for product. Create it with POST /api/v1/biz/vendor/metafield-definitions before sending a value.",
+                     *         "field": "metafields.0.key",
+                     *         "errors": {
+                     *           "metafields.0.key": [
+                     *             "No metafield definition 'custom.unknown' exists for product. Create it with POST /api/v1/biz/vendor/metafield-definitions before sending a value."
+                     *           ]
+                     *         },
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Too many requests — slow down and retry. Switch on `error.code`. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "too_many_requests",
+                     *         "message": "Too Many Attempts.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+        };
+    };
     "products.publish": {
         parameters: {
             query?: never;
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -29238,7 +36387,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -29363,7 +36512,7 @@ export interface operations {
             };
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -29413,7 +36562,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -29492,7 +36641,7 @@ export interface operations {
             query?: never;
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -29553,7 +36702,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -29651,7 +36800,7 @@ export interface operations {
             query?: never;
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -29744,7 +36893,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -29879,7 +37028,7 @@ export interface operations {
             };
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -29936,7 +37085,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -30015,7 +37164,7 @@ export interface operations {
             query?: never;
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -30092,7 +37241,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -30210,7 +37359,7 @@ export interface operations {
             };
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -30273,7 +37422,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -30352,7 +37501,7 @@ export interface operations {
             query?: never;
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -30420,7 +37569,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -30493,7 +37642,7 @@ export interface operations {
             query?: never;
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -30572,7 +37721,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -30689,7 +37838,7 @@ export interface operations {
             query?: never;
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -30768,7 +37917,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -30893,7 +38042,7 @@ export interface operations {
             };
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -30977,7 +38126,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -31056,7 +38205,7 @@ export interface operations {
             query?: never;
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -31143,7 +38292,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -31241,7 +38390,7 @@ export interface operations {
             query?: never;
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -31331,7 +38480,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -31448,7 +38597,7 @@ export interface operations {
             query?: never;
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -31476,6 +38625,36 @@ export interface operations {
                      *           "uid": "019a0b3a-af57-72d0-9c13-7036c3805892",
                      *           "name": "Adeyemi Foods",
                      *           "slug": "adeyemi-foods",
+                     *           "currency": "NGN",
+                     *           "currency_meta": {
+                     *             "code": "NGN",
+                     *             "symbol": "₦",
+                     *             "precision": 2
+                     *           },
+                     *           "timezone": "Africa/Lagos",
+                     *           "inventory_tracking": "track",
+                     *           "plan": {
+                     *             "code": "free",
+                     *             "features": {
+                     *               "has_pos": false,
+                     *               "barcode_generator": false,
+                     *               "rider_app": false,
+                     *               "instore_qr": false,
+                     *               "vendor_inboxes": false,
+                     *               "roles_permissions": false,
+                     *               "purchase_orders": true,
+                     *               "supplier_management": true,
+                     *               "products_export": false,
+                     *               "orders_export": false,
+                     *               "customers_export": false,
+                     *               "team_export": false,
+                     *               "website_themes": true,
+                     *               "website_ai_builder": true,
+                     *               "website_custom_domain": false,
+                     *               "custom_payment_gateway": false,
+                     *               "custom_mail_sender": false
+                     *             }
+                     *           },
                      *           "contact": {
                      *             "email": "hello@adeyemifoods.com",
                      *             "phone": "+234 801 234 5678"
@@ -31519,6 +38698,7 @@ export interface operations {
                      *             "queek_logistics_enabled": true,
                      *             "delivery_enabled": true,
                      *             "offers_free_delivery": false,
+                     *             "free_delivery_over": null,
                      *             "pickup_enabled": true,
                      *             "instore_order": false
                      *           },
@@ -31555,7 +38735,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -31647,7 +38827,7 @@ export interface operations {
             query?: never;
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -31700,7 +38880,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -31792,7 +38972,7 @@ export interface operations {
             query?: never;
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -31847,7 +39027,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -31938,7 +39118,7 @@ export interface operations {
             };
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -32002,7 +39182,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -32081,7 +39261,7 @@ export interface operations {
             query?: never;
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -32149,7 +39329,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -32247,7 +39427,7 @@ export interface operations {
             query?: never;
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -32305,7 +39485,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -32378,7 +39558,7 @@ export interface operations {
             query?: never;
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -32447,7 +39627,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -32574,7 +39754,7 @@ export interface operations {
             };
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -32632,7 +39812,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -32711,7 +39891,7 @@ export interface operations {
             query?: never;
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -32794,7 +39974,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -32848,7 +40028,7 @@ export interface operations {
             query?: never;
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -32920,7 +40100,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -33018,7 +40198,7 @@ export interface operations {
             query?: never;
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -33076,7 +40256,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -33168,7 +40348,7 @@ export interface operations {
             query?: never;
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -33246,7 +40426,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -33363,7 +40543,7 @@ export interface operations {
             query?: never;
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -33450,7 +40630,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -33555,7 +40735,7 @@ export interface operations {
             };
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -33631,9 +40811,6 @@ export interface operations {
                      *     }
                      */
                     "application/json": {
-                        /** @constant */
-                        status: "success";
-                        message: string;
                         data: {
                             type: string;
                             /** @description The resource p_id. */
@@ -33645,6 +40822,8 @@ export interface operations {
                                 type: string;
                             }[];
                         }[];
+                        has_more: boolean;
+                        next_cursor?: string | null;
                     };
                 };
             };
@@ -33658,7 +40837,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -33743,7 +40922,7 @@ export interface operations {
             };
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -33805,6 +40984,7 @@ export interface operations {
                      *             "locale": "fr",
                      *             "value": "Pack Fête Jollof",
                      *             "outdated": false,
+                     *             "origin": "human",
                      *             "updated_at": "2026-09-30T12:00:00+01:00"
                      *           }
                      *         ]
@@ -33831,7 +41011,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -33929,7 +41109,7 @@ export interface operations {
             query?: never;
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -33988,6 +41168,7 @@ export interface operations {
                      *             "locale": "fr",
                      *             "value": "Pack Fête Jollof",
                      *             "outdated": false,
+                     *             "origin": "human",
                      *             "updated_at": "2026-09-30T12:00:00+01:00"
                      *           }
                      *         ]
@@ -34007,6 +41188,11 @@ export interface operations {
                                 locale: string;
                                 value: string;
                                 outdated: boolean;
+                                /**
+                                 * @description Who wrote this translation: `human` (a person or an app that translated by hand) or `machine` (machine translation). A human write over a machine translation makes it `human`.
+                                 * @enum {string}
+                                 */
+                                origin: "human" | "machine";
                                 /** Format: date-time */
                                 updated_at?: string | null;
                             }[];
@@ -34024,7 +41210,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -34146,7 +41332,7 @@ export interface operations {
             };
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -34212,7 +41398,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -34324,6 +41510,412 @@ export interface operations {
             };
         };
     };
+    "translations.machine_quote": {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @example {{merchantKey}}
+                 */
+                "X-Client-Key": string;
+                /** @description Your own correlation id (8–128 chars, `^[A-Za-z0-9_.:-]+$`). Echoed back on the response and on every log line of the request; one is generated when you omit it. */
+                "X-Request-Id"?: string;
+                /** @description Retry-safe write key. The same key with the same body replays the stored response for 24h with `Idempotent-Replayed: true`; with a different body it is `409 idempotency_key_reuse`; while the first call is still running it is `409 idempotency_key_in_progress`. */
+                "Idempotency-Key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "locale": "fr",
+                 *       "mode": "missing",
+                 *       "resources": [
+                 *         {
+                 *           "type": "product",
+                 *           "id": 20417,
+                 *           "keys": [
+                 *             "title",
+                 *             "excerpt",
+                 *             "description"
+                 *           ]
+                 *         }
+                 *       ]
+                 *     }
+                 */
+                "application/json": components["schemas"]["MachineTranslationQuoteRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "status": "success",
+                     *       "message": "Machine translation quoted",
+                     *       "data": {
+                     *         "quote_id": "qt_01k8m3q7x2n5v9w4b6d8f0g2h4",
+                     *         "locale": "fr",
+                     *         "mode": "missing",
+                     *         "texts": 3,
+                     *         "characters": 412,
+                     *         "estimated_credits": 4,
+                     *         "expires_at": "2026-09-30T12:10:00+01:00",
+                     *         "held": []
+                     *       }
+                     *     }
+                     */
+                    "application/json": {
+                        /** @constant */
+                        status: "success";
+                        message: string;
+                        data: {
+                            /** @description Send this with the run. Good for ten minutes, once, for this job only. */
+                            quote_id: string;
+                            /** @description The target language, as the catalogue spells it. */
+                            locale: string;
+                            /** @enum {string} */
+                            mode: "missing" | "outdated" | "missing_and_outdated";
+                            /** @description How many texts the job would translate. */
+                            texts: number;
+                            /** @description The source characters of those texts. */
+                            characters: number;
+                            /** @description An upper bound: the run charges the store at most this. */
+                            estimated_credits: number;
+                            /** Format: date-time */
+                            expires_at: string;
+                            /** @description Keys that qualify but will not be translated, with the reason. */
+                            held: {
+                                type: string;
+                                /** @description The resource p_id. */
+                                id: number;
+                                key: string;
+                                reason: string;
+                            }[];
+                        };
+                    };
+                };
+            };
+            /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "invalid_client_key",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Forbidden — the key cannot call this operation. Switch on `error.code`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "insufficient_scope",
+                     *         "message": "This API key does not carry the 'merchant-translations-machine' scope it was called with.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Idempotency conflict — `idempotency_key_reuse` or `idempotency_key_in_progress`. Switch on `error.code`. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "idempotency_key_reuse",
+                     *         "message": "This Idempotency-Key was already used for a different request body. Use a new key for a new request.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#idempotency_key_reuse",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Validation failed — `error.errors` carries per-field detail. Switch on `error.code`. A resource that is not this store's answers 404 `not_found`. A language the store has not enabled answers translation_unknown_locale; the store's primary language answers translation_locale_is_primary; a job over the size limits answers translation_run_too_large. A `text` field (or any field not listed) is refused: send references only. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "validation_failed",
+                     *         "message": "The selected mode is invalid.",
+                     *         "field": "mode",
+                     *         "errors": {
+                     *           "mode": [
+                     *             "The selected mode is invalid."
+                     *           ]
+                     *         },
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Too many requests — slow down and retry. Switch on `error.code`. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "too_many_requests",
+                     *         "message": "Too Many Attempts.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+        };
+    };
+    "translations.machine_run": {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @example {{merchantKey}}
+                 */
+                "X-Client-Key": string;
+                /** @description Your own correlation id (8–128 chars, `^[A-Za-z0-9_.:-]+$`). Echoed back on the response and on every log line of the request; one is generated when you omit it. */
+                "X-Request-Id"?: string;
+                /** @description Retry-safe write key. The same key with the same body replays the stored response for 24h with `Idempotent-Replayed: true`; with a different body it is `409 idempotency_key_reuse`; while the first call is still running it is `409 idempotency_key_in_progress`. */
+                "Idempotency-Key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "quote_id": "qt_01k8m3q7x2n5v9w4b6d8f0g2h4",
+                 *       "locale": "fr",
+                 *       "mode": "missing",
+                 *       "resources": [
+                 *         {
+                 *           "type": "product",
+                 *           "id": 20417,
+                 *           "keys": [
+                 *             "title",
+                 *             "excerpt",
+                 *             "description"
+                 *           ]
+                 *         }
+                 *       ]
+                 *     }
+                 */
+                "application/json": components["schemas"]["MachineTranslationRunRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "status": "success",
+                     *       "message": "Machine translation finished",
+                     *       "data": {
+                     *         "locale": "fr",
+                     *         "mode": "missing",
+                     *         "texts_written": 2,
+                     *         "texts_held": 1,
+                     *         "credits_charged": 3,
+                     *         "items": [
+                     *           {
+                     *             "type": "product",
+                     *             "id": 20417,
+                     *             "key": "title",
+                     *             "status": "written",
+                     *             "reason": null
+                     *           },
+                     *           {
+                     *             "type": "product",
+                     *             "id": 20417,
+                     *             "key": "excerpt",
+                     *             "status": "written",
+                     *             "reason": null
+                     *           },
+                     *           {
+                     *             "type": "product",
+                     *             "id": 20417,
+                     *             "key": "description",
+                     *             "status": "held",
+                     *             "reason": "tags_changed"
+                     *           }
+                     *         ]
+                     *       }
+                     *     }
+                     */
+                    "application/json": {
+                        /** @constant */
+                        status: "success";
+                        message: string;
+                        data: {
+                            locale: string;
+                            /** @enum {string} */
+                            mode: "missing" | "outdated" | "missing_and_outdated";
+                            texts_written: number;
+                            texts_held: number;
+                            /** @description Charged to the store, never above the quote. */
+                            credits_charged: number;
+                            items: {
+                                type: string;
+                                /** @description The resource p_id. */
+                                id: number;
+                                key: string;
+                                /** @enum {string} */
+                                status: "written" | "held";
+                                /** @description Why a text was held; null when written. */
+                                reason: string | null;
+                            }[];
+                        };
+                    };
+                };
+            };
+            /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "invalid_client_key",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Forbidden — the key cannot call this operation. Switch on `error.code`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "insufficient_scope",
+                     *         "message": "This API key does not carry the 'merchant-translations-machine' scope it was called with.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Idempotency conflict — `idempotency_key_reuse` or `idempotency_key_in_progress`. Switch on `error.code`. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "idempotency_key_reuse",
+                     *         "message": "This Idempotency-Key was already used for a different request body. Use a new key for a new request.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#idempotency_key_reuse",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Validation failed — `error.errors` carries per-field detail. Switch on `error.code`. Too few credits answers 402 `insufficient_credits` before any work starts; a resource that is not this store's answers 404 `not_found`. An unknown or expired quote answers 410 quote_expired, a quote made for another job 409 quote_mismatch, a quote already used 409 quote_already_used, content that grew past the quote 409 quote_stale; a missing Idempotency-Key answers 400 idempotency_key_required; a store at its daily limit answers 429 translation_daily_limit. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "validation_failed",
+                     *         "message": "The selected mode is invalid.",
+                     *         "field": "mode",
+                     *         "errors": {
+                     *           "mode": [
+                     *             "The selected mode is invalid."
+                     *           ]
+                     *         },
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Too many requests — slow down and retry. Switch on `error.code`. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "too_many_requests",
+                     *         "message": "Too Many Attempts.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+        };
+    };
     "variants.list": {
         parameters: {
             query?: {
@@ -34337,7 +41929,7 @@ export interface operations {
             };
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -34386,6 +41978,7 @@ export interface operations {
                      *           "backorder_ready_date": null,
                      *           "weight": 0.55,
                      *           "position": 0,
+                     *           "metafields": {},
                      *           "created_at": "2026-07-15T11:30:00+01:00",
                      *           "updated_at": "2026-09-22T16:05:00+01:00"
                      *         },
@@ -34412,6 +42005,7 @@ export interface operations {
                      *           "backorder_ready_date": null,
                      *           "weight": 1.05,
                      *           "position": 1,
+                     *           "metafields": {},
                      *           "created_at": "2026-07-15T11:30:00+01:00",
                      *           "updated_at": "2026-09-22T16:05:00+01:00"
                      *         }
@@ -34421,12 +42015,9 @@ export interface operations {
                      *     }
                      */
                     "application/json": {
-                        /** @constant */
-                        status: "success";
-                        /** @constant */
-                        message: "Product variants";
-                        data: string[];
-                        meta: string;
+                        data: components["schemas"]["MerchantProductVariant"][];
+                        has_more: boolean;
+                        next_cursor?: string | null;
                     };
                 };
             };
@@ -34440,7 +42031,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -34538,7 +42129,7 @@ export interface operations {
             query?: never;
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -34607,6 +42198,7 @@ export interface operations {
                      *         "backorder_ready_date": null,
                      *         "weight": 1.05,
                      *         "position": 1,
+                     *         "metafields": {},
                      *         "created_at": "2026-07-15T11:30:00+01:00",
                      *         "updated_at": "2026-07-15T11:30:00+01:00"
                      *       }
@@ -34632,7 +42224,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -34749,7 +42341,7 @@ export interface operations {
             query?: never;
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -34810,7 +42402,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -34902,7 +42494,7 @@ export interface operations {
             query?: never;
             header: {
                 /**
-                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted under Dashboard → Settings → API keys. The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
                  * @example {{merchantKey}}
                  */
                 "X-Client-Key": string;
@@ -34930,7 +42522,14 @@ export interface operations {
                 /**
                  * @example {
                  *       "price": "4200.00",
-                 *       "stock": 24
+                 *       "stock": 24,
+                 *       "metafields": [
+                 *         {
+                 *           "namespace": "custom",
+                 *           "key": "finish",
+                 *           "value": "matte"
+                 *         }
+                 *       ]
                  *     }
                  */
                 "application/json": components["schemas"]["UpdateProductVariantRequest"];
@@ -34969,6 +42568,7 @@ export interface operations {
                      *         "backorder_ready_date": null,
                      *         "weight": 1.05,
                      *         "position": 1,
+                     *         "metafields": {},
                      *         "created_at": "2026-07-15T11:30:00+01:00",
                      *         "updated_at": "2026-09-22T16:05:00+01:00"
                      *       }
@@ -34994,7 +42594,7 @@ export interface operations {
                      * @example {
                      *       "error": {
                      *         "code": "invalid_client_key",
-                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (Dashboard → Settings → API keys).",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
                      *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
                      *       }
@@ -35075,6 +42675,341 @@ export interface operations {
                      *         "errors": {
                      *           "price": [
                      *             "The price field must be a number."
+                     *           ]
+                     *         },
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Too many requests — slow down and retry. Switch on `error.code`. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "too_many_requests",
+                     *         "message": "Too Many Attempts.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#too_many_requests",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+        };
+    };
+    "variants.set_metafields": {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description A private API key (`sk_live_…`, `sk_test_…` on a dev store) minted by a Server connection under Dashboard → Channels → Headless API (keys are also listed in Settings → Connections). The key is bound to ONE store, so no vendor header or `vendor_id` is sent; its scopes decide which operations it may call. `pk_` public keys never reach this API. Keep it on your server.
+                 * @example {{merchantKey}}
+                 */
+                "X-Client-Key": string;
+                /** @description Your own correlation id (8–128 chars, `^[A-Za-z0-9_.:-]+$`). Echoed back on the response and on every log line of the request; one is generated when you omit it. */
+                "X-Request-Id"?: string;
+                /** @description Retry-safe write key. The same key with the same body replays the stored response for 24h with `Idempotent-Replayed: true`; with a different body it is `409 idempotency_key_reuse`; while the first call is still running it is `409 idempotency_key_in_progress`. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                /**
+                 * @description Identifier of the product, as returned by the Merchant API.
+                 * @example 20418
+                 */
+                product: string;
+                /**
+                 * @description Identifier of the variant, as returned by the Merchant API.
+                 * @example 7732
+                 */
+                variant: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "metafields": [
+                 *         {
+                 *           "namespace": "custom",
+                 *           "key": "finish",
+                 *           "value": "matte"
+                 *         },
+                 *         {
+                 *           "namespace": "custom",
+                 *           "key": "pack_note",
+                 *           "value": null
+                 *         }
+                 *       ]
+                 *     }
+                 */
+                "application/json": components["schemas"]["MerchantProductMetafieldsRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "status": "success",
+                     *       "message": "product updated",
+                     *       "data": {
+                     *         "id": 20418,
+                     *         "uid": "019a1d52-3c8e-7f41-b0d2-6a3e9c1f4b22",
+                     *         "title": "Homemade Chapman",
+                     *         "slug": "homemade-chapman",
+                     *         "excerpt": "Fresh Chapman with cucumber and orange slices.",
+                     *         "description": "Our house Chapman, mixed fresh every morning. Served chilled.",
+                     *         "seo": null,
+                     *         "status": "active",
+                     *         "published": true,
+                     *         "in_stock": true,
+                     *         "price": "2500.00",
+                     *         "storefront_price": "2500.00",
+                     *         "storefront_compare_at_price": null,
+                     *         "url": "https://adeyemifoods.com/products/homemade-chapman",
+                     *         "currency": "NGN",
+                     *         "sku": "ADF-CHP-000",
+                     *         "barcode": null,
+                     *         "stock": 60,
+                     *         "track_inventory": true,
+                     *         "is_digital": false,
+                     *         "has_variants": true,
+                     *         "image": "https://media.usequeek.com/uploads/stores/1095/homemade-chapman.jpg",
+                     *         "thumbnail_image": null,
+                     *         "primary_image_url": "https://media.usequeek.com/uploads/stores/1095/homemade-chapman.jpg",
+                     *         "variants": [
+                     *           {
+                     *             "id": 7731,
+                     *             "uid": "019a1d52-5f10-7a02-8c61-0b2d4e6f8a31",
+                     *             "sku": "ADF-CHP-50CL",
+                     *             "barcode": "6151101370016",
+                     *             "title": "50cl",
+                     *             "option_values": {
+                     *               "Size": "50cl"
+                     *             },
+                     *             "currency": "NGN",
+                     *             "price": "2500.00",
+                     *             "storefront_price": "2500.00",
+                     *             "storefront_compare_at_price": null,
+                     *             "url": "https://adeyemifoods.com/products/homemade-chapman",
+                     *             "compare_at_price": null,
+                     *             "stock": 36,
+                     *             "track_inventory": true,
+                     *             "is_digital": false,
+                     *             "is_active": true,
+                     *             "is_backorder": false,
+                     *             "backorder_ready_date": null,
+                     *             "weight": 0.55,
+                     *             "position": 0,
+                     *             "metafields": {},
+                     *             "created_at": "2026-07-15T11:30:00+01:00",
+                     *             "updated_at": "2026-09-22T16:05:00+01:00"
+                     *           },
+                     *           {
+                     *             "id": 7732,
+                     *             "uid": "019a1d52-5f10-7a02-8c61-0b2d4e6f8a32",
+                     *             "sku": "ADF-CHP-1L",
+                     *             "barcode": "6151101370023",
+                     *             "title": "1 litre",
+                     *             "option_values": {
+                     *               "Size": "1 litre"
+                     *             },
+                     *             "currency": "NGN",
+                     *             "price": "4200.00",
+                     *             "storefront_price": "4200.00",
+                     *             "storefront_compare_at_price": null,
+                     *             "url": "https://adeyemifoods.com/products/homemade-chapman",
+                     *             "compare_at_price": null,
+                     *             "stock": 24,
+                     *             "track_inventory": true,
+                     *             "is_digital": false,
+                     *             "is_active": true,
+                     *             "is_backorder": false,
+                     *             "backorder_ready_date": null,
+                     *             "weight": 1.05,
+                     *             "position": 1,
+                     *             "metafields": {},
+                     *             "created_at": "2026-07-15T11:30:00+01:00",
+                     *             "updated_at": "2026-09-22T16:05:00+01:00"
+                     *           }
+                     *         ],
+                     *         "options": [
+                     *           {
+                     *             "name": "Size",
+                     *             "position": 0,
+                     *             "values": [
+                     *               "50cl",
+                     *               "1 litre"
+                     *             ]
+                     *           }
+                     *         ],
+                     *         "addons": [],
+                     *         "images": [
+                     *           {
+                     *             "id": 88220,
+                     *             "is_primary": true,
+                     *             "position": 0,
+                     *             "url": "https://media.usequeek.com/uploads/stores/1095/homemade-chapman.jpg",
+                     *             "alt": "Two bottles of chilled Chapman with cucumber slices",
+                     *             "width": 1200,
+                     *             "height": 1200,
+                     *             "variants": {
+                     *               "thumb": {
+                     *                 "url": "https://media.usequeek.com/uploads/stores/1095/homemade-chapman-thumb.webp",
+                     *                 "w": null,
+                     *                 "h": null
+                     *               },
+                     *               "card": {
+                     *                 "url": "https://media.usequeek.com/uploads/stores/1095/homemade-chapman-card.webp",
+                     *                 "w": 480,
+                     *                 "h": 480
+                     *               },
+                     *               "card2x": {
+                     *                 "url": "https://media.usequeek.com/uploads/stores/1095/homemade-chapman-card2x.webp",
+                     *                 "w": 800,
+                     *                 "h": 800
+                     *               },
+                     *               "view": {
+                     *                 "url": "https://media.usequeek.com/uploads/stores/1095/homemade-chapman-view.webp",
+                     *                 "w": 1200,
+                     *                 "h": 1200
+                     *               },
+                     *               "wa": {
+                     *                 "url": "https://media.usequeek.com/uploads/stores/1095/homemade-chapman-wa.jpg",
+                     *                 "w": 1080,
+                     *                 "h": 1080
+                     *               },
+                     *               "original": {
+                     *                 "url": "https://media.usequeek.com/uploads/stores/1095/homemade-chapman.jpg",
+                     *                 "w": 1200,
+                     *                 "h": 1200
+                     *               }
+                     *             }
+                     *           }
+                     *         ],
+                     *         "publications": [],
+                     *         "metafields": {},
+                     *         "metadata": {},
+                     *         "created_at": "2026-07-15T11:30:00+01:00",
+                     *         "updated_at": "2026-09-22T16:05:00+01:00",
+                     *         "deleted_at": null
+                     *       }
+                     *     }
+                     */
+                    "application/json": {
+                        /** @constant */
+                        status: "success";
+                        /** @constant */
+                        message: "product updated";
+                        data: Record<string, never>;
+                        meta: string;
+                    };
+                };
+            };
+            /** @description Unauthorized — the key is missing, unknown, or its mode does not match its store. Switch on `error.code`. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "invalid_client_key",
+                     *         "message": "This API accepts only a store private key: send it in the X-Client-Key header (create a Server connection in Dashboard → Channels → Headless API).",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#invalid_client_key",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Forbidden — the key cannot call this operation. Switch on `error.code`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "insufficient_scope",
+                     *         "message": "This API key does not carry the 'merchant-metafields-update' scope it was called with.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#insufficient_scope",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Not found — the addressed record does not exist at this store. Switch on `error.code`. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "not_found",
+                     *         "message": "Variant not found.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#not_found",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Idempotency conflict — `idempotency_key_reuse` or `idempotency_key_in_progress`. Switch on `error.code`. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "idempotency_key_reuse",
+                     *         "message": "This Idempotency-Key was already used for a different request body. Use a new key for a new request.",
+                     *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#idempotency_key_reuse",
+                     *         "request_id": "5d1c9b3e-8f2a-4b6d-9c07-3e1f8a2b6d45"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["QueekError"];
+                };
+            };
+            /** @description Validation failed — `error.errors` carries per-field detail. Switch on `error.code`. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "validation_failed",
+                     *         "message": "No metafield definition 'custom.unknown' exists for variant. Create it with POST /api/v1/biz/vendor/metafield-definitions before sending a value.",
+                     *         "field": "metafields.0.key",
+                     *         "errors": {
+                     *           "metafields.0.key": [
+                     *             "No metafield definition 'custom.unknown' exists for variant. Create it with POST /api/v1/biz/vendor/metafield-definitions before sending a value."
                      *           ]
                      *         },
                      *         "doc_url": "https://docs.usequeek.com/docs/versioning-and-errors#validation_failed",
@@ -35524,6 +43459,72 @@ export interface operations {
             };
         };
     };
+    "webhook.markets.create": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QueekWebhookEvent"];
+            };
+        };
+        responses: {
+            /** @description Acknowledged. Any other status (or a timeout) is retried on the published backoff schedule. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    "webhook.markets.update": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QueekWebhookEvent"];
+            };
+        };
+        responses: {
+            /** @description Acknowledged. Any other status (or a timeout) is retried on the published backoff schedule. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    "webhook.markets.destroy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QueekWebhookEvent"];
+            };
+        };
+        responses: {
+            /** @description Acknowledged. Any other status (or a timeout) is retried on the published backoff schedule. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     "webhook.translations.update": {
         parameters: {
             query?: never;
@@ -35612,6 +43613,28 @@ export interface operations {
             };
         };
     };
+    "webhook.payment_checkouts.create": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QueekWebhookCheckoutEvent"];
+            };
+        };
+        responses: {
+            /** @description Acknowledged. Any other status (or a timeout) is retried on the published backoff schedule. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     "webhook.refunds.create": {
         parameters: {
             query?: never;
@@ -35644,6 +43667,72 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["QueekWebhookConversationMessageEvent"];
+            };
+        };
+        responses: {
+            /** @description Acknowledged. Any other status (or a timeout) is retried on the published backoff schedule. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    "webhook.invoices.create": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QueekWebhookInvoiceEvent"];
+            };
+        };
+        responses: {
+            /** @description Acknowledged. Any other status (or a timeout) is retried on the published backoff schedule. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    "webhook.invoices.update": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QueekWebhookInvoiceEvent"];
+            };
+        };
+        responses: {
+            /** @description Acknowledged. Any other status (or a timeout) is retried on the published backoff schedule. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    "webhook.invoices.delete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QueekWebhookInvoiceDeleteEvent"];
             };
         };
         responses: {

@@ -14,6 +14,7 @@ All notable changes to `@usequeek/app-sdk`. Releases before this file are listed
 
 - `handleProxyRequest` answers 403 `forbidden` to a `surface=ai` call instead of handing it to `onVerified`. Queek AI reaches an app only through a declared tool.
 - `ProxyVerification` failures can carry status 403 as well as 401.
+- The generated Merchant API types follow the live contract. The additions are new endpoints and fields only.
 
 ## 0.7.2 - 2026-10-18
 
