@@ -110,6 +110,18 @@ export type AppOutboundMessage =
       requestId?: string;
     };
 
+/** A value Queek AI filled into an action input: the declared types only, never an object. */
+export type AiActionValue = string | number | boolean;
+
+/**
+ * Queek AI opened one of the app's declared `ai.actions` and sent its values. The values are a SUGGESTION: stage them
+ * in the form, show them editable, and write nothing until the merchant presses the app's own Save.
+ */
+export interface AiAction {
+  action: string;
+  values: Record<string, AiActionValue>;
+}
+
 export type AppInboundMessage =
   | { source: typeof DASHBOARD_SOURCE; type: "token"; token: string }
   | { source: typeof DASHBOARD_SOURCE; type: "resize-ack" }
@@ -130,7 +142,8 @@ export type AppInboundMessage =
       items: ResourceItem[];
       requestId?: string;
     }
-  | { source: typeof DASHBOARD_SOURCE; type: "resource-pick-cancelled"; requestId?: string };
+  | { source: typeof DASHBOARD_SOURCE; type: "resource-pick-cancelled"; requestId?: string }
+  | ({ source: typeof DASHBOARD_SOURCE; type: "ai-action" } & AiAction);
 
 export interface EmbedEvent {
   origin: string;
@@ -166,6 +179,7 @@ export interface FrameBridgeOptions {
   onNavigate?: (path: string) => void;
   onResourcePicked?: (items: ResourceItem[], requestId?: string) => void;
   onResourcePickCancelled?: (requestId?: string) => void;
+  onAiAction?: (action: AiAction) => void;
 }
 
 export interface ReadyOptions {
@@ -198,6 +212,39 @@ function reqText(value: unknown, max: number): string | null {
     return null;
   }
   return capText(value, max);
+}
+
+const AI_KEY = /^[a-z][a-z0-9_]{0,39}$/;
+const MAX_AI_ACTION_VALUES = 8;
+const MAX_AI_TEXT_LENGTH = 500;
+
+/** One `ai-action` message: a declared key, and up to 8 scalar values (a `null` is an unset input and is dropped). */
+function parseAiAction(data: Record<string, unknown>): AiAction | null {
+  const { action, values } = data;
+  if (typeof action !== "string" || !AI_KEY.test(action)) {
+    return null;
+  }
+  if (!isRecord(values) || Array.isArray(values)) {
+    return null;
+  }
+  const entries = Object.entries(values).filter(([, value]) => value !== null);
+  if (entries.length > MAX_AI_ACTION_VALUES) {
+    return null;
+  }
+  const clean: Record<string, AiActionValue> = {};
+  for (const [key, value] of entries) {
+    if (!AI_KEY.test(key)) {
+      return null;
+    }
+    if (typeof value === "string") {
+      clean[key] = capText(value, MAX_AI_TEXT_LENGTH);
+    } else if (typeof value === "boolean" || (typeof value === "number" && Number.isFinite(value))) {
+      clean[key] = value;
+    } else {
+      return null;
+    }
+  }
+  return { action, values: clean };
 }
 
 function isThemeMode(value: unknown): value is ThemeMode {
@@ -425,6 +472,10 @@ export function parseInboundMessage(data: unknown): AppInboundMessage | null {
         cancelled.requestId = cancelledId;
       }
       return cancelled;
+    }
+    case "ai-action": {
+      const aiAction = parseAiAction(data);
+      return aiAction === null ? null : { source: DASHBOARD_SOURCE, type: "ai-action", ...aiAction };
     }
     default:
       return null;
@@ -728,6 +779,7 @@ export function listenToDashboard(options: FrameBridgeOptions): () => void {
     onNavigate,
     onResourcePicked,
     onResourcePickCancelled,
+    onAiAction,
   } = options;
   const target = options.target;
   const expectSource = options.expectSource;
@@ -778,10 +830,25 @@ export function listenToDashboard(options: FrameBridgeOptions): () => void {
       case "resource-pick-cancelled":
         onResourcePickCancelled?.(message.requestId);
         break;
+      case "ai-action":
+        onAiAction?.({ action: message.action, values: message.values });
+        break;
     }
   };
   target?.addEventListener("message", onMessage);
   return () => target?.removeEventListener("message", onMessage);
+}
+
+/**
+ * Receive the action Queek AI opened this page for, from the exact dashboard origin only (the same gate as the token).
+ * Stage `values` in your form and show them editable; NEVER save on load, only the merchant's own Save writes.
+ * Returns an unsubscribe function.
+ */
+export function onAiAction(
+  handler: (action: AiAction) => void,
+  options: Pick<FrameBridgeOptions, "dashboardOrigin" | "target" | "expectSource">,
+): () => void {
+  return listenToDashboard({ ...options, onAiAction: handler });
 }
 
 /** Validate a title-bar action shape, then cap its strings. */

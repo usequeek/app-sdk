@@ -30,6 +30,8 @@ export {
   stripLaunchToken,
 } from "./auth-fetch.js";
 export {
+  type AiAction,
+  type AiActionValue,
   APP_SOURCE,
   type AppInboundMessage,
   type AppOutboundMessage,
@@ -41,6 +43,7 @@ export {
   type EmbedPostTarget,
   type FrameBridgeOptions,
   listenToDashboard,
+  onAiAction,
   type PickResourceRequest,
   type ReadyOptions,
   type ResourceItem,

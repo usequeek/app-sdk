@@ -34,6 +34,14 @@ export const PROXY_NONCE_PARAM = "jti";
 export const PROXY_SHOP_PARAM = "shop";
 export const PROXY_CUSTOMER_PARAM = "logged_in_customer_id";
 export const PROXY_KID_PARAM = "kid";
+export const PROXY_SURFACE_PARAM = "surface";
+
+/**
+ * The Queek surface that made a call. Queek signs it on every proxy call and
+ * is the only one that sets it: a shopper cannot choose it. `storefront` is a
+ * shopper, `dashboard` the merchant dashboard, `ai` Queek AI reading a tool.
+ */
+export type ProxySurface = "storefront" | "dashboard" | "ai";
 
 /** Default allowed clock skew in seconds; the floor (60s) below applies regardless. */
 export const PROXY_MAX_SKEW_SECONDS = 300;
@@ -48,6 +56,7 @@ export type ProxyFailure =
   | "missing_secret"
   | "signature_mismatch"
   | "unknown_installation"
+  | "surface_mismatch"
   | "replayed";
 
 /** RFC 3986 percent-encoding: everything except `[A-Za-z0-9-_.~]` is `%XX` (upper-case hex), the encoding Queek signs with. */
@@ -96,6 +105,13 @@ export function signProxyQuery(path: string, params: Record<string, string>, sec
 }
 
 export interface ProxyVerifyOptions {
+  /**
+   * Require this signed `surface`. A call signed for another surface (or for
+   * none) fails with `surface_mismatch`, after its signature verified. Set it
+   * on a handler that serves merchant data (`dashboard`) so a shopper's call
+   * cannot reach it.
+   */
+  expectedSurface?: ProxySurface;
   /** Unix seconds to judge freshness against (defaults to now). Exposed for tests. */
   nowSeconds?: number;
   /** Allowed clock skew in seconds (defaults to PROXY_MAX_SKEW_SECONDS; floored at 60). */
@@ -114,6 +130,15 @@ function proxySkewExceeded(ts: string, options: ProxyVerifyOptions): boolean {
   const now = options.nowSeconds ?? Math.floor(Date.now() / 1000);
   const maxSkew = Math.max(60, options.maxSkewSeconds ?? PROXY_MAX_SKEW_SECONDS);
   return Math.abs(now - Number(ts)) > maxSkew;
+}
+
+/** The signed surface, or `""` when the call carries none. Trust it only after the MAC verified. */
+function signedSurface(params: Record<string, string>): string {
+  return params[PROXY_SURFACE_PARAM] ?? "";
+}
+
+function surfaceAllowed(params: Record<string, string>, options: ProxyVerifyOptions): boolean {
+  return options.expectedSurface === undefined || signedSurface(params) === options.expectedSurface;
 }
 
 function proxyMacMatches(path: string, params: Record<string, string>, sig: string, secret: string): boolean {
@@ -135,7 +160,7 @@ export function verifyProxyQueryDetailed(
   query: ProxyQuery,
   secrets: string[],
   options: ProxyVerifyOptions = {},
-): { ok: true } | { ok: false; reason: ProxyFailure } {
+): { ok: true; surface: string } | { ok: false; reason: ProxyFailure } {
   const params = normalizeQuery(query);
   const { sig, ts, jti } = readProxyFields(params);
   if (sig === "" || ts === "" || jti === "" || !/^\d+$/.test(ts)) {
@@ -149,7 +174,9 @@ export function verifyProxyQueryDetailed(
   }
   for (const secret of secrets) {
     if (proxyMacMatches(path, params, sig, secret)) {
-      return { ok: true };
+      return surfaceAllowed(params, options)
+        ? { ok: true, surface: signedSurface(params) }
+        : { ok: false, reason: "surface_mismatch" };
     }
   }
   return { ok: false, reason: "signature_mismatch" };
@@ -175,8 +202,8 @@ export interface ProxyStoreOptions extends ProxyVerifyOptions {
 }
 
 export type ProxyVerification =
-  | { ok: true; installation: InstallationRecord; params: Record<string, string> }
-  | { ok: false; reason: ProxyFailure; status: 401 };
+  | { ok: true; installation: InstallationRecord; params: Record<string, string>; surface: string }
+  | { ok: false; reason: ProxyFailure; status: 401 | 403 };
 
 /**
  * Layer 1: verify one signed proxy query from plain data — no `Request`, no
@@ -191,7 +218,11 @@ export async function verifyProxyDelivery(
   input: { path: string; query: ProxyQuery },
   options: ProxyStoreOptions,
 ): Promise<ProxyVerification> {
-  const fail = (reason: ProxyFailure): ProxyVerification => ({ ok: false, reason, status: 401 });
+  const fail = (reason: ProxyFailure, status: 401 | 403 = 401): ProxyVerification => ({
+    ok: false,
+    reason,
+    status,
+  });
   const params = normalizeQuery(input.query);
   const { sig, ts, jti } = readProxyFields(params);
   if (sig === "" || ts === "" || jti === "" || !/^\d+$/.test(ts)) {
@@ -230,12 +261,27 @@ export async function verifyProxyDelivery(
     return fail("signature_mismatch");
   }
 
+  // A genuine signature for another surface is forbidden, not unauthenticated.
+  if (!surfaceAllowed(params, options)) {
+    return fail("surface_mismatch", 403);
+  }
+
   if (options.enforceReplay ?? true) {
     if (!(await options.store.claimWebhookId(`proxy-jti:${jti}`))) {
       return fail("replayed");
     }
   }
-  return { ok: true, installation, params };
+  return { ok: true, installation, params, surface: signedSurface(params) };
+}
+
+/** The query of a Web `Request`, duplicates collapsing to the first value like `URLSearchParams.get`. */
+function requestQuery(request: Request): ProxyQuery {
+  const url = new URL(request.url);
+  const query: ProxyQuery = {};
+  for (const key of url.searchParams.keys()) {
+    query[key] = url.searchParams.get(key);
+  }
+  return query;
 }
 
 export interface ProxyRequestOptions extends ProxyStoreOptions {
@@ -251,6 +297,7 @@ export interface ProxyRequestOptions extends ProxyStoreOptions {
 export type ProxyResponder = (verified: {
   installation: InstallationRecord;
   params: Record<string, string>;
+  surface: string;
 }) => Response | Promise<Response>;
 
 /**
@@ -267,15 +314,99 @@ export async function handleProxyRequest(
   if (request.method.toUpperCase() !== "GET") {
     return toResponse({ status: 405, body: { ok: false, error: "method_not_allowed" } });
   }
-  const url = new URL(request.url);
-  const query: ProxyQuery = {};
-  for (const key of url.searchParams.keys()) {
-    query[key] = url.searchParams.get(key);
-  }
+  const query = requestQuery(request);
   const verified = await verifyProxyDelivery({ path: options.path, query }, options);
   if (!verified.ok) {
     const result: DeliveryResult = { status: verified.status, body: { ok: false, error: verified.reason } };
     return toResponse(result);
   }
-  return onVerified({ installation: verified.installation, params: verified.params });
+  // A responder serves storefront and dashboard calls. An AI call is served only by a declared tool handler.
+  if (verified.surface === "ai") {
+    return toResponse({ status: 403, body: { ok: false, error: "forbidden" } });
+  }
+  return onVerified({
+    installation: verified.installation,
+    params: verified.params,
+    surface: verified.surface,
+  });
+}
+
+/** A verified call to a declared AI read tool: Queek's signed params, the tool key and the actor's ROLE (never a user id). */
+export interface AiToolCall {
+  /** The installation p_id the call is for (the signed `kid`). */
+  kid: string;
+  shop: string;
+  /** Everything Queek signed: the tool's inputs as strings, `kid`, `shop`, `ts`, `actor_role` and the rest. */
+  params: Record<string, string>;
+  tool: string;
+  actorRole: string;
+}
+
+/**
+ * What a tool answers: an OBJECT matching its manifest `ai.tools[].output`, never a bare array. A list tool
+ * (`output.list: true`) answers `{ rows: [{ ...declared fields }] }`; any other tool answers the declared fields
+ * object. Queek drops every undeclared field. (`length?: never` is what keeps an array out of the type.)
+ */
+export type AiToolOutput = { [field: string]: unknown; length?: never };
+
+export type AiToolHandler = (call: AiToolCall) => Promise<AiToolOutput> | AiToolOutput;
+
+export interface AiToolRequestOptions extends Omit<ProxyVerifyOptions, "expectedSurface"> {
+  /** The manifest `extensions.proxy.subpath`; the signed path is `/apps/<subpath>/ai/<tool>`. */
+  subpath: string;
+  /** The active proxy secrets of installation `kid`, current first (empty when unknown). */
+  secrets: (kid: string) => Promise<string[]> | string[];
+  /** The read tools the manifest `ai.tools` declares, by key. Only these are served. */
+  tools: Record<string, AiToolHandler>;
+}
+
+/**
+ * Layer 2 for Queek AI read tools (manifest `ai.tools`): `GET ai/{tool}` signed with `surface=ai`. The signature and
+ * the surface are verified first (401, or 403 for a genuine call signed for another surface). `surface=ai` is served
+ * only by a declared tool handler (403 for an undeclared key), a storefront or dashboard call at this path is
+ * refused, and an AI call never reaches `handleProxyRequest`'s responder. A handler that answers anything but an
+ * object (a bare array, a scalar) is answered 500. A tool only reads, so a call replayed inside the skew window
+ * replays nothing and no `jti` is claimed.
+ */
+export async function handleAiToolRequest(
+  request: Request,
+  tool: string,
+  options: AiToolRequestOptions,
+): Promise<Response> {
+  if (request.method.toUpperCase() !== "GET") {
+    return toResponse({ status: 405, body: { ok: false, error: "method_not_allowed" } });
+  }
+  const { subpath, secrets, tools, ...verifyOptions } = options;
+  const query = requestQuery(request);
+  const params = normalizeQuery(query);
+  const kid = params[PROXY_KID_PARAM] ?? "";
+  const verified = verifyProxyQueryDetailed(`/apps/${subpath}/ai/${tool}`, query, await secrets(kid), {
+    ...verifyOptions,
+    expectedSurface: "ai",
+  });
+  if (!verified.ok) {
+    return toResponse({
+      status: verified.reason === "surface_mismatch" ? 403 : 401,
+      body: { ok: false, error: verified.reason },
+    });
+  }
+  const handler = Object.hasOwn(tools, tool) ? tools[tool] : undefined;
+  if (!handler) {
+    return toResponse({ status: 403, body: { ok: false, error: "forbidden" } });
+  }
+  const output: unknown = await handler({
+    kid,
+    shop: params[PROXY_SHOP_PARAM] ?? "",
+    params,
+    tool,
+    actorRole: params.actor_role ?? "",
+  });
+  if (output === null || typeof output !== "object" || Array.isArray(output)) {
+    return toResponse({ status: 500, body: { ok: false, error: "invalid_tool_output" } });
+  }
+  return toResponse({
+    status: 200,
+    body: output,
+    headers: { "Cache-Control": "private, no-store, max-age=0" },
+  });
 }

@@ -1,8 +1,10 @@
 import { createHmac } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { createProxyHandler } from "../src/hono.js";
+import { createAiToolHandler, createProxyHandler } from "../src/hono.js";
 import {
+  type AiToolHandler,
   buildProxyCanonicalString,
+  handleAiToolRequest,
   handleProxyRequest,
   signProxyQuery,
   verifyProxyDelivery,
@@ -298,5 +300,264 @@ describe("createProxyHandler (layer 3: hono)", () => {
       onVerified: () => Response.json({ ok: true }),
     }).request(`/proxy/availability?${badParams}`, { method: "GET" });
     expect(bad.status).toBe(401);
+  });
+});
+
+/**
+ * The signed `surface` (storefront | dashboard | ai). Queek sets it on every
+ * call and a shopper cannot choose it, so a handler can tell its dashboard
+ * call from a request crafted to look like one. The two vectors were computed
+ * with PHP's `hash_hmac` over the canonical string Queek's signer builds, with
+ * `surface` among the signed pairs.
+ */
+describe("signed surface", () => {
+  const SURFACE_SECRET = "whsec_MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTIz";
+  const SURFACE_PATH = "/apps/booking/dashboard/blocks/card";
+  const SURFACE_NOW = 1790000000;
+
+  function surfaceQuery(surface: string, sig: string): Record<string, string> {
+    return {
+      order_id: "1042",
+      vendor_id: "77",
+      surface,
+      shop: "my-store",
+      ts: String(SURFACE_NOW),
+      jti: "jti-1",
+      kid: "55",
+      sig,
+    };
+  }
+
+  const DASHBOARD = surfaceQuery(
+    "dashboard",
+    "ea49d4f12297e6f2b58c9d1b3a202c67e6656b38c49180dad73b0dfc4f2e6335",
+  );
+  const STOREFRONT = surfaceQuery(
+    "storefront",
+    "4f8584875848046506426d691f22fea27085e6918f46a0debcbab50a06ad6588",
+  );
+  const at = { nowSeconds: SURFACE_NOW };
+
+  it("matches Queek's signer byte for byte, surface included", () => {
+    expect(signProxyQuery(SURFACE_PATH, DASHBOARD, SURFACE_SECRET)).toBe(DASHBOARD.sig);
+    expect(signProxyQuery(SURFACE_PATH, STOREFRONT, SURFACE_SECRET)).toBe(STOREFRONT.sig);
+  });
+
+  it("returns the signed surface from a verified query", () => {
+    expect(verifyProxyQueryDetailed(SURFACE_PATH, DASHBOARD, [SURFACE_SECRET], at)).toEqual({
+      ok: true,
+      surface: "dashboard",
+    });
+  });
+
+  it("lets a handler require a surface, and refuses a genuine call signed for another", () => {
+    const options = { ...at, expectedSurface: "dashboard" } as const;
+    expect(verifyProxyQuery(SURFACE_PATH, DASHBOARD, [SURFACE_SECRET], options)).toBe(true);
+    expect(verifyProxyQueryDetailed(SURFACE_PATH, STOREFRONT, [SURFACE_SECRET], options)).toEqual({
+      ok: false,
+      reason: "surface_mismatch",
+    });
+  });
+
+  it("refuses a surface changed after signing, and a missing surface when one is required", () => {
+    const spoofed = { ...STOREFRONT, surface: "dashboard" };
+    expect(
+      verifyProxyQueryDetailed(SURFACE_PATH, spoofed, [SURFACE_SECRET], {
+        ...at,
+        expectedSurface: "dashboard",
+      }),
+    ).toEqual({ ok: false, reason: "signature_mismatch" });
+    const { surface: _drop, ...unsigned } = DASHBOARD;
+    const sig = signProxyQuery(SURFACE_PATH, unsigned, SURFACE_SECRET);
+    expect(
+      verifyProxyQueryDetailed(SURFACE_PATH, { ...unsigned, sig }, [SURFACE_SECRET], {
+        ...at,
+        expectedSurface: "dashboard",
+      }),
+    ).toEqual({ ok: false, reason: "surface_mismatch" });
+    expect(verifyProxyQuery(SURFACE_PATH, { ...unsigned, sig }, [SURFACE_SECRET], at)).toBe(true);
+  });
+
+  it("answers 403 for a surface mismatch in the store-backed layer, and keeps the jti unused", async () => {
+    const store = new SqliteInstallationStore({ path: ":memory:", storeKey: STORE_KEY });
+    store.saveInstallation(record({ installationPid: "55", proxySecret: SURFACE_SECRET }));
+    const input = { path: SURFACE_PATH, query: STOREFRONT };
+    expect(await verifyProxyDelivery(input, { store, ...at, expectedSurface: "dashboard" })).toEqual({
+      ok: false,
+      reason: "surface_mismatch",
+      status: 403,
+    });
+    const retried = await verifyProxyDelivery(input, { store, ...at, expectedSurface: "storefront" });
+    expect(retried.ok).toBe(true);
+    if (retried.ok) expect(retried.surface).toBe("storefront");
+  });
+
+  it("never hands a surface=ai call to a storefront or dashboard responder", async () => {
+    const store = new SqliteInstallationStore({ path: ":memory:", storeKey: STORE_KEY });
+    store.saveInstallation(record({ installationPid: "55", proxySecret: SURFACE_SECRET }));
+    const params = { ...DASHBOARD, surface: "ai" };
+    const query = { ...params, sig: signProxyQuery(SURFACE_PATH, params, SURFACE_SECRET) };
+    let reached = false;
+    const response = await handleProxyRequest(
+      new Request(`http://localhost/proxy/x?${new URLSearchParams(query)}`),
+      { store, path: SURFACE_PATH, ...at },
+      () => {
+        reached = true;
+        return Response.json({ ok: true });
+      },
+    );
+    expect(response.status).toBe(403);
+    expect(reached).toBe(false);
+  });
+});
+
+describe("Queek AI read tools (handleAiToolRequest, createAiToolHandler)", () => {
+  const SUBPATH = "booking";
+  const secrets = (kid: string) => (kid === "424242" ? [BACKEND_SECRET] : []);
+
+  /** A signed `GET ai/{tool}` URL as Queek sends it. */
+  function toolUrl(tool: string, surface: string, params: Record<string, string> = {}): string {
+    const signed: Record<string, string> = {
+      ...params,
+      surface,
+      actor_role: "owner",
+      shop: "store_xyz",
+      ts: String(NOW),
+      jti: "ai-jti-1",
+      kid: "424242",
+    };
+    const query = { ...signed, sig: signProxyQuery(`/apps/${SUBPATH}/ai/${tool}`, signed, BACKEND_SECRET) };
+    return `http://localhost/proxy/ai/${tool}?${new URLSearchParams(query)}`;
+  }
+
+  function call(tool: string, url: string, tools: Record<string, AiToolHandler>) {
+    return handleAiToolRequest(new Request(url), tool, { subpath: SUBPATH, secrets, tools, nowSeconds: NOW });
+  }
+
+  it("serves a declared tool to a signed surface=ai call: an object, the call's role and inputs", async () => {
+    let seen: {
+      tool: string;
+      actorRole: string;
+      days: string | undefined;
+      kid: string;
+      shop: string;
+    } | null = null;
+    const tools: Record<string, AiToolHandler> = {
+      upcoming_bookings: (toolCall) => {
+        seen = {
+          tool: toolCall.tool,
+          actorRole: toolCall.actorRole,
+          days: toolCall.params.days,
+          kid: toolCall.kid,
+          shop: toolCall.shop,
+        };
+        return { rows: [{ date: "2026-10-31", service: "Wash" }] };
+      },
+    };
+    const response = await call(
+      "upcoming_bookings",
+      toolUrl("upcoming_bookings", "ai", { days: "3" }),
+      tools,
+    );
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Cache-Control")).toContain("no-store");
+    expect(await response.json()).toEqual({ rows: [{ date: "2026-10-31", service: "Wash" }] });
+    expect(seen).toEqual({
+      tool: "upcoming_bookings",
+      actorRole: "owner",
+      days: "3",
+      kid: "424242",
+      shop: "store_xyz",
+    });
+  });
+
+  it("refuses an undeclared tool, and a storefront or dashboard call at the tool path (403)", async () => {
+    const tools: Record<string, AiToolHandler> = { upcoming_bookings: () => ({ rows: [] }) };
+    for (const tool of ["delete_everything", "constructor", "__proto__", "toString"]) {
+      expect((await call(tool, toolUrl(tool, "ai"), tools)).status).toBe(403);
+    }
+    for (const surface of ["storefront", "dashboard"]) {
+      const crossed = await call("upcoming_bookings", toolUrl("upcoming_bookings", surface), tools);
+      expect(crossed.status).toBe(403);
+      expect(await crossed.json()).toEqual({ ok: false, error: "surface_mismatch" });
+    }
+  });
+
+  it("answers 401 for a forged signature, a stale call and an unknown installation, and never reaches the tool", async () => {
+    let reached = false;
+    const tools: Record<string, AiToolHandler> = {
+      upcoming_bookings: () => {
+        reached = true;
+        return { rows: [] };
+      },
+    };
+    const forged = new URL(toolUrl("upcoming_bookings", "ai"));
+    forged.searchParams.set("sig", "0".repeat(64));
+    expect((await call("upcoming_bookings", forged.toString(), tools)).status).toBe(401);
+
+    const stale = await handleAiToolRequest(
+      new Request(toolUrl("upcoming_bookings", "ai")),
+      "upcoming_bookings",
+      {
+        subpath: SUBPATH,
+        secrets,
+        tools,
+        nowSeconds: NOW + 3600,
+      },
+    );
+    expect(stale.status).toBe(401);
+
+    const unknown = await handleAiToolRequest(
+      new Request(toolUrl("upcoming_bookings", "ai")),
+      "upcoming_bookings",
+      {
+        subpath: SUBPATH,
+        secrets: () => [],
+        tools,
+        nowSeconds: NOW,
+      },
+    );
+    expect(unknown.status).toBe(401);
+    expect(await unknown.json()).toEqual({ ok: false, error: "missing_secret" });
+    expect(reached).toBe(false);
+  });
+
+  it("answers an object, never a bare array or a scalar (500 invalid_tool_output)", async () => {
+    const tools = {
+      bare: () => [{ date: "2026-10-31" }],
+      scalar: () => 7,
+      nothing: () => null,
+    } as unknown as Record<string, AiToolHandler>;
+    for (const tool of Object.keys(tools)) {
+      const response = await call(tool, toolUrl(tool, "ai"), tools);
+      expect(response.status).toBe(500);
+      expect(await response.json()).toEqual({ ok: false, error: "invalid_tool_output" });
+    }
+    // The type already refuses a bare array.
+    // @ts-expect-error an array is not an AiToolOutput
+    const typed: AiToolHandler = () => [];
+    expect(typed).toBeTypeOf("function");
+  });
+
+  it("serves GET only", async () => {
+    const response = await handleAiToolRequest(
+      new Request(toolUrl("upcoming_bookings", "ai"), { method: "POST" }),
+      "upcoming_bookings",
+      { subpath: SUBPATH, secrets, tools: { upcoming_bookings: () => ({ rows: [] }) }, nowSeconds: NOW },
+    );
+    expect(response.status).toBe(405);
+  });
+
+  it("mounts under /ai with the hono wrapper", async () => {
+    const app = createAiToolHandler({
+      subpath: SUBPATH,
+      secrets,
+      nowSeconds: NOW,
+      tools: { upcoming_bookings: () => ({ rows: [{ service: "Wash" }] }) },
+    });
+    const url = new URL(toolUrl("upcoming_bookings", "ai"));
+    const response = await app.request(`/upcoming_bookings${url.search}`);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ rows: [{ service: "Wash" }] });
   });
 });

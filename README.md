@@ -99,7 +99,7 @@ The handlers come in three layers that behave identically:
 
 1. `handleInstallDelivery(input, options)` and `handleWebhookDelivery(input, options)` take raw body bytes plus headers and return `{ status, body }`. They use no request or response types, so any framework works.
 2. `handleInstallRequest(request, options)` and `handleWebhookRequest(request, options)` adapt a Web `Request` to a `Response`.
-3. `createInstallHandlers`, `createWebhookHandler` and `createProxyHandler` from `@usequeek/app-sdk/hono`.
+3. `createInstallHandlers`, `createWebhookHandler`, `createProxyHandler` and `createAiToolHandler` from `@usequeek/app-sdk/hono`.
 
 ### Status codes
 
@@ -429,6 +429,73 @@ export async function GET(request: Request) {
 
 The canonical string is `path`, `shop`, `ts` and the sorted, percent-encoded query pairs (without `sig`), joined with newlines. The signature is a hex HMAC-SHA256 keyed with the full `whsec_…` string, with no base64 decode. `kid` selects the installation, timestamps may skew by 5 minutes, each `jti` is single-use, and only `GET` is served. With Hono, mount `createProxyHandler({ store, path, onVerified })`.
 
+Queek also signs a `surface` on every proxy call: `storefront` (a shopper), `dashboard` (your merchant page) or `ai` (Queek AI). Only Queek sets it, and it is covered by the signature, so a shopper cannot choose it. A handler that serves merchant data must pass `expectedSurface: "dashboard"`, which answers 403 `surface_mismatch` for a genuine call signed for another surface. `handleProxyRequest` never hands a `surface=ai` call to your responder.
+
+## Queek AI tools and actions
+
+Declare an `ai` section (`ManifestAi`) in your manifest and Queek AI, the assistant in the merchant dashboard, can use your app in two small ways. It needs no scope. The merchant approves it with the install, and again when you add or change a tool or action.
+
+```toml
+[ai]
+summary = "Takes bookings for services."
+
+[[ai.tools]]
+key = "upcoming_bookings"
+description = "Upcoming bookings, soonest first."
+
+[[ai.tools.inputs]]
+key = "days"
+type = "integer"
+label = "Days ahead"
+min = 1
+max = 30
+
+[ai.tools.output]
+list = true
+
+[[ai.tools.output.fields]]
+key = "date"
+type = "date"
+
+[[ai.actions]]
+key = "add_date_exception"
+description = "Open the Hours page with a date filled in."
+page = "/admin/hours"
+
+[[ai.actions.inputs]]
+key = "date"
+type = "date"
+label = "Date"
+required = true
+```
+
+Tools read. Queek calls your proxy as a signed `GET ai/{key}` with `surface=ai` and the tool's inputs. Serve them with `handleAiToolRequest(request, tool, { subpath, secrets, tools })`, or mount `createAiToolHandler({ subpath, secrets, tools })` from `@usequeek/app-sdk/hono` at the `ai` segment of your proxy. `secrets(kid)` returns the proxy secrets of that installation, current first:
+
+```ts
+import { createAiToolHandler } from "@usequeek/app-sdk/hono";
+
+app.route(
+  "/proxy/ai",
+  createAiToolHandler({
+    subpath: "booking", // the manifest extensions.proxy.subpath
+    secrets: async (kid) => proxySecretsFor(kid),
+    tools: { upcoming_bookings: async (call) => ({ rows: await upcoming(call.kid, call.params.days) }) },
+  }),
+);
+```
+
+A `surface=ai` call is served only by a declared tool handler (403 otherwise), and a storefront or dashboard call at that path is refused. Answer an object, never a bare array: `{ rows: [...] }` for a list tool (`output.list: true`), the declared fields object otherwise. A handler that answers anything else gets a 500. Return only the declared output fields, because Queek drops the rest. Tool inputs are structured, with no free text. `call.actorRole` is the member's role, never a user id. A tool only reads, so a call replayed inside the 5-minute window replays nothing and the handler does not claim the `jti`.
+
+Actions never write. Queek AI only opens your `page` (a path under your merchant page) with the values filled in, and shows "Opened by Queek AI, check these values before saving" above it. Receive the values with `onAiAction`, stage them in your form, show them editable, and write nothing until the merchant presses your own Save:
+
+```ts
+import { onAiAction } from "@usequeek/app-sdk/browser";
+
+onAiAction(({ action, values }) => stage(action, values), { dashboardOrigin });
+```
+
+`MANIFEST_AI_RESERVED_INPUT_KEYS` lists the input names Queek signs or owns (`sig`, `ts`, `surface`, `order_id` and more), and `isReservedAiInputKey` checks one. A manifest that declares an input with such a name, or any `logged_in_customer_` name, is refused. A setting can opt in to being changed by Queek AI with `ai_editable: true` (`ManifestSetting`, `aiEditableSettingKeys`). A `secret` never can, and each change still needs the merchant's confirmation.
+
 ## Scopes
 
 Apps declare required scopes (granted at install) and optional scopes (requested later, revocable).
@@ -469,7 +536,8 @@ Every export has JSDoc in its type definitions. By module:
 | `install-handlers` | `handleInstallDelivery`, `handleInstallRequest`, `saveResyncedInstallation` |
 | `webhooks` | `handleWebhookDelivery`, `handleWebhookRequest` |
 | `signatures` | `verifyQueekSignature`, `verifyQueekSignatureDetailed`, `signQueekPayload` |
-| `proxy` | `verifyProxyQuery`, `verifyProxyDelivery`, `handleProxyRequest` |
+| `proxy` | `verifyProxyQuery`, `verifyProxyDelivery`, `handleProxyRequest`, `handleAiToolRequest` |
+| `manifest` | `ManifestSetting`, `ManifestAi` and its parts, `aiEditableSettingKeys`, `isReservedAiInputKey` |
 | `store` | `SqliteInstallationStore`, `PostgresInstallationStore`, `createInstallationStore` |
 | `resync`, `background` | `resyncFromQueek`, `runInstallationCatchup`, `detach` |
 | `scopes` | `createInstallationScopesClient`, `AppScopeRequiredError` |

@@ -10,11 +10,17 @@
 
 import { Hono } from "hono";
 import { handleInstallRequest, type InstallHandlerOptions } from "./install-handlers.js";
-import { handleProxyRequest, type ProxyRequestOptions, type ProxyResponder } from "./proxy.js";
+import {
+  type AiToolRequestOptions,
+  handleAiToolRequest,
+  handleProxyRequest,
+  type ProxyRequestOptions,
+  type ProxyResponder,
+} from "./proxy.js";
 import { handleWebhookRequest, type WebhookHandlerOptions } from "./webhooks.js";
 
 export type { InstallCallbacks, InstallHandlerOptions } from "./install-handlers.js";
-export type { ProxyRequestOptions, ProxyResponder } from "./proxy.js";
+export type { AiToolRequestOptions, ProxyRequestOptions, ProxyResponder } from "./proxy.js";
 export type {
   QueekWebhookEnvelope,
   SecretResolution,
@@ -51,5 +57,19 @@ export function createProxyHandler(options: ProxyRequestOptions & { onVerified: 
   const { onVerified, ...requestOptions } = options;
   const app = new Hono();
   app.get("*", (c) => handleProxyRequest(c.req.raw, requestOptions, onVerified));
+  return app;
+}
+
+/**
+ * Mount the Queek AI read tools (`GET /:tool`) — a thin wrapper built ONLY on
+ * `handleAiToolRequest`. Mount it at the `ai` segment of the proxy
+ * (`app.route("/proxy/ai", createAiToolHandler({ subpath, secrets, tools }))`);
+ * `subpath` is the manifest `extensions.proxy.subpath`, `secrets` resolves the
+ * proxy secrets of installation `kid`, and `tools` holds the handlers of the
+ * manifest `ai.tools`.
+ */
+export function createAiToolHandler(options: AiToolRequestOptions): Hono {
+  const app = new Hono();
+  app.get("/:tool", (c) => handleAiToolRequest(c.req.raw, c.req.param("tool"), options));
   return app;
 }
